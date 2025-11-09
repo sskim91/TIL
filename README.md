@@ -5,9 +5,17 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **0개**
+- 총 TIL 개수: **1개**
 
-- 카테고리 수: **0개**
+- 카테고리 수: **1개**
+
+## 📚 카테고리
+
+### python
+
+- [Python은 Call by Value? Call by Reference?](python/call-by-object-reference.md)
+
+
 
 ---
 
