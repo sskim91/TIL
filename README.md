@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **1개**
+- 총 TIL 개수: **2개**
 
 - 카테고리 수: **1개**
 
@@ -14,6 +14,8 @@
 ### python
 
 - [Python은 Call by Value? Call by Reference?](python/call-by-object-reference.md)
+
+- [Python의 *args와 **kwargs 완전 정복](python/kwargs-and-args.md)
 
 
 
