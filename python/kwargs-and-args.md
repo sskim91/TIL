@@ -349,3 +349,4 @@ logger.log("ERROR", "DB 연결 실패",
 - [Python Documentation - More on Defining Functions](https://docs.python.org/3/tutorial/controlflow.html#more-on-defining-functions)
 - [PEP 3102 - Keyword-Only Arguments](https://www.python.org/dev/peps/pep-3102/)
 - [Real Python - *args and **kwargs](https://realpython.com/python-kwargs-and-args/)
+
