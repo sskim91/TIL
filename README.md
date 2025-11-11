@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **2개**
+- 총 TIL 개수: **5개**
 
 - 카테고리 수: **1개**
 
@@ -13,9 +13,15 @@
 
 ### python
 
+- [Python f-string 완전 정복](python/f-string.md)
+
 - [Python은 Call by Value? Call by Reference?](python/call-by-object-reference.md)
 
 - [Python의 *args와 **kwargs 완전 정복](python/kwargs-and-args.md)
+
+- [Python의 __init__과 __all__](python/init-and-all.md)
+
+- [Python의 self 완전 정복](python/self.md)
 
 
 
