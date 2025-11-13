@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **10개**
+- 총 TIL 개수: **11개**
 
 - 카테고리 수: **2개**
 
@@ -16,6 +16,8 @@
 - [Python @dataclass 완전 정복](python/dataclass.md)
 
 - [Python f-string 완전 정복](python/f-string.md)
+
+- [Python 자료형과 간결한 문법 완전 정복](python/python-data-types-and-syntax.md)
 
 - [Python 패키지의 __init__.py](python/__init__.py-package.md)
 
