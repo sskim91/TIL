@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **7개**
+- 총 TIL 개수: **10개**
 
 - 카테고리 수: **2개**
 
@@ -13,9 +13,13 @@
 
 ### python
 
+- [Python @dataclass 완전 정복](python/dataclass.md)
+
 - [Python f-string 완전 정복](python/f-string.md)
 
 - [Python 패키지의 __init__.py](python/__init__.py-package.md)
+
+- [Python에서 데이터베이스 연결하기](python/database-connection.md)
 
 - [Python은 Call by Value? Call by Reference?](python/call-by-object-reference.md)
 
@@ -28,6 +32,8 @@
 
 
 ### security
+
+- [MITM (Man-In-The-Middle) 중간자 공격](security/mitm.md)
 
 - [PII (Personally Identifiable Information)](security/pii.md)
 
