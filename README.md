@@ -5,53 +5,65 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **16개**
+- 총 TIL 개수: **18개**
 
-- 카테고리 수: **3개**
+- 카테고리 수: **5개**
 
 ## 📚 카테고리
 
+### ai
+
+- [Multi-turn Conversation (멀티턴 대화)](ai/Multi-turn-Conversation-멀티턴-대화.md)
+
+
+
 ### java
 
-- [Java 25 (JDK 25) 새로운 기능 완전 정복](java/java-25-new-features.md)
+- [Java 25 (JDK 25) 새로운 기능 완전 정복](java/Java-25-JDK-25-새로운-기능-완전-정복.md)
 
 
 
 ### python
 
-- [Python @dataclass 완전 정복](python/dataclass.md)
+- [Python @dataclass 완전 정복](python/Python-@dataclass-완전-정복.md)
 
-- [Python f-string 완전 정복](python/f-string.md)
+- [Python f-string 완전 정복](python/Python-f-string-완전-정복.md)
 
-- [Python Typing (타입 힌팅)](python/typing.md)
+- [Python Typing (타입 힌팅)](python/Python-Typing-타입-힌팅.md)
 
-- [Python 자료형과 간결한 문법 완전 정복](python/python-data-types-and-syntax.md)
+- [Python 자료형과 간결한 문법 완전 정복](python/Python-자료형과-간결한-문법-완전-정복.md)
 
-- [Python 컬렉션 타입 비교: list[tuple] vs list[dict]](python/collection-types-comparison.md)
+- [Python 컬렉션 타입 비교: list[tuple] vs list[dict]](python/Python-컬렉션-타입-비교:-list[tuple]-vs-list[dict].md)
 
-- [Python 패키지의 __init__.py](python/__init__.py-package.md)
+- [Python 패키지의 __init__.py](python/Python-패키지의-__init__py.md)
 
-- [Python에서 데이터베이스 연결하기](python/database-connection.md)
+- [Python에서 데이터베이스 연결하기](python/Python에서-데이터베이스-연결하기.md)
 
-- [Python은 Call by Value? Call by Reference?](python/call-by-object-reference.md)
+- [Python은 Call by Value? Call by Reference?](python/Python은-Call-by-Value?-Call-by-Reference?.md)
 
-- [Python의 *args와 **kwargs 완전 정복](python/kwargs-and-args.md)
+- [Python의 *args와 **kwargs 완전 정복](python/Python의-*args와-**kwargs-완전-정복.md)
 
-- [Python의 @abstractmethod와 추상 클래스](python/abstractmethod.md)
+- [Python의 @abstractmethod와 추상 클래스](python/Python의-@abstractmethod와-추상-클래스.md)
 
-- [Python의 __init__과 __all__](python/init-and-all.md)
+- [Python의 __init__과 __all__](python/Python의-__init__과-__all__.md)
 
-- [Python의 self 완전 정복](python/self.md)
+- [Python의 self 완전 정복](python/Python의-self-완전-정복.md)
 
-- [Python의 with 문 (Context Manager)](python/with-statement.md)
+- [Python의 with 문 (Context Manager)](python/Python의-with-문-Context-Manager.md)
 
 
 
 ### security
 
-- [MITM (Man-In-The-Middle) 중간자 공격](security/mitm.md)
+- [MITM (Man-In-The-Middle) 중간자 공격](security/MITM-Man-In-The-Middle-중간자-공격.md)
 
-- [PII (Personally Identifiable Information)](security/pii.md)
+- [PII (Personally Identifiable Information)](security/PII-Personally-Identifiable-Information.md)
+
+
+
+### 기타
+
+- [CLAUDE.md](CLAUDE.md)
 
 
 
