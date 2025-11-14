@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **17개**
+- 총 TIL 개수: **19개**
 
-- 카테고리 수: **4개**
+- 카테고리 수: **5개**
 
 ## 📚 카테고리
 
@@ -28,6 +28,8 @@
 - [Python @dataclass 완전 정복](python/Python-@dataclass-완전-정복.md)
 
 - [Python f-string 완전 정복](python/Python-f-string-완전-정복.md)
+
+- [Python TypedDict vs dataclass vs Pydantic 완전 비교](python/Python-TypedDict-vs-dataclass-vs-Pydantic-완전-비교.md)
 
 - [Python Typing (타입 힌팅)](python/Python-Typing-타입-힌팅.md)
 
@@ -58,6 +60,12 @@
 - [MITM (Man-In-The-Middle) 중간자 공격](security/MITM-Man-In-The-Middle-중간자-공격.md)
 
 - [PII (Personally Identifiable Information)](security/PII-Personally-Identifiable-Information.md)
+
+
+
+### 기타
+
+- [CLAUDE.md](CLAUDE.md)
 
 
 

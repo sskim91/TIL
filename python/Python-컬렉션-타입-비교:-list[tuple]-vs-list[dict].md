@@ -1,14 +1,51 @@
 # Python 컬렉션 타입 비교: list[tuple] vs list[dict]
 
-> 복잡한 컬렉션 타입의 실전 활용과 list[tuple], list[dict] 선택 가이드
+복잡한 컬렉션 타입의 실전 활용과 list[tuple], list[dict] 선택 가이드
 
-## 목차
-1. [복잡한 타입 해석하기](#복잡한-타입-해석하기)
-2. [list[tuple] vs list[dict] 핵심 차이](#listtuple-vs-listdict-핵심-차이)
-3. [list[tuple]을 쓰는 실무 상황](#listtuple을-쓰는-실무-상황)
-4. [list[dict]를 쓰는 실무 상황](#listdict를-쓰는-실무-상황)
-5. [결정 가이드](#결정-가이드)
-6. [Java와의 비교](#java와의-비교)
+## 결론부터 말하면
+
+**같은 데이터를 두 가지 방법으로 표현할 수 있습니다:**
+
+```python
+# ========== list[tuple] - 간단하고 가벼움 ==========
+sales_tuple: list[tuple[str, float]] = [
+    ("서울", 1500000.0),
+    ("부산", 980000.0),
+    ("대구", 750000.0)
+]
+
+# 접근: 인덱스 또는 언패킹
+for region, amount in sales_tuple:
+    print(f"{region}: {amount}")
+
+
+# ========== list[dict] - 명확하고 유연함 ==========
+sales_dict: list[dict[str, str | float]] = [
+    {"region": "서울", "sales": 1500000.0},
+    {"region": "부산", "sales": 980000.0},
+    {"region": "대구", "sales": 750000.0}
+]
+
+# 접근: 키 이름으로
+for item in sales_dict:
+    print(f"{item['region']}: {item['sales']}")
+```
+
+**핵심 차이:**
+
+| 특징 | `list[tuple]` | `list[dict]` |
+|------|--------------|--------------|
+| **가독성** | 2-3개 필드까지 OK | 많은 필드에 좋음 |
+| **접근** | `item[0]`, `item[1]` | `item["key"]` |
+| **메모리** | 가벼움 (~50B) | 무거움 (~230B) |
+| **JSON 변환** | 수동 변환 필요 | 바로 가능 |
+| **불변성** | 불변 | 가변 |
+| **실무 용도** | DB/차트/CSV | API/복잡한 데이터 |
+
+**선택 기준:**
+- **필드 2-3개, 순서 중요, 메모리 효율** → `list[tuple]`
+- **필드 4개 이상, JSON 변환, 가독성** → `list[dict]`
+- **헷갈리면?** → `list[dict]` (명확함이 최고)
 
 ---
 
