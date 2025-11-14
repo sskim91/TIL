@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **18개**
+- 총 TIL 개수: **17개**
 
-- 카테고리 수: **5개**
+- 카테고리 수: **4개**
 
 ## 📚 카테고리
 
@@ -58,12 +58,6 @@
 - [MITM (Man-In-The-Middle) 중간자 공격](security/MITM-Man-In-The-Middle-중간자-공격.md)
 
 - [PII (Personally Identifiable Information)](security/PII-Personally-Identifiable-Information.md)
-
-
-
-### 기타
-
-- [CLAUDE.md](CLAUDE.md)
 
 
 
