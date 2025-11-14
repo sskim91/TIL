@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **14개**
+- 총 TIL 개수: **16개**
 
 - 카테고리 수: **3개**
 
@@ -23,7 +23,11 @@
 
 - [Python f-string 완전 정복](python/f-string.md)
 
+- [Python Typing (타입 힌팅)](python/typing.md)
+
 - [Python 자료형과 간결한 문법 완전 정복](python/python-data-types-and-syntax.md)
+
+- [Python 컬렉션 타입 비교: list[tuple] vs list[dict]](python/collection-types-comparison.md)
 
 - [Python 패키지의 __init__.py](python/__init__.py-package.md)
 
