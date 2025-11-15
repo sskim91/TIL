@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **18개**
+- 총 TIL 개수: **20개**
 
 - 카테고리 수: **4개**
 
@@ -32,6 +32,10 @@
 - [Python TypedDict vs dataclass vs Pydantic 완전 비교](python/Python-TypedDict-vs-dataclass-vs-Pydantic-완전-비교.md)
 
 - [Python Typing (타입 힌팅)](python/Python-Typing-타입-힌팅.md)
+
+- [Python 내장함수 실무 활용 가이드](python/Python-내장함수-실무-활용-가이드.md)
+
+- [Python 예외 처리 완전 정복](python/Python-예외-처리-완전-정복.md)
 
 - [Python 자료형과 간결한 문법 완전 정복](python/Python-자료형과-간결한-문법-완전-정복.md)
 
