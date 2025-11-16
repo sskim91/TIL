@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **22개**
+- 총 TIL 개수: **24개**
 
 - 카테고리 수: **6개**
 
@@ -35,6 +35,8 @@
 
 - [Python f-string 완전 정복](python/Python-f-string-완전-정복.md)
 
+- [Python pip 패키지 관리 완전 정복](python/Python-pip-패키지-관리-완전-정복.md)
+
 - [Python TypedDict vs dataclass vs Pydantic 완전 비교](python/Python-TypedDict-vs-dataclass-vs-Pydantic-완전-비교.md)
 
 - [Python Typing (타입 힌팅)](python/Python-Typing-타입-힌팅.md)
@@ -48,6 +50,8 @@
 - [Python 컬렉션 타입 비교: list[tuple] vs list[dict]](python/Python-컬렉션-타입-비교:-list[tuple]-vs-list[dict].md)
 
 - [Python 패키지의 __init__.py](python/Python-패키지의-__init__py.md)
+
+- [Python 폐쇄망 환경 패키지 관리](python/Python-폐쇄망-환경-패키지-관리.md)
 
 - [Python에서 데이터베이스 연결하기](python/Python에서-데이터베이스-연결하기.md)
 
