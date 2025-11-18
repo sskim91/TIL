@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **27개**
+- 총 TIL 개수: **29개**
 
-- 카테고리 수: **7개**
+- 카테고리 수: **8개**
 
 ## 📚 카테고리
 
@@ -18,6 +18,12 @@
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
 - [Multi-turn Conversation (멀티턴 대화)](ai/Multi-turn-Conversation-멀티턴-대화.md)
+
+
+
+### computer-science
+
+- [동기-비동기, 블로킹-논블로킹 완전 정복](computer-science/동기-비동기-블로킹-논블로킹-완전-정복.md)
 
 
 
@@ -42,6 +48,8 @@
 ### python
 
 - [Python @dataclass 완전 정복](python/Python-@dataclass-완전-정복.md)
+
+- [Python asyncio 완전 정복](python/Python-asyncio-완전-정복.md)
 
 - [Python f-string 완전 정복](python/Python-f-string-완전-정복.md)
 
