@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **29개**
+- 총 TIL 개수: **30개**
 
-- 카테고리 수: **8개**
+- 카테고리 수: **9개**
 
 ## 📚 카테고리
 
@@ -23,19 +23,25 @@
 
 ### computer-science
 
-- [동기-비동기, 블로킹-논블로킹 완전 정복](computer-science/동기-비동기-블로킹-논블로킹-완전-정복.md)
+- [동기-비동기, 블로킹-논블로킹 완전 정복](computer-science/동기-비동기-블로킹-논블로킹.md)
+
+
+
+### design-pattern
+
+- [Python Factory 패턴 완전 정복](design-pattern/Python-Factory-패턴.md)
 
 
 
 ### jackson
 
-- [Jackson 3.0 완전 정복](jackson/Jackson-3.0-완전-정복.md)
+- [Jackson 3.0 완전 정복](jackson/Jackson-3.0.md)
 
 
 
 ### java
 
-- [Java 25 (JDK 25) 새로운 기능 완전 정복](java/Java-25-JDK-25-새로운-기능-완전-정복.md)
+- [Java 25 (JDK 25) 새로운 기능 완전 정복](java/Java-25-JDK-25-새로운-기능.md)
 
 
 
@@ -47,13 +53,13 @@
 
 ### python
 
-- [Python @dataclass 완전 정복](python/Python-@dataclass-완전-정복.md)
+- [Python @dataclass 완전 정복](python/Python-@dataclass.md)
 
-- [Python asyncio 완전 정복](python/Python-asyncio-완전-정복.md)
+- [Python asyncio 완전 정복](python/Python-asyncio.md)
 
-- [Python f-string 완전 정복](python/Python-f-string-완전-정복.md)
+- [Python f-string 완전 정복](python/Python-f-string.md)
 
-- [Python pip 패키지 관리 완전 정복](python/Python-pip-패키지-관리-완전-정복.md)
+- [Python pip 패키지 관리 완전 정복](python/Python-pip-패키지-관리.md)
 
 - [Python TypedDict vs dataclass vs Pydantic 완전 비교](python/Python-TypedDict-vs-dataclass-vs-Pydantic-완전-비교.md)
 
@@ -61,9 +67,9 @@
 
 - [Python 내장함수 실무 활용 가이드](python/Python-내장함수-실무-활용-가이드.md)
 
-- [Python 예외 처리 완전 정복](python/Python-예외-처리-완전-정복.md)
+- [Python 예외 처리 완전 정복](python/Python-예외-처리.md)
 
-- [Python 자료형과 간결한 문법 완전 정복](python/Python-자료형과-간결한-문법-완전-정복.md)
+- [Python 자료형과 간결한 문법 완전 정복](python/Python-자료형과-간결한-문법.md)
 
 - [Python 컬렉션 타입 비교: list[tuple] vs list[dict]](python/Python-컬렉션-타입-비교:-list[tuple]-vs-list[dict].md)
 
@@ -75,13 +81,13 @@
 
 - [Python은 Call by Value? Call by Reference?](python/Python은-Call-by-Value?-Call-by-Reference?.md)
 
-- [Python의 *args와 **kwargs 완전 정복](python/Python의-*args와-**kwargs-완전-정복.md)
+- [Python의 *args와 **kwargs 완전 정복](python/Python의-*args와-**kwargs.md)
 
 - [Python의 @abstractmethod와 추상 클래스](python/Python의-@abstractmethod와-추상-클래스.md)
 
 - [Python의 __init__과 __all__](python/Python의-__init__과-__all__.md)
 
-- [Python의 self 완전 정복](python/Python의-self-완전-정복.md)
+- [Python의 self 완전 정복](python/Python의-self.md)
 
 - [Python의 with 문 (Context Manager)](python/Python의-with-문-Context-Manager.md)
 
@@ -97,7 +103,7 @@
 
 ### spring
 
-- [Spring Framework 7.0 완전 정복](spring/Spring-Framework-7.0-완전-정복.md)
+- [Spring Framework 7.0 완전 정복](spring/Spring-Framework-7.0.md)
 
 
 
