@@ -1,4 +1,4 @@
-# Python asyncio 완전 정복
+# Python asyncio
 
 Python 비동기 프로그래밍의 핵심 asyncio 라이브러리 완벽 가이드
 

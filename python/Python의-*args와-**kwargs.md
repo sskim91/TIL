@@ -1,4 +1,4 @@
-# Python의 *args와 **kwargs 완전 정복
+# Python의 *args와 **kwargs
 
 Python에서 가변 인자를 받는 `*args`와 `**kwargs`에 대해 알아봅니다.
 

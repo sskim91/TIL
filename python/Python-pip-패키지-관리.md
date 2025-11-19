@@ -1,4 +1,4 @@
-# Python pip 패키지 관리 완전 정복
+# Python pip 패키지 관리
 
 Python 패키지 관리 도구 pip의 사용법과 실무 베스트 프랙티스를 정리합니다.
 

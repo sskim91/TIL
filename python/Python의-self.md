@@ -1,4 +1,4 @@
-# Python의 self 완전 정복
+# Python의 self
 
 Python 클래스에서 사용하는 `self`에 대해 알아봅니다.
 

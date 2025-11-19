@@ -1,4 +1,4 @@
-# Python f-string 완전 정복
+# Python f-string
 
 Python 3.6+에서 사용하는 f-string (formatted string literals)에 대해 알아봅니다.
 

@@ -1,4 +1,4 @@
-# Python Factory 패턴 완전 정복
+# Python Factory 패턴
 
 객체 생성 로직을 캡슐화하여 코드의 유연성과 확장성을 높이는 생성 패턴
 

@@ -1,4 +1,4 @@
-# Spring Framework 7.0 완전 정복
+# Spring Framework 7.0
 
 Spring Framework 7.0 GA 릴리즈의 주요 변경사항과 새로운 기능을 정리합니다.
 

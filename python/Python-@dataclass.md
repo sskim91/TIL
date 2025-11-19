@@ -1,4 +1,4 @@
-# Python @dataclass 완전 정복
+# Python @dataclass
 
 Python 3.7+에서 도입된 `@dataclass` 데코레이터에 대해 알아봅니다.
 
