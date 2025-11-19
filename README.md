@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **30개**
+- 총 TIL 개수: **31개**
 
 - 카테고리 수: **9개**
 
@@ -86,6 +86,8 @@
 - [Python의 @abstractmethod와 추상 클래스](python/Python의-@abstractmethod와-추상-클래스.md)
 
 - [Python의 __init__과 __all__](python/Python의-__init__과-__all__.md)
+
+- [Python의 Lambda 함수 (익명 함수)](python/Python의-Lambda-함수-익명-함수.md)
 
 - [Python의 self](python/Python의-self.md)
 
