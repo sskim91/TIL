@@ -5,15 +5,17 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **32개**
+- 총 TIL 개수: **34개**
 
-- 카테고리 수: **9개**
+- 카테고리 수: **10개**
 
 ## 📚 카테고리
 
 ### ai
 
 - [AI Agent와 Agentic AI](ai/AI Agent와 Agentic AI.md)
+
+- [Google Antigravity: 에이전트 우선 개발 환경](ai/Google-Antigravity-에이전트-우선-개발-환경.md)
 
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
@@ -108,6 +110,12 @@
 - [Spring Boot에서 JSP를 권장하지 않는 이유](spring/Spring-Boot에서-JSP를-권장하지-않는-이유.md)
 
 - [Spring Framework 7.0](spring/Spring-Framework-7.0.md)
+
+
+
+### 기타
+
+- [CLAUDE.md](CLAUDE.md)
 
 
 
