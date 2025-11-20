@@ -13,7 +13,7 @@
 
 ### ai
 
-- [AI Agent와 Agentic AI](ai/AI Agent와 Agentic AI.md)
+- [AI Agent와 Agentic AI](ai/AI-Agent와-Agentic-AI.md)
 
 - [Google Antigravity: 에이전트 우선 개발 환경](ai/Google-Antigravity-에이전트-우선-개발-환경.md)
 
