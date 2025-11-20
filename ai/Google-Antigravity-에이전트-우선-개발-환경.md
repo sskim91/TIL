@@ -20,9 +20,9 @@ flowchart LR
         Tools --> Auto[자동 계획 + 실행 + 검증]
     end
 
-    style 기존 fill:#ffe6e6
-    style Anti fill:#e6f7ff
-    style Agent fill:#91d5ff
+    style 기존 fill:#D32F2F,color:#fff
+    style Anti fill:#1565C0,color:#fff
+    style Agent fill:#0288D1,color:#fff
 ```
 
 **핵심 변화**:
@@ -72,11 +72,11 @@ graph TB
     SelfImprove --> Knowledge[Knowledge Base]
     SelfImprove --> Learning[프로젝트 학습]
 
-    style Agent fill:#91d5ff
-    style Trust fill:#b7eb8f
-    style Autonomy fill:#ffd666
-    style Feedback fill:#ff9c6e
-    style SelfImprove fill:#d3adf7
+    style Agent fill:#0288D1,color:#fff
+    style Trust fill:#388E3C,color:#fff
+    style Autonomy fill:#F57C00,color:#fff
+    style Feedback fill:#E64A19,color:#fff
+    style SelfImprove fill:#7B1FA2,color:#fff
 ```
 
 ### 2.1 Trust (신뢰)
@@ -283,10 +283,10 @@ flowchart TD
     GPT --> Result
     Auto --> Result
 
-    style Gemini fill:#91d5ff
-    style Claude fill:#d3adf7
-    style GPT fill:#ffd666
-    style Auto fill:#b7eb8f
+    style Gemini fill:#0288D1,color:#fff
+    style Claude fill:#7B1FA2,color:#fff
+    style GPT fill:#F57C00,color:#fff
+    style Auto fill:#388E3C,color:#fff
 ```
 
 ### 4.1 지원 모델
