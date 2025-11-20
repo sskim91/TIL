@@ -187,6 +187,17 @@ f"이름: {name}, 나이: {age}"
   - 상태 전이 (State A → State B)
   - 복잡한 조건 분기
 - **원칙**: 코드 블록으로 설명하는 것보다 다이어그램이 더 명확할 때만 사용
+- **⚠️ CRITICAL - 가독성 있는 스타일 사용**:
+  - mermaid 다이어그램에 스타일을 사용할 수 있지만, **글씨가 명확히 보여야 함**
+  - **절대 금지**: 밝은 배경색만 지정 (자동으로 흰색 글씨가 되어 안 보임)
+  - **권장 방법**:
+    1. **테두리만 색상**: `style NodeName stroke:#2196F3,stroke-width:3px` (배경 투명, 글씨 검정)
+    2. **어두운 배경 + 흰색 글씨**: `style NodeName fill:#1976D2,color:#fff`
+    3. **밝은 배경 + 검은 글씨**: `style NodeName fill:#E3F2FD,color:#000`
+  - ❌ 나쁜 예: `style CF fill:#e1f5ff` (밝은 배경에 자동 흰색 글씨 → 안 보임)
+  - ❌ 나쁜 예: `style CF fill:#333,color:#666` (어두운 배경에 어두운 글씨 → 안 보임)
+  - ✅ 좋은 예: `style CF stroke:#2196F3,stroke-width:3px` (테두리만 강조)
+  - ✅ 좋은 예: `style CF fill:#1565C0,color:#fff` (어두운 파란색 배경 + 흰 글씨)
 
 ### Common Patterns Found in Existing Docs
 
