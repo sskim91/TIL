@@ -715,9 +715,9 @@ Thymeleaf:  평균 11ms
 결론: 성능 차이 없음, 오히려 초기 응답은 Thymeleaf가 빠름
 ```
 
-## 11. 참고 자료
+## 11. 출처
 
-- [Spring Boot Reference - JSP Limitations](https://docs.spring.io/spring-boot/reference/web/servlet.html#web.servlet.embedded-container.jsp-limitations)
-- [Thymeleaf 공식 문서](https://www.thymeleaf.org/documentation.html)
-- [Spring Boot - Template Engines](https://docs.spring.io/spring-boot/docs/current/reference/html/web.html#web.servlet.spring-mvc.template-engines)
-- [Migrating from JSP to Thymeleaf](https://www.thymeleaf.org/doc/articles/fromjsp.html)
+- [Spring Boot Reference - JSP Limitations](https://docs.spring.io/spring-boot/reference/web/servlet.html#web.servlet.embedded-container.jsp-limitations) - Spring Boot 공식 문서
+- [Spring Boot - Template Engines](https://docs.spring.io/spring-boot/docs/current/reference/html/web.html#web.servlet.spring-mvc.template-engines) - Spring Boot 공식 문서
+- [Thymeleaf 공식 문서](https://www.thymeleaf.org/documentation.html) - Thymeleaf 공식 사이트
+- [Migrating from JSP to Thymeleaf](https://www.thymeleaf.org/doc/articles/fromjsp.html) - Thymeleaf 마이그레이션 가이드
