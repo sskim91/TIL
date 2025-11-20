@@ -118,7 +118,7 @@ The script (`scripts/generate_readme.py`):
 ## 실전/실무 활용
 ```
 
-### **"## 결론부터 말하면" 섹션 (MANDATORY)**
+### **결론부터 말하면 섹션 (MANDATORY)**
 
 **이 섹션은 필수이며, 문서의 가장 중요한 부분입니다!**
 
@@ -147,7 +147,6 @@ f"이름: {name}, 나이: {age}"
 # 다른 방법들 (구식)
 "이름: %s, 나이: %d" % (name, age)
 "이름: {}, 나이: {}".format(name, age)
-```
 ```
 
 ```markdown
