@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **31개**
+- 총 TIL 개수: **32개**
 
 - 카테고리 수: **9개**
 
@@ -104,6 +104,8 @@
 
 
 ### spring
+
+- [Spring Boot에서 JSP를 권장하지 않는 이유](spring/Spring-Boot에서-JSP를-권장하지-않는-이유.md)
 
 - [Spring Framework 7.0](spring/Spring-Framework-7.0.md)
 
