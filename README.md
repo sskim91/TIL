@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **34개**
+- 총 TIL 개수: **35개**
 
-- 카테고리 수: **10개**
+- 카테고리 수: **11개**
 
 ## 📚 카테고리
 
@@ -44,6 +44,12 @@
 ### java
 
 - [Java 25 (JDK 25) 새로운 기능](java/Java-25-JDK-25-새로운-기능.md)
+
+
+
+### javascript
+
+- [JavaScript 프로토타입 (Prototype)](javascript/JavaScript-프로토타입-Prototype.md)
 
 
 
