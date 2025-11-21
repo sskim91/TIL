@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **36개**
+- 총 TIL 개수: **40개**
 
 - 카테고리 수: **12개**
 
@@ -16,6 +16,8 @@
 - [AI Agent와 Agentic AI](ai/AI-Agent와-Agentic-AI.md)
 
 - [Google Antigravity: 에이전트 우선 개발 환경](ai/Google-Antigravity-에이전트-우선-개발-환경.md)
+
+- [LangChain Agent 생성 및 사용법](ai/LangChain-Agent-생성-및-사용법.md)
 
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
@@ -50,6 +52,8 @@
 ### java
 
 - [Java 25 (JDK 25) 새로운 기능](java/Java-25-JDK-25-새로운-기능.md)
+
+- [JSpecify - Java의 Null 안전성 표준](java/JSpecify-Java의-Null-안전성-표준.md)
 
 
 
@@ -120,6 +124,10 @@
 ### spring
 
 - [Spring Boot에서 JSP를 권장하지 않는 이유](spring/Spring-Boot에서-JSP를-권장하지-않는-이유.md)
+
+- [Spring Framework 7 - API Versioning](spring/Spring-Framework-7-API-Versioning.md)
+
+- [Spring Framework 7 - HTTP Service Client Enhancements](spring/Spring-Framework-7-HTTP-Service-Client.md)
 
 - [Spring Framework 7.0](spring/Spring-Framework-7.0.md)
 
