@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **40개**
+- 총 TIL 개수: **41개**
 
-- 카테고리 수: **12개**
+- 카테고리 수: **13개**
 
 ## 📚 카테고리
 
@@ -130,6 +130,12 @@
 - [Spring Framework 7 - HTTP Service Client Enhancements](spring/Spring-Framework-7-HTTP-Service-Client.md)
 
 - [Spring Framework 7.0](spring/Spring-Framework-7.0.md)
+
+
+
+### web
+
+- [KaTeX Quirks Mode 경고 해결](web/KaTeX-Quirks-Mode-경고-해결.md)
 
 
 
