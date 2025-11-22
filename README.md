@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **41개**
+- 총 TIL 개수: **42개**
 
 - 카테고리 수: **13개**
 
@@ -14,6 +14,8 @@
 ### ai
 
 - [AI Agent와 Agentic AI](ai/AI-Agent와-Agentic-AI.md)
+
+- [AI 코딩 어시스턴트 컨텍스트 파일 작성 가이드](ai/AI-코딩-어시스턴트-컨텍스트-파일-작성-가이드.md)
 
 - [Google Antigravity: 에이전트 우선 개발 환경](ai/Google-Antigravity-에이전트-우선-개발-환경.md)
 
