@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **43개**
+- 총 TIL 개수: **44개**
 
-- 카테고리 수: **12개**
+- 카테고리 수: **13개**
 
 ## 📚 카테고리
 
@@ -44,6 +44,12 @@
 ### design-pattern
 
 - [Python Factory 패턴](design-pattern/Python-Factory-패턴.md)
+
+
+
+### frontend
+
+- [프론트엔드 개발의 변화](frontend/프론트엔드-개발의-변화.md)
 
 
 
