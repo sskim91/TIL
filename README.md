@@ -7,7 +7,7 @@
 
 - 총 TIL 개수: **42개**
 
-- 카테고리 수: **13개**
+- 카테고리 수: **12개**
 
 ## 📚 카테고리
 
@@ -87,6 +87,8 @@
 
 - [Python 내장함수 실무 활용 가이드](python/Python-내장함수-실무-활용-가이드.md)
 
+- [Python 버전 선택 가이드](python/Python-버전-선택-가이드.md)
+
 - [Python 예외 처리](python/Python-예외-처리.md)
 
 - [Python 자료형과 간결한 문법](python/Python-자료형과-간결한-문법.md)
@@ -138,12 +140,6 @@
 ### web
 
 - [KaTeX Quirks Mode 경고 해결](web/KaTeX-Quirks-Mode-경고-해결.md)
-
-
-
-### 기타
-
-- [CLAUDE.md](CLAUDE.md)
 
 
 

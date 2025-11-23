@@ -46,12 +46,23 @@ def generate_readme() -> None:
     """README.md 생성"""
     base_path: Path = Path(__file__).parent.parent
 
-    # README.md와 scripts 폴더의 파일들은 제외
+    # 제외할 파일 목록 (에이전트 설정 파일 등)
+    excluded_files = {
+        "README.md",
+        "CLAUDE.md",              # Claude Code 설정
+        "AGENTS.md",              # GitHub Copilot 에이전트 설정
+        "agents.md",              # GitHub Copilot 에이전트 설정 (소문자)
+        "GEMINI.md",              # Google Gemini 설정
+        "copilot-instructions.md",# GitHub Copilot 설정
+    }
+
+    # README.md, scripts 폴더, 에이전트 설정 파일들 제외
     md_files = [
         f
         for f in base_path.rglob("*.md")
-        if f.name != "README.md"
+        if f.name not in excluded_files
         and "scripts" not in f.parts
+        and ".github" not in f.parts  # .github 폴더 내 설정 파일 제외
         and not f.name.startswith(".")
     ]
 
