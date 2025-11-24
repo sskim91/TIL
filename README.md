@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **46개**
+- 총 TIL 개수: **48개**
 
 - 카테고리 수: **13개**
 
@@ -65,7 +65,11 @@
 
 - [Java 25 (JDK 25) 새로운 기능](java/Java-25-JDK-25-새로운-기능.md)
 
+- [JSch-Java SSH 라이브러리의 진화](java/JSch-Java-SSH-라이브러리의-진화.md)
+
 - [JSpecify - Java의 Null 안전성 표준](java/JSpecify-Java의-Null-안전성-표준.md)
+
+- [sshj-현대적인 Java SSH 라이브러리](java/sshj-현대적인-Java-SSH-라이브러리.md)
 
 
 
