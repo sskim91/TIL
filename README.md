@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **48개**
+- 총 TIL 개수: **49개**
 
 - 카테고리 수: **13개**
 
@@ -136,6 +136,8 @@
 - [MITM (Man-In-The-Middle) 중간자 공격](security/MITM-Man-In-The-Middle-중간자-공격.md)
 
 - [PII (Personally Identifiable Information)](security/PII-Personally-Identifiable-Information.md)
+
+- [SSH 터널링을 통한 안전한 데이터베이스 접속](security/SSH-터널링을-통한-안전한-데이터베이스-접속.md)
 
 
 
