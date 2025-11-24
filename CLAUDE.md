@@ -149,9 +149,37 @@ public class OrderService {
 
 ## 5. 시각화 가이드
 
-### 5.1 mermaid를 우선 사용하라
+### 5.1 ASCII 박스 금지, 테이블 또는 mermaid 사용
 
-**ASCII 박스(`┌──┐`, `───▶`)보다 mermaid 다이어그램을 먼저 고려하라.**
+**ASCII 박스(`┌──┐`, `───▶`, `│`, `├──┤`)를 사용하지 마라.**
+
+한글과 영문의 폭이 달라서 정렬이 깨지고, 렌더링 환경마다 다르게 보인다.
+
+```markdown
+❌ Bad: ASCII 박스 (정렬 깨짐)
+┌─────────────────────────────────────────┐
+│  Upstream: 데이터를 보내는 방향          │  ← 한글/영문 폭 차이로 어긋남
+└─────────────────────────────────────────┘
+
+✅ Good: 테이블 (정렬 보장)
+| 용어 | 의미 |
+|------|------|
+| Upstream | 데이터를 보내는 방향 |
+
+✅ Good: mermaid (시각적으로 표현)
+```
+
+**변환 가이드:**
+
+| 기존 ASCII | 변환 대상 |
+|------------|----------|
+| 박스형 정보 나열 | **테이블** |
+| 흐름도, 화살표 | **mermaid flowchart** |
+| 구조도, 계층 | **mermaid flowchart + subgraph** |
+| 시퀀스, 순서 | **mermaid sequenceDiagram** |
+| 단순 목록 | **불릿 포인트** 또는 **테이블** |
+
+### 5.2 mermaid 다이어그램 타입
 
 | 상황 | 다이어그램 타입 |
 |------|-----------------|
@@ -160,6 +188,7 @@ public class OrderService {
 | 클래스 구조, 아키텍처 | `classDiagram` |
 | DB 스키마, 엔티티 관계 | `erDiagram` |
 | 역사/타임라인 | `timeline` |
+| 네트워크 패킷 구조 | `packet-beta` |
 
 **시각화가 유용한 경우:**
 - Before/After 비교
@@ -167,7 +196,7 @@ public class OrderService {
 - 시스템 아키텍처
 - 상태 전이
 
-### 5.2 mermaid 스타일 규칙
+### 5.3 mermaid 스타일 규칙
 
 **글씨가 반드시 보여야 한다.**
 
@@ -223,6 +252,21 @@ public void example() { }
 
 - [Spring Framework Documentation](https://docs.spring.io/...) - 공식 문서
 - [블로그 제목](https://blog.example.com/article)
+```
+
+### 6.4 Bold 처리 시 특수문자 주의
+
+`**` 바로 앞/뒤에 괄호`)`, 따옴표`"` 등 특수문자가 붙으면 일부 마크다운 파서에서 bold가 적용되지 않는다.
+
+```markdown
+❌ Bad:  **비대칭(Asymmetric)**이다    → 괄호 뒤 **가 인식 안 됨
+✅ Good: **비대칭**(Asymmetric)이다    → 괄호를 bold 밖으로
+
+❌ Bad:  **Step 1: 설명 (보충)**
+✅ Good: **Step 1:** 설명 (보충)
+
+❌ Bad:  **"인용문"**이다              → 따옴표가 ** 안에 있음
+✅ Good: "**인용문**"이다              → 따옴표를 bold 밖으로
 ```
 
 ---
@@ -285,5 +329,6 @@ mkdir -p new-category
 - [ ] 스토리텔링으로 풀어갔는가?
 - [ ] Before/After 비교가 있는가?
 - [ ] 복잡한 개념은 mermaid로 시각화했는가?
+- [ ] **ASCII 박스 대신 테이블/mermaid를 사용했는가?**
 - [ ] 출처를 명시했는가?
 - [ ] 파일명이 제목과 일치하는가?
