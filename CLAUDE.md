@@ -1,347 +1,290 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+이 저장소에서 Claude Code가 작업할 때 따라야 할 가이드라인입니다.
 
-## ⚠️ Important Rules
+---
 
-**DO NOT do the following unless explicitly requested by the user:**
+## 1. 절대 규칙
 
-1. **DO NOT run `python scripts/generate_readme.py`** - Do not update README.md
-2. **DO NOT run git commands** (`git add`, `git commit`, `git push`) - Wait for user's explicit request
-3. **DO NOT modify README.md** - It is auto-generated and should only be updated when the user asks
+**사용자가 명시적으로 요청하지 않는 한 다음 행동을 하지 마라:**
 
-The user will decide when to update the README and commit changes.
+| 금지 행동 | 이유 |
+|-----------|------|
+| `python scripts/generate_readme.py` 실행 | README.md는 GitHub Actions가 자동 생성 |
+| `git add`, `git commit`, `git push` 실행 | 사용자가 직접 커밋 시점을 결정 |
+| `README.md` 수정 | 자동 생성 파일이므로 수동 편집 금지 |
 
-## Repository Overview
+---
 
-This is a **TIL (Today I Learned)** repository containing technical documentation and learning notes, primarily focused on Python, Java, and security topics. All documentation is written in Korean with code examples and comparisons to Java for developers transitioning between languages.
+## 2. 저장소 개요
 
-## Repository Structure
+**TIL (Today I Learned)** 저장소. 주로 Python, Java, Spring, 보안 관련 기술 문서를 담고 있다.
+
+**핵심 특징:**
+- 모든 설명은 **한국어**, 코드/기술 용어는 **영어**
+- 주요 독자는 **Java 개발자** → Python 개념 설명 시 Java 비교 포함
+- README.md는 GitHub Actions가 자동 생성
 
 ```
 TIL/
-├── python/          # Python 언어 학습 노트
-├── java/            # Java 언어 학습 노트
+├── python/          # Python 학습 노트
+├── java/            # Java 학습 노트
+├── spring/          # Spring Framework 학습 노트
 ├── security/        # 보안 관련 학습 노트
 ├── ai/              # AI/ML 관련 학습 노트
 ├── scripts/         # 자동화 스크립트
-│   └── generate_readme.py
 └── .github/workflows/
-    └── update-readme.yml
 ```
 
-## Automated README Generation
+---
 
-**CRITICAL**: The `README.md` file is **automatically generated** and should **NEVER be manually edited**.
+## 3. 문서 작성 철학
 
-### How It Works
+### 3.1 "왜(Why)"를 항상 설명하라
 
-1. **Trigger**: Any markdown file changes pushed to `main` branch (except README.md itself)
-2. **Process**: GitHub Actions runs `python scripts/generate_readme.py`
-3. **Output**: Auto-commits updated README.md with category index
-
-**Important**: README.md is auto-generated. Never edit it manually.
-
-### README Generation Logic
-
-The script (`scripts/generate_readme.py`):
-- Scans all `*.md` files (excluding README.md and files in `scripts/`)
-- Extracts first `# Title` from each markdown file
-- Categorizes by directory name (e.g., `python/`, `java/`, `security/`)
-- Generates statistics (total TIL count, category count)
-- Sorts categories alphabetically, files by title within each category
-
-### When Creating New TIL Documents
-
-**CRITICAL FILE NAMING RULE**:
-- **파일명은 반드시 첫 번째 제목과 동일하게 작성**
-- 제목에서 특수문자 제거, 공백을 하이픈(-)으로 변환
-- Example: `# Python f-string` → `Python-f-string.md`
-
-**Required Format**:
-```markdown
-# Title Goes Here
-
-> Optional subtitle or description
-
-## Section 1
-...
-```
-
-**Important**:
-- First line MUST start with `# ` (single hash with space)
-- **File name MUST match the first heading** (첫 번째 제목과 파일명 일치 필수)
-- Title extracted from this first heading
-- Category determined by folder location
-- README auto-updates on push to main
-
-**File Naming Examples**:
-```
-# Python Typing (타입 힌팅)
-→ Python-Typing-타입-힌팅.md
-
-# MITM (Man-In-The-Middle) 중간자 공격
-→ MITM-Man-In-The-Middle-중간자-공격.md
-
-# Python의 @abstractmethod와 추상 클래스
-→ Python의-@abstractmethod와-추상-클래스.md
-```
-
-## Documentation Writing Standards
-
-### **CRITICAL: Standard Document Structure**
-
-**모든 TIL 문서는 다음 구조를 따라야 합니다:**
+기술 문서가 "무엇(What)"과 "어떻게(How)"만 설명하면 금방 잊혀진다.
+**"왜 이 기술이 필요한가?", "왜 이렇게 설계되었는가?"**를 설명해야 독자가 진정으로 이해한다.
 
 ```markdown
-# Python의 XXX
-또는
-# Python의 XXX 정리
+❌ Bad: "DI는 의존성을 외부에서 주입하는 패턴입니다"
 
-[한 줄 설명: 무엇에 대한 문서인지]
+✅ Good: "만약 프레임워크 없이 웹 서버를 만든다면?
+         우리가 직접 해야 할 일들이 산더미처럼 쌓인다..."
+```
+
+### 3.2 스토리텔링으로 풀어가라
+
+| 원칙 | 설명 |
+|------|------|
+| **문제 상황부터 시작** | 해결책을 먼저 제시하지 말고, 문제를 먼저 공감하게 하라 |
+| **자연스러운 흐름** | "그렇다면", "이제", "하지만", "왜일까?" 같은 연결어 사용 |
+| **비유와 예시** | 추상적 개념을 구체적으로 (할리우드 원칙, 닭과 달걀) |
+| **"왜일까?" 질문** | 개념 설명 후 독자 스스로 생각하게 유도 |
+
+**문체:**
+- 서술형: "~해보자", "~가 있다", "~이다"
+- 대화체 질문: "왜일까?", "어떻게 될까?"
+- 문단 단위로 풀어서 설명 (한 줄씩 끊지 않음)
+- 섹션 사이에 `---` 구분선으로 챕터 느낌
+
+**Good Example:**
+```markdown
+Spring이 처음 나온 2004년부터 지금까지, 수많은 것들이 바뀌었다.
+XML 설정이 어노테이션으로 바뀌었고, 동기 처리가 리액티브로 확장되었다.
+
+하지만 IoC와 DI는 그대로다. 왜일까?
+
+이것들은 "좋은 객체지향 설계"의 원칙을 코드로 구현한 것이기 때문이다.
+기술은 바뀌어도 좋은 설계의 정의는 바뀌지 않는다.
+```
+
+---
+
+## 4. 문서 구조
+
+### 4.1 필수 구조
+
+```markdown
+# 제목 (예: Python의 XXX, Spring의 XXX)
+
+한 줄 설명
 
 ## 결론부터 말하면
 
-[핵심 내용을 2-3문장으로 요약]
-[Before/After 코드 비교로 즉시 가치 제공]
+[핵심 요약 2-3문장]
+[Before/After 코드 비교]
 
 ## 1. 첫 번째 주제
-
 ### 세부 내용
 
 ## 2. 두 번째 주제
-
 ### 세부 내용
 
-## Java와의 비교 (해당되는 경우)
+---
 
-## 실전/실무 활용
+## 출처
+
+- [출처 제목](URL)
 ```
 
-### **결론부터 말하면 섹션 (MANDATORY)**
+### 4.2 "결론부터 말하면" 섹션 (MANDATORY)
 
-**이 섹션은 필수이며, 문서의 가장 중요한 부분입니다!**
-
-**목적**:
-- 독자가 1분 안에 핵심을 파악할 수 있도록
-- "왜 이게 중요한가?"를 즉시 보여줌
-- Before/After 비교로 실용적 가치 제공
-
-**Good Examples**:
+**이 섹션이 가장 중요하다.** 독자가 1분 안에 핵심을 파악할 수 있어야 한다.
 
 ```markdown
 ## 결론부터 말하면
 
-`self`는 **인스턴스 자기 자신**을 가리키는 참조입니다. (Java의 `this`와 동일)
+**IoC는 "제어권을 넘긴다"는 철학**이고,
+**DI는 그 철학을 구현하는 구체적인 방법**입니다.
+
+// Before: 개발자가 직접 모든 것을 제어
+public class OrderService {
+    public OrderService() {
+        this.paymentGateway = new StripePaymentGateway();  // 강한 결합
+    }
+}
+
+// After: Spring이 제어, 개발자는 선언만
+@Service
+public class OrderService {
+    public OrderService(PaymentGateway paymentGateway) {  // 느슨한 결합
+        this.paymentGateway = paymentGateway;
+    }
+}
 ```
+
+### 4.3 파일명 규칙
+
+**파일명은 반드시 첫 번째 제목과 동일하게 작성**
+
+| 제목 | 파일명 |
+|------|--------|
+| `# Python의 f-string` | `Python의-f-string.md` |
+| `# Spring의 DI와 IoC` | `Spring의-DI와-IoC.md` |
+| `# MITM 중간자 공격` | `MITM-중간자-공격.md` |
+
+- 특수문자 제거, 공백을 하이픈(-)으로 변환
+- 첫 줄은 반드시 `# `로 시작
+
+---
+
+## 5. 시각화 가이드
+
+### 5.1 mermaid를 우선 사용하라
+
+**ASCII 박스(`┌──┐`, `───▶`)보다 mermaid 다이어그램을 먼저 고려하라.**
+
+| 상황 | 다이어그램 타입 |
+|------|-----------------|
+| 워크플로우, 프로세스 | `graph` / `flowchart` |
+| 시간 순서 상호작용 | `sequenceDiagram` |
+| 클래스 구조, 아키텍처 | `classDiagram` |
+| DB 스키마, 엔티티 관계 | `erDiagram` |
+| 역사/타임라인 | `timeline` |
+
+**시각화가 유용한 경우:**
+- Before/After 비교
+- 단계별 프로세스 (1→2→3→4)
+- 시스템 아키텍처
+- 상태 전이
+
+### 5.2 mermaid 스타일 규칙
+
+**글씨가 반드시 보여야 한다.**
 
 ```markdown
-## 결론부터 말하면
+❌ Bad: style Node fill:#e1f5ff          (밝은 배경에 자동 흰색 글씨 → 안 보임)
+❌ Bad: style Node fill:#333,color:#666  (어두운 배경에 어두운 글씨 → 안 보임)
 
-f-string은 **가장 빠르고 읽기 쉬운** 문자열 포매팅 방법입니다.
-
-```python
-# f-string (권장)
-f"이름: {name}, 나이: {age}"
-
-# 다른 방법들 (구식)
-"이름: %s, 나이: %d" % (name, age)
-"이름: {}, 나이: {}".format(name, age)
+✅ Good: style Node stroke:#2196F3,stroke-width:3px  (테두리만 강조)
+✅ Good: style Node fill:#1565C0,color:#fff          (어두운 배경 + 흰 글씨)
+✅ Good: style Node fill:#E3F2FD,color:#000          (밝은 배경 + 검은 글씨)
 ```
 
-```markdown
-## 결론부터 말하면
+---
 
-- `*args`: **위치 인자**(positional arguments)를 **튜플**로 받음
-- `**kwargs`: **키워드 인자**(keyword arguments)를 **딕셔너리**로 받음
-- 함수가 임의의 개수의 인자를 유연하게 받을 수 있게 해줌
-```
+## 6. 스타일 가이드
 
-### Structure Details
-- **제목**: `# Python의 XXX` 또는 `# Python의 XXX 정리` 형태 권장 (간결하고 겸손한 표현)
-- **한 줄 설명**: 문서가 다루는 내용을 간단히 설명
-- **결론부터 말하면**: **필수 섹션** - 핵심 내용 + 코드 예시
-- **Numbered sections**: `## 1.`, `## 2.` 등으로 순차적 구성
-- **Java 비교**: Python 개념 설명 시 포함 (독자는 Java 개발자)
-- **실전/실무 예제**: 실제 사용 사례 제공
+### 6.1 언어
 
-### Style Guidelines
-- Korean for explanations, English for technical terms
-- Use emoji sparingly (mainly in README.md, not in TIL documents)
-- Include "Java와의 비교" sections for Python concepts
-- Provide "실전 예제" or "실무 활용 패턴" for complex topics
-- Use tables for comparisons
-- Use ✅/❌ for do's and don'ts
+- **설명**: 한국어
+- **코드/기술 용어**: 영어 (DI, IoC, Bean, Scope 등)
 
-### Visualization Guidelines
-- **복잡한 개념, 프로세스, 관계도는 mermaid 다이어그램으로 시각화**
-- **다이어그램 타입 선택**:
-  - `graph` / `flowchart`: 워크플로우, 프로세스, 의사결정 트리
-  - `sequenceDiagram`: 시간 순서에 따른 상호작용, API 호출 흐름
-  - `classDiagram`: 클래스 구조, 상속 관계, 아키텍처
-  - `erDiagram`: 데이터베이스 스키마, 엔티티 관계
-- **시각화가 유용한 경우**:
-  - Before/After 비교 (기존 방식 vs 새로운 방식)
-  - 단계별 프로세스 (1→2→3→4)
-  - 시스템 아키텍처 (컴포넌트 간 관계)
-  - 상태 전이 (State A → State B)
-  - 복잡한 조건 분기
-- **원칙**: 코드 블록으로 설명하는 것보다 다이어그램이 더 명확할 때만 사용
-- **⚠️ CRITICAL - 가독성 있는 스타일 사용**:
-  - mermaid 다이어그램에 스타일을 사용할 수 있지만, **글씨가 명확히 보여야 함**
-  - **절대 금지**: 밝은 배경색만 지정 (자동으로 흰색 글씨가 되어 안 보임)
-  - **권장 방법**:
-    1. **테두리만 색상**: `style NodeName stroke:#2196F3,stroke-width:3px` (배경 투명, 글씨 검정)
-    2. **어두운 배경 + 흰색 글씨**: `style NodeName fill:#1976D2,color:#fff`
-    3. **밝은 배경 + 검은 글씨**: `style NodeName fill:#E3F2FD,color:#000`
-  - ❌ 나쁜 예: `style CF fill:#e1f5ff` (밝은 배경에 자동 흰색 글씨 → 안 보임)
-  - ❌ 나쁜 예: `style CF fill:#333,color:#666` (어두운 배경에 어두운 글씨 → 안 보임)
-  - ✅ 좋은 예: `style CF stroke:#2196F3,stroke-width:3px` (테두리만 강조)
-  - ✅ 좋은 예: `style CF fill:#1565C0,color:#fff` (어두운 파란색 배경 + 흰 글씨)
+### 6.2 비교 표현
 
-### Common Patterns Found in Existing Docs
-
-**Type Comparison Tables**:
+**테이블:**
 ```markdown
 | 특징 | Python | Java |
 |------|--------|------|
-| ... | ... | ... |
+| 타입 | 동적 | 정적 |
 ```
 
-**Code Comparison Blocks**:
+**코드 비교:**
 ```markdown
 # Python
 def example():
     pass
 
 # Java
-public void example() {
-    // ...
-}
+public void example() { }
 ```
 
-**Decision Guides**:
+**Do's and Don'ts:**
 ```markdown
-# ✅ Use case A
-# ❌ Avoid case B
+✅ 이렇게 하라
+❌ 이렇게 하지 마라
 ```
 
-### Source Attribution Guidelines
-- **모든 문서는 출처가 있다면 반드시 명시**
-- **출처 섹션 위치**: 문서 맨 마지막에 `## 출처` 또는 `## 참고 자료` 섹션 추가
-- **링크 포함 필수**: 출처 URL을 클릭 가능한 형태로 제공
-- **출처 형식**:
-  ```markdown
-  ## 출처
+### 6.3 출처 표기
 
-  - [공식 문서 제목](https://example.com/official-docs)
-  - [블로그 제목](https://blog.example.com/article)
-  - [Stack Overflow 질문](https://stackoverflow.com/questions/...)
-  ```
-- **공식 문서 우선**: 여러 출처가 있는 경우 공식 문서를 가장 위에 배치
-- **작성 날짜 포함 권장**: `(2025-01-15 작성)` 형태로 날짜 명시
+문서 맨 마지막에 `## 출처` 섹션 추가. 공식 문서를 가장 위에 배치.
 
-**Good Example**:
 ```markdown
 ## 출처
 
-- [Spring Boot Reference - JSP Limitations](https://docs.spring.io/spring-boot/reference/web/servlet.html#web.servlet.embedded-container.jsp-limitations) - 공식 문서
-- [Google Antigravity 소개 블로그](https://antigravity.google/blog/introducing-google-antigravity) - 공식 블로그 (2025년 발표)
-- [Python 공식 문서 - Type Hints](https://docs.python.org/3/library/typing.html)
+- [Spring Framework Documentation](https://docs.spring.io/...) - 공식 문서
+- [블로그 제목](https://blog.example.com/article)
 ```
 
-## Working with the Codebase
+---
 
-### Testing README Generation Locally
+## 7. 카테고리별 특성
 
-```bash
-# Run the README generator
-python scripts/generate_readme.py
+### Python
+Java 개발자가 Python으로 전환하는 관점에서 작성:
+- Type hints, typing 모듈
+- OOP 개념 (@dataclass, @abstractmethod, self)
+- Python 특화 기능 (f-string, *args/**kwargs, with)
 
-# Check the output
-git diff README.md
+### Java
+- 버전별 새 기능 (Java 21, 25 등)
+- 모던 Java 패턴
+
+### Spring
+- Spring Framework 핵심 개념 (IoC, DI, AOP)
+- Spring Boot 설정과 패턴
+- 실무 활용 예제
+
+### Security
+- 보안 개념 (MITM, PII 등)
+- 실무 보안 구현
+
+---
+
+## 8. 자동화
+
+### README 자동 생성
+
+```mermaid
+graph LR
+    A[TIL 문서 push] --> B[GitHub Actions 트리거]
+    B --> C[generate_readme.py 실행]
+    C --> D[README.md 자동 커밋]
+
+    style B fill:#1565C0,color:#fff
 ```
 
-### Adding New Categories
+- **트리거**: `main` 브랜치에 `*.md` 파일 변경 시
+- **동작**: 모든 TIL 문서 스캔 → 카테고리별 인덱스 생성
+- **주의**: push 후 30-60초 대기, 다음 작업 전 `git pull` 필수
 
-Simply create a new directory with markdown files:
+### 새 카테고리 추가
+
+폴더만 만들면 자동으로 카테고리가 생성된다:
+
 ```bash
 mkdir -p new-category
-echo "# New Topic" > new-category/example.md
+# 문서 작성 후 push하면 README에 자동 반영
 ```
 
-The next push will automatically create the category in README.
+---
 
-### Git Workflow
+## 9. 요약: 좋은 TIL 문서 체크리스트
 
-**IMPORTANT**: This repository uses automated commits via GitHub Actions.
-
-After pushing TIL documents to main:
-1. GitHub Actions triggers within seconds
-2. Auto-commits "docs: auto-update README.md"
-3. **Always `git pull` before making new commits** to avoid conflicts
-
-Example workflow:
-```bash
-# After creating/editing TIL documents
-git add python/new-topic.md
-git commit -m "Add Python new topic guide"
-git push origin main
-
-# Wait 30-60 seconds for auto-commit
-
-# Pull before next work
-git pull origin main
-```
-
-## Document Categories and Themes
-
-### Python Documents
-Focus on transitioning from Java to Python:
-- Type systems (typing, type hints)
-- Object-oriented concepts (@dataclass, @abstractmethod, self)
-- Python-specific features (f-strings, *args/**kwargs, with statements)
-- Data structures and collection types
-- Database connectivity patterns
-
-### Java Documents
-- New features by version (e.g., Java 25)
-- Modern Java syntax and patterns
-
-### Security Documents
-- Security concepts (MITM, PII)
-- Practical security implementation in Python
-
-## Key Insights for Claude Code
-
-### When Creating New Documents
-
-1. **Follow existing patterns**: Reference `python/typing.md` or `python/collection-types-comparison.md` for structure
-2. **Include comparisons**: Java developers are the primary audience
-3. **Use Korean**: All explanations in Korean, code/technical terms in English
-4. **Add practical examples**: "실전 예제" sections are expected
-5. **Don't edit README.md**: It will be overwritten
-
-### When Explaining Code
-
-- Assume reader knows Java but learning Python
-- Explain "why" Python does things differently
-- Provide memory/performance comparisons when relevant
-- Include common pitfalls and best practices
-
-### Document Length
-
-Existing documents range from 500-2000 lines. Comprehensive coverage is valued over brevity.
-
-## GitHub Actions Workflow
-
-The repository uses a single workflow: `.github/workflows/update-readme.yml`
-
-**Triggers on**:
-- Push to `main` branch
-- Changes to any `*.md` file
-- Excludes changes to `README.md` itself
-
-**Permissions**: Requires `contents: write` to auto-commit
-
-**Python Version**: 3.11 (ensure compatibility)
+- [ ] "결론부터 말하면" 섹션이 있는가?
+- [ ] "왜"를 설명했는가?
+- [ ] 스토리텔링으로 풀어갔는가?
+- [ ] Before/After 비교가 있는가?
+- [ ] 복잡한 개념은 mermaid로 시각화했는가?
+- [ ] 출처를 명시했는가?
+- [ ] 파일명이 제목과 일치하는가?
