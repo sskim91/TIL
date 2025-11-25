@@ -5,9 +5,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **51개**
+- 총 TIL 개수: **53개**
 
-- 카테고리 수: **14개**
+- 카테고리 수: **15개**
 
 ## 📚 카테고리
 
@@ -58,6 +58,14 @@
 ### frontend
 
 - [프론트엔드 개발의 변화](frontend/프론트엔드-개발의-변화.md)
+
+
+
+### infra
+
+- [Bastion Host](infra/Bastion-Host.md)
+
+- [SSH ProxyJump](infra/SSH-ProxyJump.md)
 
 
 
