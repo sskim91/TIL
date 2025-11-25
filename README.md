@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **53개**
+- 총 TIL 개수: **54개**
 
 - 카테고리 수: **15개**
 
@@ -78,6 +78,8 @@
 ### java
 
 - [Java 25 (JDK 25) 새로운 기능](java/Java-25-JDK-25-새로운-기능.md)
+
+- [Java가 발전해도 Guava가 여전히 쓰이는 이유](java/Java가-발전해도-Guava가-여전히-쓰이는-이유.md)
 
 - [JSch-Java SSH 라이브러리의 진화](java/JSch-Java-SSH-라이브러리의-진화.md)
 
