@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **58개**
+- 총 TIL 개수: **60개**
 
 - 카테고리 수: **15개**
 
@@ -78,6 +78,10 @@
 ### java
 
 - [Java 25 (JDK 25) 새로운 기능](java/Java-25-JDK-25-새로운-기능.md)
+
+- [Java File I/O의 진화: Java 7부터 25까지](java/Java-File-IO의-진화-Java-7부터-25까지.md)
+
+- [Java I/O가 중요한 진짜 이유](java/Java-IO가-중요한-진짜-이유.md)
 
 - [Java 객체 직렬화의 모든 것](java/Java-객체-직렬화의-모든-것.md)
 
