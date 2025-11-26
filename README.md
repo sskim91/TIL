@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **56개**
+- 총 TIL 개수: **58개**
 
 - 카테고리 수: **15개**
 
@@ -79,7 +79,11 @@
 
 - [Java 25 (JDK 25) 새로운 기능](java/Java-25-JDK-25-새로운-기능.md)
 
+- [Java 객체 직렬화의 모든 것](java/Java-객체-직렬화의-모든-것.md)
+
 - [Java가 발전해도 Guava가 여전히 쓰이는 이유](java/Java가-발전해도-Guava가-여전히-쓰이는-이유.md)
+
+- [Java의 동기화 컬렉션과 병렬 컬렉션](java/Java의-동기화-컬렉션과-병렬-컬렉션.md)
 
 - [JSch-Java SSH 라이브러리의 진화](java/JSch-Java-SSH-라이브러리의-진화.md)
 
