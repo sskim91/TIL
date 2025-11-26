@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **54개**
+- 총 TIL 개수: **56개**
 
 - 카테고리 수: **15개**
 
@@ -85,6 +85,8 @@
 
 - [JSpecify - Java의 Null 안전성 표준](java/JSpecify-Java의-Null-안전성-표준.md)
 
+- [Netty Channel Pipeline 인바운드와 아웃바운드 흐름](java/Netty-Channel-Pipeline-인바운드와-아웃바운드-흐름.md)
+
 - [sshj-현대적인 Java SSH 라이브러리](java/sshj-현대적인-Java-SSH-라이브러리.md)
 
 
@@ -98,6 +100,8 @@
 ### network
 
 - [C10K 문제의 역사와 해결](network/C10K-문제의-역사와-해결.md)
+
+- [L4와 L7 로드밸런서의 차이](network/L4와-L7-로드밸런서의-차이.md)
 
 - [네트워크 방향 용어 정리-Upstream, Downstream, Ingress, Egress](network/네트워크-방향-용어-정리-Upstream-Downstream-Ingress-Egress.md)
 
