@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **64개**
+- 총 TIL 개수: **65개**
 
 - 카테고리 수: **16개**
 
@@ -42,6 +42,8 @@
 ### computer-science
 
 - [Concurrency와 Parallelism - 동시성과 병렬성](computer-science/Concurrency와-Parallelism-동시성과-병렬성.md)
+
+- [Pub/Sub 패턴](computer-science/Pub-Sub-패턴.md)
 
 - [동기-비동기, 블로킹-논블로킹](computer-science/동기-비동기-블로킹-논블로킹.md)
 
