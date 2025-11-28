@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **65개**
+- 총 TIL 개수: **66개**
 
 - 카테고리 수: **16개**
 
@@ -202,6 +202,8 @@
 ### web
 
 - [KaTeX Quirks Mode 경고 해결](web/KaTeX-Quirks-Mode-경고-해결.md)
+
+- [Server-Sent Events (SSE)](web/Server-Sent-Events-SSE.md)
 
 
 
