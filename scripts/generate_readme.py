@@ -80,6 +80,8 @@ def generate_readme() -> None:
     readme_content = []
     readme_content.append("# TIL (Today I Learned)\n")
     readme_content.append("> 🤖 Learning with AI\n")
+    readme_content.append(">\n")
+    readme_content.append("> ✍️ Claude Code 작성 | 🔍 Gemini 리뷰\n")
 
     # 통계
     total_count = len(md_files)
