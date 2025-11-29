@@ -2,6 +2,10 @@
 
 > 🤖 Learning with AI
 
+>
+
+> ✍️ Claude Code 작성 | 🔍 Gemini 리뷰
+
 
 ## 📊 통계
 
