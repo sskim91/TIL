@@ -5,7 +5,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **66개**
+- 총 TIL 개수: **67개**
 
 - 카테고리 수: **16개**
 
@@ -194,6 +194,8 @@
 - [Spring Framework 7 - HTTP Service Client Enhancements](spring/Spring-Framework-7-HTTP-Service-Client.md)
 
 - [Spring Framework 7.0](spring/Spring-Framework-7.0.md)
+
+- [Spring의 @EventListener](spring/Spring의-@EventListener.md)
 
 - [Spring의 DI와 IoC](spring/Spring의-DI와-IoC.md)
 
