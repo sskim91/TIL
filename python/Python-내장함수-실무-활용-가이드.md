@@ -1,6 +1,6 @@
 # Python 내장함수 실무 활용 가이드
 
-파이썬에서 실무에서 가장 자주 사용되는 내장함수들을 실전 예제와 함께 정리합니다.
+import 없이 바로 쓰는 Python의 강력한 도구들. Java에는 없는 `enumerate()`, `zip()` 같은 함수가 왜 유용할까?
 
 ## 결론부터 말하면
 
@@ -1158,3 +1158,9 @@ value = data.get("key", {}).get("nested", {}).get("deep", "기본값")
 ```
 
 이 내장함수들을 마스터하면 파이썬 코드가 훨씬 간결하고 pythonic해집니다!
+
+---
+
+## 출처
+
+- [Python Documentation - Built-in Functions](https://docs.python.org/3/library/functions.html) - 공식 문서

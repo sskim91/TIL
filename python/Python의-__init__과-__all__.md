@@ -1,13 +1,27 @@
 # Python의 __init__과 __all__
 
-Python에서 자주 보는 `__init__`과 `__all__`에 대해 알아봅니다.
+이름은 비슷한데 전혀 다른 두 가지: 하나는 Java 생성자, 하나는 public API 제어.
 
 ## 결론부터 말하면
 
-- `__init__`: 클래스의 **초기화 메서드** (객체 생성 시 자동 호출)
-- `__all__`: 모듈의 **공개 API 리스트** (`from module import *` 제어)
+| 항목 | `__init__` | `__all__` |
+|------|-----------|----------|
+| **정체** | 메서드 | 리스트 |
+| **Java 대응** | 생성자 (Constructor) | `public` 키워드 역할 |
+| **용도** | 객체 초기화 | 공개 API 정의 |
+| **위치** | 클래스 안 | 모듈 최상위 |
 
-**완전히 다른 용도입니다!**
+```python
+# __init__: Java 생성자와 동일
+class Person:
+    def __init__(self, name):  # Java: public Person(String name)
+        self.name = name
+
+# __all__: from module import * 할 때 공개할 이름
+__all__ = ['Person', 'create_person']  # Java의 public 클래스/메서드만 노출하는 것과 유사
+```
+
+**완전히 다른 용도다!**
 
 ## 1. __init__ - 생성자 메서드
 

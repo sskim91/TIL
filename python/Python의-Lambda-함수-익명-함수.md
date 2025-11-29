@@ -1,6 +1,6 @@
 # Python의 Lambda 함수 (익명 함수)
 
-한 줄로 작성할 수 있는 익명 함수(anonymous function)로, 간단한 함수를 빠르게 정의할 때 사용합니다.
+Java의 `x -> x * 2`와 비슷하지만, Python은 `lambda x: x * 2`로 작성한다. 언제, 왜 쓸까?
 
 ## 결론부터 말하면
 

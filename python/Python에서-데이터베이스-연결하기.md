@@ -1,6 +1,6 @@
 # Python에서 데이터베이스 연결하기
 
-Python에서 DBMS에 접근하는 방법과 주요 라이브러리에 대해 알아봅니다.
+Spring Boot에서 HikariCP + JPA를 쓰듯, Python에서는 어떻게 할까?
 
 ## 결론부터 말하면
 
@@ -28,24 +28,22 @@ SessionLocal = sessionmaker(bind=engine)
 
 ### 아키텍처 비교
 
-```
-Java/Spring:
-JDBC (표준 인터페이스)
-  ↓
-JDBC Driver (MySQL Driver, PostgreSQL Driver)
-  ↓
-Connection Pool (HikariCP)
-  ↓
-ORM (JPA/Hibernate)
+```mermaid
+flowchart TB
+    subgraph Java/Spring
+        J1[JDBC<br/>표준 인터페이스] --> J2[JDBC Driver<br/>MySQL/PostgreSQL Driver]
+        J2 --> J3[Connection Pool<br/>HikariCP]
+        J3 --> J4[ORM<br/>JPA/Hibernate]
+    end
 
-Python:
-DB-API 2.0 (PEP 249 - 표준 인터페이스)
-  ↓
-DB Driver (psycopg2, pymysql)
-  ↓
-Connection Pool (SQLAlchemy Engine)
-  ↓
-ORM (SQLAlchemy ORM)
+    subgraph Python
+        P1[DB-API 2.0<br/>PEP 249 표준] --> P2[DB Driver<br/>psycopg2, pymysql]
+        P2 --> P3[Connection Pool<br/>SQLAlchemy Engine]
+        P3 --> P4[ORM<br/>SQLAlchemy ORM]
+    end
+
+    style J1 fill:#E3F2FD,color:#000
+    style P1 fill:#FFF3E0,color:#000
 ```
 
 ### 대응 관계

@@ -1,6 +1,6 @@
 # Python 예외 처리
 
-파이썬에서 오류를 안전하게 처리하는 방법을 실무 중심으로 정리합니다.
+Java의 try-catch-finally와 비슷하지만, Python만의 `else`와 더 유연한 예외 체이닝을 제공한다.
 
 ## 결론부터 말하면
 
@@ -1077,3 +1077,10 @@ def find_user(user_id):
 ```
 
 **핵심**: 예외는 **예외적인 상황**에만 사용하고, 정상적인 흐름 제어는 if/else로!
+
+---
+
+## 출처
+
+- [Python Documentation - Errors and Exceptions](https://docs.python.org/3/tutorial/errors.html) - 공식 문서
+- [PEP 3134 - Exception Chaining](https://peps.python.org/pep-3134/)

@@ -1,6 +1,6 @@
 # Python의 *args와 **kwargs
 
-Python에서 가변 인자를 받는 `*args`와 `**kwargs`에 대해 알아봅니다.
+Java의 가변 인자 `String... args`와 비슷하지만, Python은 키워드 인자까지 유연하게 처리한다.
 
 ## 결론부터 말하면
 

@@ -681,29 +681,25 @@ def get_user_details() -> list[dict[str, str | int]]:
 
 ### 의사결정 플로우차트
 
-```
-데이터를 반환해야 한다면?
-    │
-    ├─ 필드가 2-3개? ─────────────────────→ list[tuple]
-    │                                        (간단, 가벼움)
-    │
-    ├─ 필드가 4개 이상? ──────────────────→ list[dict]
-    │                                        (가독성)
-    │
-    ├─ API 응답 (JSON 변환)? ─────────────→ list[dict]
-    │                                        (바로 변환)
-    │
-    ├─ 순서/정렬이 핵심? ─────────────────→ list[tuple]
-    │                                        (순서 보장)
-    │
-    ├─ DB 조회 결과? ─────────────────────→ list[tuple]
-    │                                        (원래 tuple)
-    │
-    ├─ 차트/그래프 데이터? ───────────────→ list[tuple]
-    │                                        (바로 변환)
-    │
-    └─ Pandas 변환? ──────────────────────→ list[dict]
-                                             (컬럼명 명확)
+```mermaid
+flowchart TD
+    START[데이터를 반환해야 한다면?] --> Q1{필드 개수?}
+
+    Q1 -->|2-3개| TUPLE[list#91;tuple#93;]
+    Q1 -->|4개 이상| DICT[list#91;dict#93;]
+
+    START --> Q2{용도?}
+    Q2 -->|API/JSON 변환| DICT
+    Q2 -->|DB 조회 결과| TUPLE
+    Q2 -->|차트/그래프| TUPLE
+    Q2 -->|Pandas 변환| DICT
+    Q2 -->|순서/정렬 중요| TUPLE
+
+    TUPLE --> T_DESC[간단, 가벼움, 불변]
+    DICT --> D_DESC[명확함, 유연함, JSON 호환]
+
+    style TUPLE fill:#E3F2FD,color:#000
+    style DICT fill:#FFF3E0,color:#000
 ```
 
 ---
@@ -865,3 +861,10 @@ def get_user_bad() -> list[tuple[int, str, str, int, bool, str, str]]:
 - **정렬/순서가 중요하면 tuple**
 - **API/JSON이면 dict**
 - **헷갈리면 dict (명확함이 최고)**
+
+---
+
+## 출처
+
+- [Python Documentation - Data Structures](https://docs.python.org/3/tutorial/datastructures.html) - 공식 문서
+- [Python Documentation - typing](https://docs.python.org/3/library/typing.html) - 타입 힌트 공식 문서

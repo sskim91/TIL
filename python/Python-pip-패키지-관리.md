@@ -1,6 +1,6 @@
 # Python pip 패키지 관리
 
-Python 패키지 관리 도구 pip의 사용법과 실무 베스트 프랙티스를 정리합니다.
+Java의 Maven/Gradle처럼, Python에서 외부 라이브러리를 설치하고 관리하는 방법.
 
 ## 결론부터 말하면
 
@@ -941,3 +941,11 @@ pip install -r requirements.txt
 - 정기적인 업데이트
 
 Python 패키지 관리의 시작과 끝은 **가상환경 + pip + requirements.txt** 입니다!
+
+---
+
+## 출처
+
+- [pip 공식 문서](https://pip.pypa.io/en/stable/)
+- [Python venv 공식 문서](https://docs.python.org/3/library/venv.html)
+- [uv 공식 문서](https://docs.astral.sh/uv/)

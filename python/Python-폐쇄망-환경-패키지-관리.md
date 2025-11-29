@@ -1,6 +1,6 @@
 # Python 폐쇄망 환경 패키지 관리
 
-인터넷이 차단된 폐쇄망(Air-gapped) 환경에서 Python 패키지를 설치하고 관리하는 방법을 정리합니다.
+`pip install`이 안 되는 환경에서 Python 패키지를 어떻게 설치할까? 금융권, 공공기관의 필수 스킬.
 
 ## 결론부터 말하면
 
@@ -1126,3 +1126,11 @@ uv pip install --no-index --find-links=./wheels -r requirements.txt
 7. **검증 프로세스 필수** (설치 후 테스트)
 
 폐쇄망 환경에서의 핵심은 **사전 준비의 완벽함**입니다!
+
+---
+
+## 출처
+
+- [pip download 공식 문서](https://pip.pypa.io/en/stable/cli/pip_download/)
+- [pypiserver 공식 문서](https://pypi.org/project/pypiserver/)
+- [uv 공식 문서](https://docs.astral.sh/uv/)

@@ -1,6 +1,6 @@
 # Python의 @abstractmethod와 추상 클래스
 
-Python에서 추상 클래스와 추상 메서드를 정의하는 방법에 대해 알아봅니다.
+Java의 `abstract class`와 `@Override`, Python에서는 어떻게 다를까?
 
 ## 결론부터 말하면
 
@@ -651,6 +651,7 @@ class Robot:  # Animal을 상속하지 않음!
 make_sound(Dog())    # "멍멍" - 작동!
 make_sound(Cat())    # "야옹" - 작동!
 make_sound(Robot())  # "삐빅삐빅" - 이것도 작동! (make_sound()만 있으면 됨)
+```
 
 ### Java와 비교
 

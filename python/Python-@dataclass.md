@@ -1,6 +1,6 @@
 # Python @dataclass
 
-Python 3.7+에서 도입된 `@dataclass` 데코레이터에 대해 알아봅니다.
+Java의 Lombok `@Data`나 record처럼, 보일러플레이트 없이 데이터 클래스를 만드는 방법.
 
 ## 결론부터 말하면
 

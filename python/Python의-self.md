@@ -1,6 +1,6 @@
 # Python의 self
 
-Python 클래스에서 사용하는 `self`에 대해 알아봅니다.
+Java의 `this`와 같은 역할인데, 왜 Python은 명시적으로 써야 할까?
 
 ## 결론부터 말하면
 

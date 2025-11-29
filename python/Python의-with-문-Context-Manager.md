@@ -1,6 +1,6 @@
 # Python의 with 문 (Context Manager)
 
-Python의 `with` 문과 Context Manager에 대해 알아봅니다.
+Java의 try-with-resources를 Python에서는 어떻게 쓸까?
 
 ## 결론부터 말하면
 

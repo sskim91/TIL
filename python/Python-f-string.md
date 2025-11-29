@@ -1,6 +1,6 @@
 # Python f-string
 
-Python 3.6+에서 사용하는 f-string (formatted string literals)에 대해 알아봅니다.
+Java의 `String.format()`이나 `+` 연결보다 더 읽기 쉽고 빠른 문자열 포매팅.
 
 ## 결론부터 말하면
 

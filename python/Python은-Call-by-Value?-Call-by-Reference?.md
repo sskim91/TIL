@@ -1,14 +1,19 @@
 # Python은 Call by Value? Call by Reference?
 
-Python의 함수 인자 전달 방식에 대해 알아봅니다.
+Java에서 `int`는 값 복사, `Object`는 참조 전달. 그런데 Python은 왜 둘 다 아니라고 할까?
 
 ## 결론부터 말하면
 
-Python은 **"Call by Object Reference"** 방식입니다.
+Python은 **"Call by Object Reference"**(객체 참조 전달) 방식이다. Java와 비교하면 이해가 쉽다.
 
-- Call by Value도 아니고
-- Call by Reference도 아닌
-- Python만의 독특한 방식!
+| 언어 | 타입 | 전달 방식 | 함수 내 수정 시 |
+|------|------|----------|----------------|
+| **Java** | primitive (`int`, `double`) | 값 복사 | 원본 불변 |
+| **Java** | Object (`List`, `Map`) | 참조 복사 | 원본 변경 가능 |
+| **Python** | 불변 (`int`, `str`, `tuple`) | 객체 참조 | 재할당 시 원본 불변 |
+| **Python** | 가변 (`list`, `dict`, `set`) | 객체 참조 | 내부 수정 시 원본 변경 |
+
+**핵심 차이:** Java는 타입이 전달 방식을 결정하지만, Python은 **객체의 가변성**(mutable/immutable)이 결정한다.
 
 ## 쉽게 이해하기: 상자와 리모컨 비유
 

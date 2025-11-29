@@ -1,10 +1,34 @@
 # Python 패키지의 __init__.py
 
-패키지 디렉토리에 있는 `__init__.py` 파일에 대해 알아봅니다.
+Java에는 없는 개념. 왜 Python 패키지에만 이 특별한 파일이 있을까?
 
 ## 결론부터 말하면
 
-`__init__.py`는 **디렉토리를 Python 패키지로 만들고**, 패키지가 import될 때 **자동으로 실행**되는 초기화 파일입니다.
+`__init__.py`는 **디렉토리를 Python 패키지로 인식**시키고, 패키지 import 시 **자동 실행되는 초기화 파일**이다. Java의 패키지와 달리, Python은 이 파일을 통해 **편리한 import 경로**와 **공개 API 제어**를 제공한다.
+
+```python
+# __init__.py가 하는 일
+mypackage/
+├── __init__.py      # 1) 패키지로 인식 2) import 시 자동 실행
+├── models/
+│   └── user.py      # class User 정의
+└── utils.py
+```
+
+```python
+# __init__.py 없이
+from mypackage.models.user import User  # 긴 경로
+
+# __init__.py에서 re-export
+from mypackage import User              # 짧고 편리!
+```
+
+| 비교 | Java 패키지 | Python 패키지 |
+|------|------------|---------------|
+| 패키지 표시 | 디렉토리 구조만으로 인식 | `__init__.py` 필요 (3.3+ 선택) |
+| 초기화 코드 | 불가능 | `__init__.py`에서 실행 |
+| import 단축 | 불가능 | `__init__.py`에서 re-export |
+| 공개 API 제어 | `public`/`private` 키워드 | `__all__` 리스트 |
 
 ## 1. 기본 개념
 
