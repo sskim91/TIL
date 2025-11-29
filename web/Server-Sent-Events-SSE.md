@@ -371,14 +371,43 @@ eventSource.onmessage = (event) => {
 ```
 
 ```java
-// Spring Boot 서버
+// Spring MVC (SseEmitter)
 @GetMapping(value = "/api/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-public Flux<String> chat(@RequestParam String message) {
+public SseEmitter chat(@RequestParam String message) {
+    SseEmitter emitter = new SseEmitter(60_000L); // 60초 타임아웃
+
+    // 별도 스레드에서 비동기 처리
+    CompletableFuture.runAsync(() -> {
+        try {
+            openAiService.streamChat(message, chunk -> {
+                try {
+                    emitter.send(chunk);
+                } catch (IOException e) {
+                    emitter.completeWithError(e);
+                }
+            });
+            emitter.send("[DONE]");
+            emitter.complete();
+        } catch (Exception e) {
+            emitter.completeWithError(e);
+        }
+    });
+
+    return emitter;
+}
+
+// Spring WebFlux (Flux) - 리액티브 스택 사용 시
+@GetMapping(value = "/api/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+public Flux<String> chatReactive(@RequestParam String message) {
     return openAiService.streamChat(message)
             .map(chunk -> "data: " + chunk + "\n\n")
             .concatWith(Mono.just("data: [DONE]\n\n"));
 }
 ```
+
+> **SseEmitter vs Flux 선택 기준:**
+> - 기존 Spring MVC 프로젝트 → `SseEmitter`
+> - 이미 WebFlux 사용 중이거나 WebClient로 외부 API 호출 → `Flux`
 
 ### 5.2 실시간 주식/코인 시세
 
@@ -670,30 +699,70 @@ flowchart LR
 └─────────────────────────────────────────────────────────────┘
 ```
 
+**왜 JSON 형식으로 전파해야 하는가?**
+
+단순히 `String`만 전파하면 SSE의 `event` 필드(이벤트 타입)를 전달할 수 없다. 앞서 본 예제들처럼 `notification`, `priceUpdate` 같은 이벤트 타입을 구분하려면, Redis 메시지에 이벤트 이름과 데이터를 함께 담아야 한다.
+
 ```java
+// 이벤트 메시지 DTO
+@Data
+@AllArgsConstructor
+public class SSEMessage {
+    private String eventName;  // "notification", "priceUpdate" 등
+    private Object data;
+}
+
 // Redis Pub/Sub를 활용한 Scale-out 대응
 @Component
 public class SSEBroadcaster {
     private final RedisTemplate<String, String> redisTemplate;
+    private final ObjectMapper objectMapper;
     private final List<SseEmitter> localEmitters = new CopyOnWriteArrayList<>();
 
     // Redis 메시지 수신 → 로컬 클라이언트에게 전파
     @RedisListener(topics = "sse-events")
     public void onMessage(String message) {
-        localEmitters.forEach(emitter -> {
-            try {
-                emitter.send(message);
-            } catch (IOException e) {
-                // 연결 끊김 처리
-            }
-        });
+        try {
+            SSEMessage sseMessage = objectMapper.readValue(message, SSEMessage.class);
+            List<SseEmitter> deadEmitters = new ArrayList<>();
+
+            localEmitters.forEach(emitter -> {
+                try {
+                    // 이벤트 타입과 데이터를 모두 포함하여 전송
+                    emitter.send(SseEmitter.event()
+                            .name(sseMessage.getEventName())
+                            .data(sseMessage.getData()));
+                } catch (IOException e) {
+                    // 연결 끊김 → 정리 대상에 추가
+                    deadEmitters.add(emitter);
+                }
+            });
+
+            // 끊어진 연결 정리 (리소스 누수 방지)
+            localEmitters.removeAll(deadEmitters);
+        } catch (JsonProcessingException e) {
+            // JSON 파싱 실패 처리
+        }
     }
 
     // 이벤트 발생 시 Redis로 발행 → 모든 서버로 전파
-    public void broadcast(String event) {
-        redisTemplate.convertAndSend("sse-events", event);
+    public void broadcast(String eventName, Object data) {
+        try {
+            SSEMessage message = new SSEMessage(eventName, data);
+            redisTemplate.convertAndSend("sse-events", objectMapper.writeValueAsString(message));
+        } catch (JsonProcessingException e) {
+            // JSON 직렬화 실패 처리
+        }
     }
 }
+```
+
+이렇게 하면 클라이언트에서 이벤트 타입별로 리스너를 등록할 수 있다:
+
+```javascript
+// 클라이언트 - 이벤트 타입별 처리
+eventSource.addEventListener('notification', handleNotification);
+eventSource.addEventListener('priceUpdate', handlePriceUpdate);
 ```
 
 ```mermaid
