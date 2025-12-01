@@ -340,6 +340,8 @@ livenessProbe:
 | Exec | 유연함 | 오버헤드 큼 | 레거시 앱, 특수 케이스 |
 | gRPC | gRPC 표준, 세밀한 상태 | gRPC 서버 필요 | gRPC 마이크로서비스 |
 
+> **⚠️ Exec Probe 주의:** 매 체크마다 컨테이너 내부에서 **프로세스를 fork** 해야 하므로 HTTP/TCP보다 리소스 소모가 크다. `periodSeconds`를 너무 짧게(1-2초) 설정하면 노드 부하가 높아질 수 있다. 가능하면 HTTP 또는 TCP 방식을 권장한다.
+
 ### 5.4 gRPC (Kubernetes 1.27+ Stable)
 
 gRPC 서비스는 HTTP 프록시를 두지 않고 네이티브하게 헬스체크할 수 있다. [gRPC Health Checking Protocol](https://github.com/grpc/grpc/blob/master/doc/health-checking.md)을 구현한 서비스에서 사용한다.
@@ -667,6 +669,8 @@ spec:
       failureThreshold: 3
       timeoutSeconds: 5           # GC pause 고려
 ```
+
+> **⚠️ timeoutSeconds 주의:** 기본값 1초는 Java 앱에서 위험하다. JVM의 **Full GC는 수백ms~수초** 걸릴 수 있어, GC 중에 Probe 응답이 늦어지면 실패로 처리된다. Liveness 실패 → 재시작 → GC 다시 발생 → 재시작 무한 반복이 될 수 있으므로, **2-5초**로 넉넉하게 설정하라.
 
 **Spring Boot 설정 (application.yml):**
 
