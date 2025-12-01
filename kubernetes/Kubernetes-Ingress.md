@@ -9,13 +9,13 @@ Service마다 LoadBalancer를 만들면 비용이 얼마나 나올까?
 ```mermaid
 flowchart LR
     subgraph "Service마다 LB (비효율)"
-        U1[사용자] --> LB1[LB 1<br>api.example.com]
-        U1 --> LB2[LB 2<br>web.example.com]
-        U1 --> LB3[LB 3<br>admin.example.com]
+        U1[사용자] --> LB1[LB for api-svc]
+        U1 --> LB2[LB for web-svc]
+        U1 --> LB3[LB for admin-svc]
     end
 
     subgraph "Ingress (효율)"
-        U2[사용자] --> ING[Ingress<br>*.example.com]
+        U2[사용자] --> ING[Ingress<br>단일 진입점]
         ING -->|"/api"| API[api-svc]
         ING -->|"/web"| WEB[web-svc]
         ING -->|"/admin"| ADM[admin-svc]
@@ -113,7 +113,40 @@ flowchart TB
 
 **중요:** Ingress Controller가 없으면 Ingress 리소스를 만들어도 **아무 일도 일어나지 않는다!**
 
-### 2.2 Ingress Controller 종류
+### 2.2 IngressClass: 어떤 Controller가 처리할지 지정
+
+클러스터에 여러 Ingress Controller가 있을 수 있다. `IngressClass`는 **어떤 Controller가 이 Ingress를 처리할지** 지정한다.
+
+```yaml
+# IngressClass 리소스
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+  annotations:
+    ingressclass.kubernetes.io/is-default-class: "true"  # 기본 IngressClass
+spec:
+  controller: k8s.io/ingress-nginx
+```
+
+```yaml
+# Ingress에서 IngressClass 참조
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  ingressClassName: nginx    # 이 IngressClass를 사용
+  rules:
+  # ...
+```
+
+**Default IngressClass:**
+- `ingressclass.kubernetes.io/is-default-class: "true"` 어노테이션으로 지정
+- `ingressClassName`을 생략하면 기본 IngressClass가 사용됨
+- 클라우드 환경에서는 보통 자동 설정됨
+
+### 2.3 Ingress Controller 종류
 
 | Controller | 특징 | 환경 |
 |------------|------|------|
@@ -176,6 +209,8 @@ flowchart LR
 | **Prefix** | 경로 접두사 매칭 | `/api` → `/api`, `/api/users`, `/api/v1` |
 | **Exact** | 정확히 일치해야 함 | `/api` → `/api`만 (❌ `/api/users`) |
 | **ImplementationSpecific** | Controller마다 다름 | - |
+
+> **참고:** `path: /`와 `pathType: Prefix`를 함께 사용하면 해당 호스트의 **모든 경로** 를 매칭하는 "catch-all" 규칙이 된다.
 
 ### 3.3 호스트 기반 라우팅
 
@@ -393,9 +428,49 @@ spec:
               number: 80
 ```
 
-> **경로 재작성(Rewrite)이 필요하다면?** `/api/users` 요청을 백엔드에 `/users`로 전달하고 싶을 때는 `rewrite-target`과 `use-regex` annotation을 함께 사용한다. 자세한 내용은 [Nginx Ingress Rewrite 문서](https://kubernetes.github.io/ingress-nginx/examples/rewrite/)를 참고하라.
+### 6.2 경로 재작성 (Rewrite)
 
-### 6.2 자주 쓰는 Nginx Annotations
+`/api/users` 요청을 백엔드에 `/users`로 전달하고 싶을 때 `rewrite-target` annotation을 사용한다.
+
+**v0.22.0 이후:** 반드시 **캡처 그룹**을 명시적으로 정의해야 한다.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rewrite-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2    # 두 번째 캡처 그룹으로 재작성
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: example.com
+    http:
+      paths:
+      - path: /api(/|$)(.*)      # 캡처 그룹: $1=(/|$), $2=(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: api-svc
+            port:
+              number: 80
+```
+
+| 요청 경로 | 백엔드 전달 경로 | 설명 |
+|----------|-----------------|------|
+| `/api` | `/` | `$2`가 빈 문자열 |
+| `/api/` | `/` | `$2`가 빈 문자열 |
+| `/api/users` | `/users` | `$2`가 `users` |
+| `/api/v1/products` | `/v1/products` | `$2`가 `v1/products` |
+
+**캡처 그룹 설명:**
+- `(/|$)` → `$1`: `/` 또는 문자열 끝 매칭
+- `(.*)` → `$2`: 나머지 경로 캡처 (이것을 `rewrite-target`에서 사용)
+
+> 📖 자세한 내용은 [Nginx Ingress Rewrite 문서](https://kubernetes.github.io/ingress-nginx/examples/rewrite/)를 참고하라.
+
+### 6.3 자주 쓰는 Nginx Annotations
 
 | Annotation | 설명 |
 |------------|------|
@@ -528,7 +603,335 @@ flowchart LR
 
 ---
 
-## 9. 자주 쓰는 명령어
+## 9. 클라우드별 Ingress Controller
+
+클라우드 환경에서는 각 클라우드의 **네이티브 로드밸런서** 와 통합된 Ingress Controller를 사용한다.
+
+### 9.1 AWS: ALB Ingress Controller (AWS Load Balancer Controller)
+
+AWS에서는 **AWS Load Balancer Controller** 가 Ingress 리소스를 **Application Load Balancer(ALB)** 로 프로비저닝한다.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    # ALB 기본 설정
+    alb.ingress.kubernetes.io/scheme: internet-facing          # 또는 internal
+    alb.ingress.kubernetes.io/target-type: ip                  # ip 또는 instance
+
+    # Health Check 설정
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+
+    # SSL/TLS (ACM 인증서 사용)
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:region:account:certificate/xxx
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+
+    # WAF 연동
+    alb.ingress.kubernetes.io/wafv2-acl-arn: arn:aws:wafv2:region:account:regional/webacl/xxx
+spec:
+  ingressClassName: alb
+  rules:
+  - host: api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-svc
+            port:
+              number: 80
+```
+
+| 어노테이션 | 설명 |
+|-----------|------|
+| `scheme: internet-facing` | Public ALB (외부 노출) |
+| `scheme: internal` | Internal ALB (VPC 내부만) |
+| `target-type: ip` | Pod IP 직접 타겟 (권장, Fargate 필수) |
+| `target-type: instance` | NodePort 통해 라우팅 |
+| `ssl-redirect: "443"` | HTTP → HTTPS 리다이렉트 |
+
+**IngressGroup: 여러 Ingress를 하나의 ALB로**
+
+```yaml
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/group.name: my-group    # 같은 그룹 = 같은 ALB
+    alb.ingress.kubernetes.io/group.order: "1"        # 규칙 우선순위 (낮을수록 먼저 평가)
+```
+
+여러 Ingress 리소스에 같은 `group.name`을 지정하면 **하나의 ALB** 로 통합된다. ALB 비용을 절감할 수 있다.
+
+> **주의:** `group.order`는 규칙 충돌 시 **우선순위** 를 결정한다. 같은 경로에 여러 규칙이 있을 때 낮은 숫자가 먼저 평가되므로, 의도치 않은 라우팅 오류를 방지하려면 반드시 설정해야 한다.
+
+### 9.2 GKE: GCE Ingress Controller (Container-Native Load Balancing)
+
+GKE에서는 **GCE Ingress Controller** 가 기본 제공되며, **Network Endpoint Group(NEG)** 을 통해 Pod에 직접 트래픽을 전달한다.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    # Internal Load Balancer
+    kubernetes.io/ingress.class: "gce-internal"    # 또는 "gce" (외부)
+
+    # Static IP 사용
+    kubernetes.io/ingress.global-static-ip-name: "my-static-ip"
+
+    # Google Managed Certificate
+    networking.gke.io/managed-certificates: "my-cert"
+spec:
+  rules:
+  - host: api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-svc
+            port:
+              number: 80
+```
+
+**NEG (Container-Native Load Balancing) 설정:**
+
+```yaml
+# Service에 NEG 어노테이션 추가
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-svc
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'    # NEG 활성화
+spec:
+  type: ClusterIP
+  selector:
+    app: api
+  ports:
+  - port: 80
+    targetPort: 8080
+```
+
+```mermaid
+flowchart LR
+    subgraph "기존 방식 (Instance Group)"
+        LB1[Load Balancer] --> Node1[Node]
+        Node1 --> kube-proxy1[kube-proxy]
+        kube-proxy1 --> Pod1[Pod]
+    end
+
+    subgraph "NEG 방식 (Container-Native)"
+        LB2[Load Balancer] -->|"직접"| Pod2[Pod]
+    end
+
+    style Pod2 stroke:#4CAF50,stroke-width:2px
+```
+
+**NEG의 장점:**
+- **낮은 지연 시간:** Node/kube-proxy를 거치지 않고 Pod에 직접 연결
+- **정확한 Health Check:** Pod 단위로 상태 확인
+- **효율적인 로드밸런싱:** 실제 Pod 분포에 따른 균등 분배
+
+**BackendConfig: 고급 Health Check 설정**
+
+```yaml
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: api-backend-config
+spec:
+  healthCheck:
+    checkIntervalSec: 15
+    timeoutSec: 5
+    healthyThreshold: 2
+    unhealthyThreshold: 2
+    type: HTTP
+    requestPath: /health
+    port: 8080
+  connectionDraining:
+    drainingTimeoutSec: 60
+  cdn:
+    enabled: true
+    cachePolicy:
+      includeHost: true
+      includeProtocol: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-svc
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+    cloud.google.com/backend-config: '{"default": "api-backend-config"}'
+spec:
+  # ...
+```
+
+### 9.3 Azure: Application Gateway Ingress Controller (AGIC)
+
+Azure에서는 **AGIC** 가 Ingress를 **Azure Application Gateway** 로 변환한다.
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+
+    # Backend Protocol
+    appgw.ingress.kubernetes.io/backend-protocol: "http"         # 또는 https
+
+    # Health Check
+    appgw.ingress.kubernetes.io/health-probe-path: "/health"
+    appgw.ingress.kubernetes.io/health-probe-interval: "15"
+    appgw.ingress.kubernetes.io/health-probe-timeout: "5"
+
+    # WAF Policy
+    appgw.ingress.kubernetes.io/waf-policy-for-path: "/subscriptions/.../wafPolicies/my-waf"
+
+    # Private IP 사용 (Internal)
+    appgw.ingress.kubernetes.io/use-private-ip: "true"
+
+    # SSL Redirect
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+  - host: api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-svc
+            port:
+              number: 80
+```
+
+| 어노테이션 | 설명 |
+|-----------|------|
+| `use-private-ip: "true"` | Internal LB (Private IP 사용) |
+| `backend-protocol: "https"` | 백엔드 Pod와 HTTPS 통신 |
+| `waf-policy-for-path` | WAF 정책 연동 |
+| `ssl-redirect: "true"` | HTTP → HTTPS 리다이렉트 |
+
+> **참고:** Azure는 차세대 솔루션으로 **Application Gateway for Containers** 를 출시했다. Gateway API 표준을 지원하며 더 빠른 설정 반영과 향상된 성능을 제공한다.
+
+### 9.4 클라우드별 Ingress Controller 비교
+
+| 기능 | AWS ALB | GKE GCE | Azure AGIC |
+|------|---------|---------|------------|
+| **L7 Load Balancer** | ALB | HTTP(S) LB | App Gateway |
+| **Pod 직접 연결** | target-type: ip | NEG | ✅ (Endpoint 기반) |
+| **WAF 연동** | WAFv2 | Cloud Armor | WAF Policy |
+| **관리형 인증서** | ACM | Google Managed Cert | Key Vault |
+| **IngressGroup** | ✅ 지원 | ❌ | ❌ |
+| **비용** | ALB 시간당 + LCU | LB 시간당 + 트래픽 | App GW 시간당 + CU |
+
+---
+
+## 10. Ingress 디버깅
+
+### 10.1 연결 문제 체크리스트
+
+```mermaid
+flowchart TB
+    A["Ingress 연결 실패"] --> B{"Ingress Controller<br>Pod 실행 중?"}
+    B -->|"아니오"| C["Controller 설치/상태 확인"]
+    B -->|"예"| D{"Ingress ADDRESS<br>할당됨?"}
+    D -->|"아니오"| E["IngressClass 확인<br>Controller 로그 확인"]
+    D -->|"예"| F{"Backend Service<br>Endpoints 있음?"}
+    F -->|"아니오"| G["Service selector/label 확인"]
+    F -->|"예"| H{"Pod가<br>Ready인가?"}
+    H -->|"아니오"| I["Readiness Probe 확인"]
+    H -->|"예"| J["Health Check 설정 확인"]
+
+    style A stroke:#f44336,stroke-width:2px
+    style C stroke:#FF9800,stroke-width:2px
+    style E stroke:#FF9800,stroke-width:2px
+    style G stroke:#FF9800,stroke-width:2px
+    style I stroke:#FF9800,stroke-width:2px
+    style J stroke:#FF9800,stroke-width:2px
+```
+
+### 10.2 디버깅 명령어
+
+```bash
+# 1. Ingress 상태 확인 (ADDRESS가 있는지)
+kubectl get ingress my-ingress
+# ADDRESS가 비어있으면 → Ingress Controller 문제
+
+# 2. Ingress 상세 정보
+kubectl describe ingress my-ingress
+# Events 섹션에서 에러 메시지 확인
+
+# 3. Ingress Controller 로그 (Nginx)
+kubectl logs -n ingress-nginx -l app.kubernetes.io/name=ingress-nginx --tail=100
+
+# 4. Backend Service Endpoints 확인
+kubectl get endpoints api-svc
+# ENDPOINTS가 비어있으면 → Service/Pod 문제
+
+# 5. IngressClass 확인
+kubectl get ingressclass
+kubectl describe ingressclass nginx
+
+# 6. 클라우드별 LB 상태 확인
+# AWS: ALB Target Group Health
+aws elbv2 describe-target-health --target-group-arn <arn>
+
+# GKE: NEG 상태
+kubectl get svc api-svc -o yaml | grep neg-status
+```
+
+### 10.3 자주 발생하는 문제
+
+| 증상 | 원인 | 해결 |
+|------|------|------|
+| ADDRESS가 비어있음 | IngressClass 미지정/불일치 | `ingressClassName` 확인 |
+| 404 Not Found | path/pathType 불일치 | pathType: Prefix 확인 |
+| 502 Bad Gateway | Backend Pod 응답 안 함 | Pod 상태, targetPort 확인 |
+| 503 Service Unavailable | Endpoints 없음 | Service selector 확인 |
+| Health Check 실패 | Health Check 경로/포트 불일치 | 어노테이션 설정 확인 |
+| TLS 인증서 에러 | Secret 없음/잘못된 형식 | `kubectl get secret` 확인 |
+
+### 10.4 Health Check 실패 해결
+
+클라우드 LB의 Health Check가 실패하는 일반적인 원인:
+
+```yaml
+# 1. Health Check 경로가 200을 반환하는지 확인
+kubectl exec -it <pod-name> -- curl -v localhost:8080/health
+
+# 2. Health Check 포트가 정확한지 확인
+# - Service의 targetPort와 일치해야 함
+# - Named port 사용 시 이름이 정확한지 확인
+
+# 3. Readiness Probe와 LB Health Check 경로를 일치시키는 것을 권장
+spec:
+  containers:
+  - name: app
+    readinessProbe:
+      httpGet:
+        path: /health    # LB Health Check 경로와 동일
+        port: 8080
+```
+
+---
+
+## 11. 자주 쓰는 명령어
 
 ```bash
 # Ingress 목록
@@ -546,7 +949,7 @@ kubectl get secret my-tls-secret
 
 ---
 
-## 10. 정리
+## 12. 정리
 
 ```mermaid
 flowchart TB
@@ -581,11 +984,16 @@ flowchart TB
 | TLS는 어디서 처리? | Ingress에서 종료 (권장) |
 
 **핵심 기억:**
-1. **Ingress**는 규칙, **Ingress Controller**가 실행
-2. **하나의 진입점**으로 여러 서비스 라우팅 → 비용 절감
+1. **Ingress** 는 규칙, **Ingress Controller** 가 실행
+2. **하나의 진입점** 으로 여러 서비스 라우팅 → 비용 절감
 3. **경로** (`/api`)와 **호스트** (`api.example.com`) 기반 라우팅
 4. **TLS** 인증서를 한 곳에서 관리
-5. 백엔드 Service는 **ClusterIP**로 충분
+5. 백엔드 Service는 **ClusterIP** 로 충분
+6. 클라우드별 **네이티브 LB** 통합: AWS ALB, GKE GCE, Azure App Gateway
+
+> 📖 관련 문서:
+> - [Kubernetes Service](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
+> - [Kubernetes Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md)
 
 ---
 
@@ -594,4 +1002,7 @@ flowchart TB
 - [Kubernetes Documentation - Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) - 공식 문서
 - [Kubernetes Documentation - Ingress Controllers](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) - 공식 문서
 - [Nginx Ingress Controller Documentation](https://kubernetes.github.io/ingress-nginx/) - Nginx Ingress 공식
+- [AWS Load Balancer Controller - Ingress Annotations](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/ingress/annotations/) - AWS 공식
+- [GKE Container-Native Load Balancing](https://cloud.google.com/kubernetes-engine/docs/how-to/container-native-load-balancing) - GCP 공식
+- [Azure Application Gateway Ingress Controller](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) - Azure 공식
 - [cert-manager Documentation](https://cert-manager.io/docs/) - cert-manager 공식
