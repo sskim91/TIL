@@ -769,7 +769,9 @@ spec:
 | 세션을 Pod 메모리에 저장 | **ClientIP** |
 | WebSocket 연결 유지 | **ClientIP** |
 
-**주의:** Pod가 죽으면 세션 정보가 유실된다. 프로덕션에서는 Redis 같은 외부 세션 스토어 사용을 권장한다.
+**주의:**
+- Pod가 죽으면 세션 정보가 유실된다. 프로덕션에서는 Redis 같은 외부 세션 스토어 사용을 권장한다.
+- `ClientIP` 방식은 **L4 레벨(IP 기반)** 이다. NAT(회사 네트워크, 통신사 게이트웨이) 뒤의 사용자들은 동일한 Client IP로 보이기 때문에 트래픽이 한 Pod로 쏠릴 수 있다. 정교한 세션 유지가 필요하다면 **Ingress(L7) 레벨의 쿠키 기반 Sticky Session** 을 사용하라.
 
 ---
 
@@ -779,23 +781,40 @@ spec:
 
 ### 12.1 AWS EKS (Network Load Balancer)
 
+**외부 NLB (인터넷 노출):**
+
 ```yaml
 apiVersion: v1
 kind: Service
 metadata:
   name: my-svc
   annotations:
-    # NLB 사용 (AWS Load Balancer Controller 필요)
+    # AWS Load Balancer Controller가 관리하는 LB 생성
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    # Pod IP를 직접 타겟으로 지정 (VPC CNI 필요, Fargate 필수)
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    # 인터넷 노출 (기본값)
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+spec:
+  type: LoadBalancer
+  # ...
+```
+
+**내부 NLB (VPC 내부 전용):**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-internal-svc
+  annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: "external"
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
-
-    # Internal LB (VPC 내부에서만 접근)
+    # VPC 내부에서만 접근 가능
     service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
-
-    # 서브넷 지정
+    # 서브넷 지정 (선택)
     service.beta.kubernetes.io/aws-load-balancer-subnets: "subnet-xxx,subnet-yyy"
-
-    # Health Check 설정
+    # Health Check 경로 (선택)
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
 spec:
   type: LoadBalancer
@@ -804,9 +823,10 @@ spec:
 
 | 어노테이션 | 설명 |
 |-----------|------|
-| `aws-load-balancer-type: external` | NLB 사용 |
+| `aws-load-balancer-type: external` | AWS Load Balancer Controller가 관리하는 LB 생성 |
 | `aws-load-balancer-nlb-target-type: ip` | Pod IP 직접 타겟 (Fargate 필수) |
-| `aws-load-balancer-scheme: internal` | Internal LB |
+| `aws-load-balancer-scheme: internet-facing` | 외부 노출 (기본값) |
+| `aws-load-balancer-scheme: internal` | VPC 내부 전용 |
 
 > **참고:** AWS Load Balancer Controller가 없으면 기본적으로 **Classic Load Balancer(CLB)** 가 생성된다. NLB를 사용하려면 AWS Load Balancer Controller 설치가 필요하며, v2.5+부터는 자동으로 NLB를 생성한다.
 
@@ -821,8 +841,8 @@ metadata:
     # Internal LB
     networking.gke.io/load-balancer-type: "Internal"
 
-    # NEG (Network Endpoint Group) 활성화
-    cloud.google.com/neg: '{"ingress": true}'
+    # NEG (Network Endpoint Group) 활성화 - 독립형 Service용
+    cloud.google.com/neg: '{"exposed": true}'
 
     # Backend Service 기반 외부 LB (1.32.2+)
     cloud.google.com/l4-rbs: "enabled"

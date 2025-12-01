@@ -907,6 +907,32 @@ kubectl get svc api-svc -o yaml | grep neg-status
 | Health Check 실패 | Health Check 경로/포트 불일치 | 어노테이션 설정 확인 |
 | TLS 인증서 에러 | Secret 없음/잘못된 형식 | `kubectl get secret` 확인 |
 
+**404 에러 구분하기: 누가 404를 줬는가?**
+
+404 Not Found가 발생하면 **누가** 404를 응답했는지 확인하는 것이 핵심이다.
+
+| 404 종류 | 응답 모양 | 원인 | 해결 |
+|----------|----------|------|------|
+| **Ingress Controller 404** | "default backend - 404" 텍스트만 나오거나, Nginx 스타일 에러 페이지 | Ingress 규칙 미매칭, IngressClass 불일치 | path, pathType, host 설정 확인 |
+| **애플리케이션 404** | 디자인된 404 페이지, JSON 에러 (`{"error": "not found"}`) | Ingress는 통과했지만 앱 내부 라우터에 경로 없음 | rewrite-target 설정, 앱 라우팅 확인 |
+
+```bash
+# 404 응답의 출처 확인
+curl -v https://example.com/api/unknown
+
+# Ingress Controller의 404 예시 (Nginx)
+# < HTTP/1.1 404 Not Found
+# < Server: nginx/1.25.3
+# default backend - 404
+
+# 애플리케이션의 404 예시
+# < HTTP/1.1 404 Not Found
+# < Content-Type: application/json
+# {"error": "Resource not found", "path": "/api/unknown"}
+```
+
+> **팁:** 에러 페이지의 **모양** 을 보고 Ingress 설정 문제인지, 애플리케이션 내부 라우팅 문제인지 판단하라. 특히 `rewrite-target` 사용 시 경로가 의도대로 변환되는지 확인이 필요하다.
+
 ### 10.4 Health Check 실패 해결
 
 클라우드 LB의 Health Check가 실패하는 일반적인 원인:
