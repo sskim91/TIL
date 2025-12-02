@@ -329,6 +329,7 @@ Kubernetes의 승리는 기술적 우월성만으로 설명되지 않는다. 정
 | [Kubernetes Service](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) | ClusterIP, NodePort, LoadBalancer |
 | [Kubernetes Ingress](./Kubernetes-Ingress.md) | HTTP 라우팅과 TLS |
 | [Kubernetes ConfigMap & Secret](./Kubernetes-ConfigMap-Secret.md) | 설정과 민감 정보 분리 |
+| [Kubernetes Volume & PersistentVolume](./Kubernetes-Volume-PersistentVolume.md) | 스토리지, PV/PVC, StorageClass |
 | [Kubernetes StatefulSet](./Kubernetes-StatefulSet.md) | 상태를 가진 애플리케이션 |
 | [Kubernetes DaemonSet, Job, CronJob](./Kubernetes-DaemonSet-Job-CronJob.md) | 노드별 Pod, 배치 작업 |
 
