@@ -455,16 +455,26 @@ Job에서는 `restartPolicy`가 **Never** 또는 **OnFailure**만 가능하다. 
 
 ```mermaid
 flowchart TB
-    subgraph "OnFailure"
-        OF1[컨테이너 실패] --> OF2[같은 Pod에서<br>컨테이너 재시작]
-        OF2 -->|"계속 실패"| OF3[backoffLimit 도달<br>Pod 실패]
+    subgraph "OnFailure - 두 단계 재시도"
+        OF1[컨테이너 실패] --> OF2["1️⃣ Kubelet이<br>같은 Pod에서 재시작<br>(backoffLimit 소모 안함)"]
+        OF2 -->|"계속 실패"| OF3["2️⃣ Pod 실패 처리"]
+        OF3 --> OF4["Job 컨트롤러가<br>새 Pod 생성<br>(backoffLimit 소모)"]
     end
 
-    subgraph "Never"
-        NV1[컨테이너 실패] --> NV2[Pod 실패 처리]
-        NV2 --> NV3[새 Pod 생성<br>이전 Pod 로그 유지]
+    subgraph "Never - 바로 Pod 재생성"
+        NV1[컨테이너 실패] --> NV2["즉시 Pod 실패 처리"]
+        NV2 --> NV3["Job 컨트롤러가<br>새 Pod 생성<br>(backoffLimit 소모)"]
     end
 ```
+
+**OnFailure의 두 가지 재시도 수준:**
+
+| 수준 | 담당 | backoffLimit |
+|------|------|--------------|
+| **컨테이너 재시작** | Kubelet | 소모 안 함 |
+| **Pod 재생성** | Job 컨트롤러 | 소모함 |
+
+> **핵심:** `OnFailure`에서 Kubelet의 컨테이너 재시작은 `backoffLimit`을 소모하지 않는다. Pod 자체가 실패하거나 노드 장애 시에만 Job 컨트롤러가 새 Pod를 만들며 이때 `backoffLimit`이 소모된다.
 
 **실무 가이드:**
 - 일반적인 배치 작업 → `OnFailure` (리소스 효율적)
@@ -638,6 +648,71 @@ def migrate():
         apply_migration()
         mark_as_applied("migration_001")
 ```
+
+### 2.10 Service Mesh 환경에서 Job이 끝나지 않는 문제
+
+**문제:** Istio, Linkerd 같은 서비스 메시를 사용하는 클러스터에서 Job이 **영원히 완료되지 않는다**.
+
+```mermaid
+flowchart LR
+    subgraph "Job Pod"
+        MAIN["메인 컨테이너<br>Exit 0 ✅"]
+        SIDE["istio-proxy<br>아직 Running..."]
+    end
+
+    MAIN -->|"작업 완료"| DONE["종료"]
+    SIDE -->|"종료 안 함"| STUCK["Pod는 Running 상태<br>Job은 미완료 😱"]
+
+    style STUCK stroke:#f44336,stroke-width:2px
+```
+
+**원인:** 메인 컨테이너가 작업을 마치고 종료(Exit 0)해도, 사이드카 컨테이너(`istio-proxy`, 로그 수집기 등)가 계속 실행 중이면 **Pod가 종료되지 않는다**. Job은 Pod의 모든 컨테이너가 종료되어야 완료로 처리된다.
+
+**해결책:**
+
+| 방법 | 설명 | K8s 버전 |
+|------|------|----------|
+| **Native Sidecar** | `initContainers` + `restartPolicy: Always`로 선언하면 메인 앱 종료 시 자동 종료 | **1.29+** |
+| **종료 시그널 전송** | 메인 앱 종료 시 스크립트로 사이드카에 종료 신호 전송 | 모든 버전 |
+| **shareProcessNamespace** | Pod 내 프로세스 공유 후 메인 종료 시 전체 종료 | 모든 버전 |
+
+**1. Native Sidecar (권장, K8s 1.29+):**
+
+```yaml
+spec:
+  initContainers:
+  - name: istio-proxy
+    image: istio/proxyv2
+    restartPolicy: Always      # 사이드카로 동작
+  containers:
+  - name: job-worker
+    image: my-job:1.0
+    command: ["./run-job.sh"]
+```
+
+메인 컨테이너가 종료되면 Native Sidecar도 **자동으로 종료**된다.
+
+**2. Istio 종료 신호 전송 (레거시):**
+
+```yaml
+spec:
+  containers:
+  - name: job-worker
+    image: my-job:1.0
+    command: ["/bin/sh", "-c"]
+    args:
+    - |
+      ./run-job.sh
+      EXIT_CODE=$?
+      # Istio proxy에 종료 신호 전송
+      curl -X POST http://localhost:15020/quitquitquit
+      exit $EXIT_CODE
+```
+
+**⚠️ 주의사항:**
+- 서비스 메시 없이도 **로그 수집 사이드카**(Fluentd, Filebeat 등)에서 같은 문제 발생
+- CronJob도 동일한 문제가 발생한다
+- Native Sidecar를 사용할 수 없다면 `shareProcessNamespace: true` + PID 1 종료 패턴 고려
 
 ---
 
