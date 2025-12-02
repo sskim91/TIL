@@ -1,8 +1,22 @@
 #!/bin/bash
-# TIL -> Obsidian 동기화 Hook
-# 커밋 후 자동으로 Obsidian 노트 폴더에 동기화 (Frontmatter 자동 생성)
+# ============================================================
+# post-commit: 커밋 후 변경된 파일만 Obsidian에 동기화
+# ============================================================
+#
+# ■ 언제 실행되나?
+#   git commit 명령이 성공적으로 완료된 직후
+#
+# ■ 왜 --diff 모드인가?
+#   커밋할 때마다 100개 파일 전부 처리하면 느림
+#   변경된 파일(보통 1~5개)만 처리하면 빠름
+#
+# ■ 주의사항
+#   - 다른 컴퓨터에서 pull 받으면 이 hook은 안 돌아감
+#   - pull 후에는 post-merge hook이 전체 동기화 담당
+#
+# ============================================================
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Python 스크립트 실행
-python3 "$SCRIPT_DIR/sync-to-obsidian.py"
+# --diff 옵션: 변경된 파일만 동기화 (빠름)
+python3 "$SCRIPT_DIR/sync-to-obsidian.py" --diff
