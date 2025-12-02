@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **84개**
+- 총 TIL 개수: **85개**
 
 - 카테고리 수: **18개**
 
@@ -32,6 +32,8 @@
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
 - [MCP (Model Context Protocol) 이해하기](ai/MCP-Model-Context-Protocol-이해하기.md)
+
+- [MCP의 STDIO Transport 이해하기](ai/MCP의-STDIO-Transport-이해하기.md)
 
 - [Multi-turn Conversation (멀티턴 대화)](ai/Multi-turn-Conversation-멀티턴-대화.md)
 
