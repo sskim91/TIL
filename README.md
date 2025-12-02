@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **83개**
+- 총 TIL 개수: **84개**
 
 - 카테고리 수: **18개**
 
@@ -154,6 +154,8 @@
 - [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](kubernetes/Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
 
 - [Kubernetes StatefulSet](kubernetes/Kubernetes-StatefulSet.md)
+
+- [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
 
 
 
