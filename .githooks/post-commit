@@ -1,28 +1,8 @@
 #!/bin/bash
 # TIL -> Obsidian 동기화 Hook
-# 커밋 후 자동으로 Obsidian 노트 폴더에 동기화
+# 커밋 후 자동으로 Obsidian 노트 폴더에 동기화 (Frontmatter 자동 생성)
 
-OBSIDIAN_PATH="$HOME/Library/Mobile Documents/iCloud~md~obsidian/Documents/Note/09.TIL"
-TIL_PATH="$(git rev-parse --show-toplevel)"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Obsidian 경로가 존재하는지 확인
-if [ ! -d "$OBSIDIAN_PATH" ]; then
-    echo "📁 Obsidian TIL 폴더 생성: $OBSIDIAN_PATH"
-    mkdir -p "$OBSIDIAN_PATH"
-fi
-
-# rsync로 동기화
-# --delete: 소스에서 삭제된 파일은 대상에서도 삭제
-# --exclude: git 관련 파일 및 스크립트 제외
-rsync -av --delete \
-    "$TIL_PATH/" \
-    "$OBSIDIAN_PATH/" \
-    --exclude='.git' \
-    --exclude='.git*' \
-    --exclude='.githooks' \
-    --exclude='scripts' \
-    --exclude='.github' \
-    --exclude='.claude' \
-    --quiet
-
-echo "✅ Obsidian 동기화 완료: 09.TIL"
+# Python 스크립트 실행
+python3 "$SCRIPT_DIR/sync-to-obsidian.py"
