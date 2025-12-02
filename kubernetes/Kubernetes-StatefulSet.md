@@ -816,6 +816,47 @@ kubectl delete statefulset mysql
 
 > **⚠️ terminationGracePeriodSeconds:** 절대로 0으로 설정하지 마라. 데이터 손상 위험이 있다.
 
+### 13.5 노드 장애 시 Pod 교착 상태
+
+**StatefulSet은 Split-Brain 방지를 위해 같은 이름의 Pod가 동시에 2개 뜨는 것을 절대적으로 막는다.**
+
+노드가 갑자기 죽어서(전원 장애 등) Kubelet이 상태 보고를 못 하면:
+
+```mermaid
+sequenceDiagram
+    participant Node as 장애 노드
+    participant Master as Control Plane
+    participant Pod as mysql-0
+
+    Node->>Node: 전원 장애 발생
+    Note over Node: Kubelet 응답 없음
+
+    Master->>Pod: 상태: Unknown/Terminating
+    Note over Master: "확실히 죽었다"는<br>신호가 없음
+
+    Master->>Master: 새 Pod 생성 보류
+    Note over Pod: ❌ 무한 Terminating<br>(서비스 장애 지속)
+```
+
+**Deployment와의 차이:**
+- **Deployment:** 노드 장애 시 즉시 다른 노드에 새 Pod 생성
+- **StatefulSet:** 기존 Pod가 **확실히 종료되었다는 확인** 없이는 새 Pod를 생성하지 않음
+
+**해결책:** 노드가 완전히 죽은 것을 확인한 후 강제 삭제
+
+```bash
+# 1. 노드 상태 확인 (NotReady인지 확인)
+kubectl get nodes
+
+# 2. Pod 상태 확인 (Terminating 상태인지)
+kubectl get pods -l app=mysql
+
+# 3. 노드가 복구 불가능함을 확인한 후 강제 삭제
+kubectl delete pod mysql-0 --force --grace-period=0
+```
+
+> **⚠️ 주의:** `--force --grace-period=0`은 **정말 노드가 죽은 것이 확실할 때만** 사용하라. 노드가 살아있는데 강제 삭제하면 **동일 데이터에 두 Pod가 접근**하여 데이터 손상이 발생할 수 있다.
+
 ---
 
 ## 14. 자주 쓰는 명령어

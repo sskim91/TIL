@@ -311,6 +311,15 @@ spec:
       secretName: app-secret
 ```
 
+> **보안 관점: 환경변수 vs 볼륨**
+>
+> | 방식 | 장점 | 단점 |
+> |------|------|------|
+> | **환경변수** | 코드에서 접근 간편 | 자식 프로세스에 상속, `kubectl describe pod`에 노출 가능 |
+> | **볼륨 마운트** | tmpfs 사용(디스크 미기록), 파일 권한 세밀 제어 가능 | 파일 읽기 로직 필요 |
+>
+> **보안이 중요하면 볼륨 마운트를 권장한다.**
+
 ---
 
 ## 4. ConfigMap/Secret 업데이트
@@ -332,6 +341,26 @@ flowchart LR
 # ConfigMap 수정 후 Pod 재시작
 kubectl rollout restart deployment my-app
 ```
+
+> **실무 팁: Reloader로 자동 재시작**
+>
+> 매번 수동으로 `rollout restart`하는 것은 번거롭다. [Stakater Reloader](https://github.com/stakater/Reloader)를 사용하면 ConfigMap/Secret 변경을 감지하여 자동으로 롤링 업데이트를 수행한다.
+>
+> ```yaml
+> apiVersion: apps/v1
+> kind: Deployment
+> metadata:
+>   name: my-app
+>   annotations:
+>     reloader.stakater.com/auto: "true"   # 참조하는 모든 ConfigMap/Secret 감시
+> ```
+>
+> 특정 ConfigMap만 감시하려면:
+> ```yaml
+> annotations:
+>   configmap.reloader.stakater.com/reload: "app-config"  # 특정 ConfigMap만
+>   secret.reloader.stakater.com/reload: "app-secret"     # 특정 Secret만
+> ```
 
 ### 4.2 볼륨으로 마운트할 때
 
@@ -503,10 +532,10 @@ flowchart TB
 
 ### 6.2 더 안전한 Secret 관리
 
-**방법 1: etcd 암호화**
+**방법 1: etcd 암호화** (클러스터 관리자 권한 필요)
 
 ```yaml
-# EncryptionConfiguration
+# EncryptionConfiguration (kube-apiserver 설정)
 apiVersion: apiserver.config.k8s.io/v1
 kind: EncryptionConfiguration
 resources:

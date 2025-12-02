@@ -338,6 +338,20 @@ kubectl patch service my-app -p '{"spec":{"selector":{"version":"blue"}}}'
 - **v1과 v2가 동시에 실행되면 안 되는** 경우 (호환성 문제)
 - 충분한 리소스가 있는 경우
 
+### 3.6 배포 후 정리 (Cleanup)
+
+**배포 성공 후 구버전(Blue)을 정리하지 않으면 리소스 비용이 영구적으로 2배가 된다.**
+
+```bash
+# 방법 1: 스케일 다운 (롤백 대비 유지)
+kubectl scale deployment my-app-blue --replicas=0
+
+# 방법 2: 완전 삭제 (확신이 있을 때)
+kubectl delete deployment my-app-blue
+```
+
+> **실무 팁:** 트래픽 전환 후 최소 1-2시간은 Blue를 유지하고 모니터링하라. 문제가 없으면 스케일 다운 → 1-2일 후 삭제하는 것이 안전하다. 오토스케일링을 사용해도 `minReplicas`만큼은 항상 실행되므로 비용이 발생한다.
+
 ---
 
 ## 4. Canary 배포: 일부만 먼저 배포
