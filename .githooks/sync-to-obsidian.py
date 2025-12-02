@@ -17,6 +17,9 @@ OBSIDIAN_PATH = Path.home() / "Library/Mobile Documents/iCloud~md~obsidian/Docum
 EXCLUDE_FILES = {"README.md", "CLAUDE.md"}
 EXCLUDE_DIRS = {".git", ".github", ".githooks", ".claude", "scripts"}
 
+# 정규식 패턴 (컴파일)
+INTERNAL_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(\./?([\w\-]+)\.md\)")
+
 
 def extract_title(content: str) -> str:
     """첫 번째 # 제목 추출"""
@@ -38,17 +41,23 @@ def extract_sources(content: str) -> list[str]:
 
 
 def extract_related_notes(content: str) -> list[str]:
-    """## 관련 문서 섹션에서 링크 추출하여 Obsidian 형식으로 변환"""
+    """문서 전체에서 내부 링크를 추출하여 Obsidian 형식으로 변환
+
+    - ## 관련 문서 섹션의 링크
+    - 본문 내 참조 링크 (예: 📖 ... [제목](./파일.md) 참고하라)
+    - 패턴 기반으로 모든 내부 링크 추출
+    """
+    # 전체 문서에서 내부 링크 패턴 추출
+    links = INTERNAL_LINK_PATTERN.findall(content)
+
+    # 중복 제거하면서 순서 유지 (등장 순서대로)
+    seen = set()
     notes = []
-    # ## 관련 문서 섹션 찾기
-    match = re.search(r"## 관련 문서\s*\n([\s\S]*?)(?=\n## |\n---|\Z)", content)
-    if match:
-        section = match.group(1)
-        # 마크다운 링크에서 파일명 추출: [제목](./파일명.md) 또는 [제목](파일명.md)
-        links = re.findall(r"\[([^\]]+)\]\(\./?([\w\-]+)\.md\)", section)
-        for title, filename in links:
-            # Obsidian 링크 형식으로 변환
+    for title, filename in links:
+        if filename not in seen:
+            seen.add(filename)
             notes.append(f"[[{filename}]]")
+
     return notes
 
 
@@ -60,7 +69,7 @@ def convert_internal_links(content: str) -> str:
         filename = match.group(2)
         return f"[[{filename}|{title}]]"
 
-    content = re.sub(r"\[([^\]]+)\]\(\./?([\w\-]+)\.md\)", replace_link, content)
+    content = INTERNAL_LINK_PATTERN.sub(replace_link, content)
     return content
 
 
@@ -116,6 +125,9 @@ def process_file(src_path: Path, topic: str) -> tuple[str, str]:
     title = extract_title(content)
     sources = extract_sources(content)
     related_notes = extract_related_notes(content)
+
+    # 본문에서 첫 번째 # 제목 제거 (frontmatter에 title 있으므로 중복)
+    content = re.sub(r"^# .+\n+", "", content, count=1, flags=re.MULTILINE)
 
     # 내부 링크 변환
     content = convert_internal_links(content)
