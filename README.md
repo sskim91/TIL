@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **85개**
+- 총 TIL 개수: **86개**
 
 - 카테고리 수: **18개**
 
@@ -30,6 +30,8 @@
 - [LLM Agent란 무엇인가](ai/LLM-Agent란-무엇인가.md)
 
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
+
+- [llms.txt - AI 시대의 robots.txt](ai/llms.txt-AI-시대의-robots.txt.md)
 
 - [MCP (Model Context Protocol) 이해하기](ai/MCP-Model-Context-Protocol-이해하기.md)
 
