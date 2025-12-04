@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **86개**
+- 총 TIL 개수: **87개**
 
 - 카테고리 수: **18개**
 
@@ -186,6 +186,8 @@
 - [Python asyncio](python/Python-asyncio.md)
 
 - [Python f-string](python/Python-f-string.md)
+
+- [Python pandas 핵심 함수 가이드](python/Python-pandas-핵심-함수-가이드.md)
 
 - [Python pip 패키지 관리](python/Python-pip-패키지-관리.md)
 
