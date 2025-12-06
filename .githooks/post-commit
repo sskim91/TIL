@@ -14,7 +14,16 @@
 #   - 다른 컴퓨터에서 pull 받으면 이 hook은 안 돌아감
 #   - pull 후에는 post-merge hook이 전체 동기화 담당
 #
+# ■ 플랫폼 제한
+#   - macOS에서만 실행 (Obsidian iCloud 경로가 macOS 전용)
+#   - Linux(Ubuntu 서버)에서는 건너뜀
+#
 # ============================================================
+
+# macOS가 아니면 건너뜀
+if [[ "$(uname -s)" != "Darwin" ]]; then
+    exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 

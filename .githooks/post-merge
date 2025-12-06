@@ -15,7 +15,16 @@
 #   회사: 파일 10개 수정 → commit → post-commit(--diff) → 10개만 동기화
 #   집:   git pull → post-merge → 전체 동기화
 #
+# ■ 플랫폼 제한
+#   - macOS에서만 실행 (Obsidian iCloud 경로가 macOS 전용)
+#   - Linux(Ubuntu 서버)에서는 건너뜀
+#
 # ============================================================
+
+# macOS가 아니면 건너뜀
+if [[ "$(uname -s)" != "Darwin" ]]; then
+    exit 0
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
