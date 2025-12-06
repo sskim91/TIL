@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **88개**
+- 총 TIL 개수: **89개**
 
 - 카테고리 수: **18개**
 
@@ -246,6 +246,8 @@
 - [Spring Framework 7 - API Versioning](spring/Spring-Framework-7-API-Versioning.md)
 
 - [Spring Framework 7 - HTTP Service Client Enhancements](spring/Spring-Framework-7-HTTP-Service-Client.md)
+
+- [Spring Framework 7 - RestTestClient](spring/Spring-Framework-7-RestTestClient.md)
 
 - [Spring Framework 7.0](spring/Spring-Framework-7.0.md)
 
