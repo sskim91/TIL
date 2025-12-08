@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **89개**
+- 총 TIL 개수: **91개**
 
 - 카테고리 수: **18개**
 
@@ -60,6 +60,10 @@
 
 
 ### database
+
+- [MVCC와 MySQL의 Gap Lock](database/MVCC와-MySQL의-Gap-Lock.md)
+
+- [데이터베이스 ACID와 트랜잭션 격리 수준](database/데이터베이스-ACID와-트랜잭션-격리-수준.md)
 
 - [데이터베이스 옵티마이저와 인덱스 손익분기점](database/데이터베이스-옵티마이저와-인덱스-손익분기점.md)
 
