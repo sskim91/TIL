@@ -303,7 +303,272 @@ result = apply(lambda x, y: x + y, 5, 3)  # 8
 
 ---
 
-## 6. 실전 예제: Repository 패턴
+## 6. TYPE_CHECKING: 순환 import 해결하기
+
+실무 코드를 보다 보면 이런 패턴을 자주 만난다:
+
+```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.core.agents.base.base_agent import BaseAgent
+    from app.core.config import AppConfig
+```
+
+처음 보면 "이게 뭐지?"라는 생각이 든다. 왜 굳이 `if` 문 안에 import를 넣을까?
+
+### 6.1 문제 상황: 순환 import
+
+두 모듈이 서로를 import하면 **순환 import** 문제가 발생한다.
+
+```
+order.py → customer.py import
+customer.py → order.py import
+→ ImportError!
+```
+
+실제 코드로 보자. 온라인 쇼핑몰을 만든다고 가정한다.
+
+**customer.py**
+```python
+from order import Order  # Order를 import
+
+class Customer:
+    def __init__(self, name: str):
+        self.name = name
+        self.orders: list[Order] = []
+
+    def place_order(self, product: str) -> Order:
+        order = Order(customer=self, product=product)
+        self.orders.append(order)
+        return order
+```
+
+**order.py**
+```python
+from customer import Customer  # Customer를 import
+
+class Order:
+    def __init__(self, customer: Customer, product: str):
+        self.customer = customer
+        self.product = product
+
+    def get_customer_name(self) -> str:
+        return self.customer.name
+```
+
+이 코드를 실행하면?
+
+```bash
+$ python customer.py
+ImportError: cannot import name 'Order' from partially initialized module 'order'
+(most likely due to a circular import)
+```
+
+**왜 이런 일이 발생할까?**
+
+```mermaid
+sequenceDiagram
+    participant Python
+    participant customer.py
+    participant order.py
+
+    Python->>customer.py: 1. customer.py 실행 시작
+    customer.py->>order.py: 2. from order import Order
+    order.py->>customer.py: 3. from customer import Customer
+    Note over customer.py: 4. Customer 아직 정의 안 됨!
+    order.py-->>Python: 5. ImportError!
+```
+
+Python은 파일을 **위에서 아래로** 실행한다. `customer.py`의 `class Customer` 정의에 도달하기 전에 `order.py`로 점프했고, `order.py`는 아직 정의되지 않은 `Customer`를 import하려고 시도한다.
+
+### 6.2 해결책: TYPE_CHECKING
+
+`TYPE_CHECKING`은 **런타임에는 항상 `False`** 인 상수다. 하지만 **타입 체커(mypy, pyright)는 `True`로 간주**한다.
+
+```python
+from typing import TYPE_CHECKING
+
+print(TYPE_CHECKING)  # False - 런타임에는 항상 False!
+```
+
+이 특성을 이용하면 순환 import를 해결할 수 있다.
+
+**customer.py (수정 후)**
+```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from order import Order  # 런타임에는 실행 안 됨!
+
+class Customer:
+    def __init__(self, name: str):
+        self.name = name
+        self.orders: list["Order"] = []  # 문자열로 타입 힌트
+
+    def place_order(self, product: str) -> "Order":  # 문자열로 타입 힌트
+        from order import Order  # 실제 사용 시점에 import
+        order = Order(customer=self, product=product)
+        self.orders.append(order)
+        return order
+```
+
+**order.py (수정 후)**
+```python
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from customer import Customer  # 런타임에는 실행 안 됨!
+
+class Order:
+    def __init__(self, customer: "Customer", product: str):  # 문자열로 타입 힌트
+        self.customer = customer
+        self.product = product
+
+    def get_customer_name(self) -> str:
+        return self.customer.name
+```
+
+### 6.3 동작 원리
+
+| 시점 | `if TYPE_CHECKING:` 블록 | 결과 |
+|------|------------------------|------|
+| **런타임** (python 실행) | ❌ 실행 안 됨 | 순환 import 발생 안 함 |
+| **타입 체크** (mypy 실행) | ✅ 실행됨 | 타입 정보 정상 분석 |
+
+```mermaid
+flowchart LR
+    subgraph runtime["런타임 (python)"]
+        A["TYPE_CHECKING = False"]
+        B["if 블록 건너뜀"]
+        C["import 안 함"]
+        A --> B --> C
+    end
+
+    subgraph typecheck["타입 체크 (mypy)"]
+        D["TYPE_CHECKING = True"]
+        E["if 블록 실행"]
+        F["import 처리"]
+        D --> E --> F
+    end
+
+    style A fill:#FFEBEE,color:#000
+    style C fill:#FFEBEE,color:#000
+    style D fill:#E8F5E9,color:#000
+    style F fill:#E8F5E9,color:#000
+```
+
+### 6.4 Forward Reference (문자열 타입 힌트)
+
+`TYPE_CHECKING` 블록의 import는 런타임에 실행되지 않으므로, 해당 타입은 **문자열로** 작성해야 한다. 이를 **Forward Reference** 라고 한다.
+
+```python
+if TYPE_CHECKING:
+    from order import Order
+
+class Customer:
+    # ❌ 런타임 에러! Order가 정의되지 않음
+    def place_order(self) -> Order:
+        pass
+
+    # ✅ 문자열로 작성하면 OK
+    def place_order(self) -> "Order":
+        pass
+```
+
+**Python 3.11+에서는 `from __future__ import annotations`를 사용하면 따옴표를 생략할 수 있다:**
+
+```python
+from __future__ import annotations  # 모든 타입 힌트를 문자열로 처리
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from order import Order
+
+class Customer:
+    # ✅ 따옴표 없이도 OK (Python 3.11+)
+    def place_order(self) -> Order:
+        pass
+```
+
+### 6.5 실무 예제: Agent 시스템
+
+실제 프로젝트에서 볼 수 있는 패턴이다. Context 객체가 여러 컴포넌트를 참조하는 경우:
+
+**ctx.py**
+```python
+from typing import TYPE_CHECKING
+import logging
+
+if TYPE_CHECKING:
+    # 타입 힌트에만 필요한 import들
+    from httpx import AsyncClient as HttpAsyncClient
+    from redis.asyncio import Redis as RedisAsyncClient
+    from app.core.agents.base.base_agent import BaseAgent
+    from app.core.config import AppConfig
+    from app.core.managers import LLMManager
+
+logger = logging.getLogger(__name__)
+
+class Context:
+    """애플리케이션 전역 컨텍스트"""
+
+    def __init__(self):
+        self._agent: "BaseAgent | None" = None
+        self._config: "AppConfig | None" = None
+        self._http_client: "HttpAsyncClient | None" = None
+        self._redis: "RedisAsyncClient | None" = None
+        self._llm_manager: "LLMManager | None" = None
+
+    def set_agent(self, agent: "BaseAgent") -> None:
+        self._agent = agent
+
+    def get_agent(self) -> "BaseAgent":
+        if self._agent is None:
+            raise RuntimeError("Agent not initialized")
+        return self._agent
+
+    async def get_http_client(self) -> "HttpAsyncClient":
+        if self._http_client is None:
+            import httpx  # 실제 사용 시점에 import
+            self._http_client = httpx.AsyncClient()
+        return self._http_client
+```
+
+**왜 이렇게 할까?**
+
+1. **순환 import 방지**: `BaseAgent`가 `Context`를 참조할 수 있음
+2. **시작 시간 단축**: 무거운 모듈을 실제 사용 시점까지 지연
+3. **타입 안전성 유지**: mypy가 타입을 정상적으로 체크
+
+### 6.6 정리: TYPE_CHECKING 사용 패턴
+
+```python
+from typing import TYPE_CHECKING
+
+# 1. TYPE_CHECKING 블록에 타입 힌트용 import
+if TYPE_CHECKING:
+    from some_module import SomeClass
+
+# 2. 타입 힌트는 문자열로 (Forward Reference)
+def process(obj: "SomeClass") -> "SomeClass":
+    pass
+
+# 3. 실제 사용 시에는 함수 내부에서 import
+def create_instance() -> "SomeClass":
+    from some_module import SomeClass  # 지연 import
+    return SomeClass()
+```
+
+| 상황 | 해결 방법 |
+|------|----------|
+| 순환 import 발생 | `TYPE_CHECKING` + Forward Reference |
+| 무거운 모듈 지연 로딩 | `TYPE_CHECKING` + 함수 내 import |
+| 타입 힌트만 필요한 경우 | `TYPE_CHECKING` 블록 사용 |
+
+---
+
+## 7. 실전 예제: Repository 패턴
 
 ```python
 from typing import TypeVar, Generic, Protocol
