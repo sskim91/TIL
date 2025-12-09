@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **100개**
+- 총 TIL 개수: **101개**
 
 - 카테고리 수: **19개**
 
@@ -24,6 +24,8 @@
 - [AI 코딩 어시스턴트 컨텍스트 파일 작성 가이드](ai/AI-코딩-어시스턴트-컨텍스트-파일-작성-가이드.md)
 
 - [Google Antigravity: 에이전트 우선 개발 환경](ai/Google-Antigravity-에이전트-우선-개발-환경.md)
+
+- [JSON-RPC와 MCP의 관계](ai/JSON-RPC와-MCP의-관계.md)
 
 - [LangChain Agent 생성 및 사용법](ai/LangChain-Agent-생성-및-사용법.md)
 
