@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **101개**
+- 총 TIL 개수: **102개**
 
 - 카테고리 수: **19개**
 
@@ -88,6 +88,8 @@
 
 
 ### docker
+
+- [Dockerfile과 docker-compose의 차이](docker/Dockerfile과-docker-compose의-차이.md)
 
 - [Docker의 Copy-on-Write 전략](docker/Docker의-Copy-on-Write-전략.md)
 
