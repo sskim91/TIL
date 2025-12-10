@@ -2,6 +2,8 @@
 
 Python으로 API 서버를 만들어야 한다. Flask? Django? 아니면 요즘 핫하다는 FastAPI? 선택지가 많아서 고민된다. FastAPI가 "Fast"한 이유는 뭘까? 그냥 이름만 그런 걸까?
 
+> **이 문서의 범위:** 기본 개념과 함께 `Header`, `Query`, `Path`, `HTTPException`, `Response` 등 **실무에서 자주 쓰이는 패턴** 도 다룬다.
+
 ## 결론부터 말하면
 
 **FastAPI는 "개발 속도"와 "실행 속도" 두 마리 토끼를 잡은 프레임워크다.**
@@ -273,38 +275,61 @@ async def get_posts():
 ```python
 from fastapi import Depends, HTTPException
 
-# 의존성 정의
-async def get_db():
+# 의존성 정의 (동기 방식 - def 사용)
+def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        db.close()  # yield 사용: 응답 전후로 실행되는 동기 제너레이터
 
-async def get_current_user(
+# 완전 비동기 방식 (권장 - SQLAlchemy 1.4+)
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import AsyncGenerator
+
+async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        yield session
+
+# 동기 방식: 인증 의존성도 동기로 통일
+def get_current_user_sync(
     token: str = Header(...),
     db: Session = Depends(get_db)
 ):
-    user = await verify_token(token, db)
+    user = verify_token_sync(token, db)  # 동기 함수
     if not user:
         raise HTTPException(401, "Invalid token")
     return user
 
-# 사용 - 깔끔!
+# 동기 엔드포인트 (동기 의존성만 사용)
 @app.get("/users")
-async def get_users(
+def get_users(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user)
+    user: User = Depends(get_current_user_sync)
 ):
-    return await db.query(User).all()
+    return db.query(User).all()
 
-@app.get("/posts")
-async def get_posts(
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user)
+# 비동기 방식: 인증 의존성도 비동기로 통일
+async def get_current_user_async(
+    token: str = Header(...),
+    db: AsyncSession = Depends(get_async_db)
 ):
-    return await db.query(Post).filter(Post.author == user).all()
+    user = await verify_token_async(token, db)  # 비동기 함수
+    if not user:
+        raise HTTPException(401, "Invalid token")
+    return user
+
+# 비동기 엔드포인트 (비동기 의존성만 사용)
+@app.get("/users/async")
+async def get_users_async(
+    db: AsyncSession = Depends(get_async_db),
+    user: User = Depends(get_current_user_async)
+):
+    result = await db.execute(select(User))
+    return result.scalars().all()
 ```
+
+> **주의:** 동기/비동기를 혼합하지 마라! 동기 엔드포인트는 동기 의존성만, 비동기 엔드포인트는 비동기 의존성만 사용해야 일관성 있고 예측 가능한 코드가 된다.
 
 ### 4.3 Java 개발자를 위한 비교
 
@@ -340,6 +365,8 @@ async def get_users(
 **비슷한 개념:**
 - Spring `@Autowired` ≈ FastAPI `Depends()`
 - Spring `@AuthenticationPrincipal` ≈ FastAPI `Depends(get_current_user)`
+
+> **Depends 캐싱:** 동일 요청 내에서 같은 의존성이 여러 번 사용되면 FastAPI가 결과를 캐시한다. 예를 들어 `get_users`와 `get_current_user`가 모두 `Depends(get_db)`를 사용하면, DB 세션은 한 번만 생성되어 공유된다.
 
 ---
 
@@ -534,7 +561,239 @@ async def delete_user(user_id: int):
 
 ---
 
-## 8. 정리
+## 8. 실무 필수 패턴: Header, Query, Path, Response
+
+실무 프로젝트를 보면 `Header()`, `Query()`, `Path()` 같은 것들이 자주 등장한다. 처음 보면 "이게 뭐지?" 싶은데, 알고 나면 매우 직관적이다.
+
+### 8.1 파라미터 타입별 역할
+
+FastAPI는 요청의 **어디서 데이터를 가져올지** 를 명시적으로 선언한다:
+
+```python
+from fastapi import FastAPI, Path, Query, Header, Body
+
+@app.get("/items/{item_id}")
+async def get_item(
+    item_id: int = Path(..., description="아이템 ID"),           # URL 경로: /items/123
+    q: str | None = Query(None, max_length=50),                  # 쿼리스트링: ?q=검색어
+    user_agent: str | None = Header(None),                       # HTTP 헤더: User-Agent
+):
+    return {"item_id": item_id, "q": q, "user_agent": user_agent}
+```
+
+| 파라미터 타입 | 데이터 위치 | 예시 |
+|--------------|------------|------|
+| `Path()` | URL 경로 | `/users/123` → `user_id=123` |
+| `Query()` | 쿼리스트링 | `?page=1&size=10` |
+| `Header()` | HTTP 헤더 | `Authorization: Bearer xxx` |
+| `Body()` | 요청 본문 | JSON payload (Pydantic 모델 사용 시 자동) |
+| `Cookie()` | 쿠키 | `session_id=abc` |
+
+> **Body() 참고:** Pydantic 모델을 인자로 받으면 자동으로 요청 본문에서 읽는다. 명시적 `Body()`는 여러 본문 파라미터를 받거나 `embed=True` 옵션이 필요할 때 사용한다.
+
+### 8.2 Header(): 헤더에서 값 추출
+
+**실무에서 가장 헷갈리는 부분!** `Header()`를 사용해야 HTTP 헤더에서 값을 가져온다.
+
+```python
+from fastapi import Header
+from typing import Annotated
+
+@app.get("/items/")
+async def read_items(
+    # user_agent 변수명 → User-Agent 헤더로 자동 변환 (언더스코어 → 하이픈)
+    user_agent: Annotated[str | None, Header()] = None,
+    # 커스텀 헤더
+    x_token: Annotated[str | None, Header()] = None,  # X-Token 헤더
+):
+    return {"User-Agent": user_agent, "X-Token": x_token}
+```
+
+**핵심 포인트:**
+- `user_agent` → `User-Agent` 헤더로 자동 변환 (snake_case → kebab-case)
+- 변환을 끄려면: `Header(convert_underscores=False)`
+- 같은 헤더가 여러 개면: `x_token: list[str] = Header()`
+
+### 8.3 Query(): 쿼리 파라미터 검증
+
+```python
+from fastapi import Query
+from typing import Annotated
+
+@app.get("/items/")
+async def search_items(
+    # 필수 파라미터 (기본값 없음)
+    keyword: Annotated[str, Query(min_length=2, max_length=50)],
+    # 선택 파라미터 (기본값 있음)
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 10,
+    # 정규식 검증
+    order: Annotated[str | None, Query(pattern="^(asc|desc)$")] = None,
+    # 여러 값 받기: ?tag=python&tag=fastapi
+    tags: Annotated[list[str] | None, Query()] = None,
+):
+    return {"keyword": keyword, "page": page, "size": size, "tags": tags}
+```
+
+**검증 옵션:**
+
+| 옵션 | 설명 | 예시 |
+|-----|------|------|
+| `min_length` | 최소 문자열 길이 | `Query(min_length=3)` |
+| `max_length` | 최대 문자열 길이 | `Query(max_length=50)` |
+| `ge` | 이상 (>=) | `Query(ge=1)` |
+| `le` | 이하 (<=) | `Query(le=100)` |
+| `gt` | 초과 (>) | `Query(gt=0)` |
+| `lt` | 미만 (<) | `Query(lt=1000)` |
+| `pattern` | 정규식 | `Query(pattern="^[a-z]+$")` |
+| `alias` | 다른 이름으로 받기 | `Query(alias="item-query")` |
+| `deprecated` | 문서에 deprecated 표시 | `Query(deprecated=True)` |
+
+### 8.4 Path(): 경로 파라미터 검증
+
+```python
+from fastapi import Path
+
+@app.get("/users/{user_id}/posts/{post_id}")
+async def get_user_post(
+    user_id: Annotated[int, Path(ge=1, description="사용자 ID")],
+    post_id: Annotated[int, Path(ge=1, description="게시글 ID")],
+):
+    return {"user_id": user_id, "post_id": post_id}
+```
+
+### 8.5 HTTPException: 에러 응답
+
+```python
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
+
+@app.get("/items/{item_id}")
+async def get_item(item_id: int):
+    if item_id not in items_db:
+        # 기본 사용법
+        raise HTTPException(status_code=404, detail="Item not found")
+    return items_db[item_id]
+
+@app.get("/admin/items/{item_id}")
+async def get_admin_item(item_id: int, x_token: str = Header()):
+    if x_token != "secret-admin-token":
+        # 커스텀 헤더 포함
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid admin token",
+            headers={"X-Error": "Token validation failed"}
+        )
+    return items_db.get(item_id)
+```
+
+**커스텀 예외 핸들러:**
+
+```python
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+# 커스텀 예외 정의
+class ItemNotFoundException(Exception):
+    def __init__(self, item_id: int):
+        self.item_id = item_id
+
+# 예외 핸들러 등록
+@app.exception_handler(ItemNotFoundException)
+async def item_not_found_handler(request: Request, exc: ItemNotFoundException):
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": "ITEM_NOT_FOUND",
+            "message": f"Item {exc.item_id} does not exist",
+            "item_id": exc.item_id
+        }
+    )
+
+# 사용
+@app.get("/items/{item_id}")
+async def get_item(item_id: int):
+    if item_id not in items_db:
+        raise ItemNotFoundException(item_id)
+    return items_db[item_id]
+```
+
+### 8.6 Response Model: 응답 스키마 정의
+
+```python
+from pydantic import BaseModel, EmailStr
+
+# 입력용 모델 (비밀번호 포함)
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+# 출력용 모델 (비밀번호 제외!)
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+
+@app.post("/users", response_model=UserResponse)
+async def create_user(user: UserCreate):
+    # password가 포함된 user를 반환해도
+    # response_model=UserResponse 덕분에 password는 응답에서 제외됨
+    db_user = {"id": 1, **user.model_dump()}
+    return db_user  # password 자동 필터링!
+```
+
+**response_model 옵션:**
+
+```python
+# 기본값이 설정되지 않은 필드만 반환
+@app.get("/items/{item_id}", response_model=Item, response_model_exclude_unset=True)
+async def get_item(item_id: int):
+    return items_db[item_id]
+
+# 특정 필드만 포함
+@app.get("/items/{item_id}/summary", response_model=Item, response_model_include={"name", "price"})
+async def get_item_summary(item_id: int):
+    return items_db[item_id]
+
+# 특정 필드 제외
+@app.get("/items/{item_id}/public", response_model=Item, response_model_exclude={"internal_code"})
+async def get_item_public(item_id: int):
+    return items_db[item_id]
+```
+
+### 8.7 StreamingResponse와 JSONResponse
+
+```python
+from fastapi.responses import JSONResponse, StreamingResponse
+import asyncio
+
+# 커스텀 JSON 응답 (상태 코드, 헤더 직접 제어)
+@app.get("/custom")
+async def custom_response():
+    return JSONResponse(
+        status_code=201,
+        content={"message": "Created"},
+        headers={"X-Custom-Header": "custom-value"}
+    )
+
+# 스트리밍 응답 (대용량 파일, 실시간 데이터)
+async def generate_data():
+    for i in range(10):
+        yield f"data: {i}\n\n"
+        await asyncio.sleep(0.5)
+
+@app.get("/stream")
+async def stream_response():
+    return StreamingResponse(
+        generate_data(),
+        media_type="text/event-stream"
+    )
+```
+
+---
+
+## 9. 정리
 
 **FastAPI를 선택해야 하는 이유:**
 
