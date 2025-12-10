@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **103개**
+- 총 TIL 개수: **104개**
 
-- 카테고리 수: **19개**
+- 카테고리 수: **20개**
 
 ## 📚 카테고리
 
@@ -244,6 +244,12 @@
 - [Python의 with 문 (Context Manager)](python/Python의-with-문-Context-Manager.md)
 
 - [Ray Serve와 FastAPI: ML 모델 서빙의 완성](python/Ray-Serve와-FastAPI-ML-모델-서빙의-완성.md)
+
+
+
+### redis
+
+- [Redis는 왜 쓰는가](redis/Redis는-왜-쓰는가.md)
 
 
 
