@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **104개**
+- 총 TIL 개수: **105개**
 
-- 카테고리 수: **20개**
+- 카테고리 수: **21개**
 
 ## 📚 카테고리
 
@@ -144,6 +144,12 @@
 ### javascript
 
 - [JavaScript 프로토타입 (Prototype)](javascript/JavaScript-프로토타입-Prototype.md)
+
+
+
+### kafka
+
+- [Kafka는 왜 만들어졌는가](kafka/Kafka는-왜-만들어졌는가.md)
 
 
 
