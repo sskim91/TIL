@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **105개**
+- 총 TIL 개수: **106개**
 
 - 카테고리 수: **21개**
 
@@ -198,6 +198,8 @@
 ### python
 
 - [FastAPI: 왜 빠르고 왜 쓰는가](python/FastAPI-왜-빠르고-왜-쓰는가.md)
+
+- [Pydantic 실무 활용: BaseSettings와 Field](python/Pydantic-실무-활용-BaseSettings와-Field.md)
 
 - [Python @dataclass](python/Python-@dataclass.md)
 
