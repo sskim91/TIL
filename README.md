@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **106개**
+- 총 TIL 개수: **107개**
 
 - 카테고리 수: **21개**
 
@@ -56,6 +56,8 @@
 - [Cardinality - 컴퓨터 과학에서의 의미와 활용](computer-science/Cardinality-컴퓨터-과학에서의-의미와-활용.md)
 
 - [Concurrency와 Parallelism - 동시성과 병렬성](computer-science/Concurrency와-Parallelism-동시성과-병렬성.md)
+
+- [DAG - 방향 비순환 그래프](computer-science/DAG-방향-비순환-그래프.md)
 
 - [Pub/Sub 패턴](computer-science/Pub-Sub-패턴.md)
 
