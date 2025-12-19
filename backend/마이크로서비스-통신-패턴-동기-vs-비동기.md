@@ -373,7 +373,146 @@ flowchart TD
 | **알림/로깅** | 비동기 | 실패해도 비즈니스 영향 없음 |
 | **분석/통계** | 비동기 | 실시간성 불필요 |
 
-## 6. 선택 기준
+## 6. 비동기에서 응답은 어떻게 받나?
+
+비동기 처리의 핵심 의문: **클라이언트가 HTTP 커넥션을 닫았는데, 처리 결과는 어떻게 받지?**
+
+4가지 패턴이 있다.
+
+### 패턴 1: 폴링 (Polling)
+
+클라이언트가 주기적으로 "결과 나왔어?" 확인하는 방식.
+
+```
+1. Client → Gateway: "처리해줘"
+   Gateway → Client: "OK, 작업 ID: abc123" (즉시 응답)
+
+2. (백그라운드에서 처리 중...)
+
+3. Client → Gateway: "abc123 결과 나왔어?"
+   Gateway → Client: "아직..."
+
+4. Client → Gateway: "abc123 결과 나왔어?"
+   Gateway → Client: "완료! 결과는 {...}"
+```
+
+```python
+# 요청
+response = httpx.post("/process", json=data)
+job_id = response.json()["job_id"]
+
+# 폴링
+while True:
+    result = httpx.get(f"/jobs/{job_id}")
+    if result.json()["status"] == "completed":
+        return result.json()["data"]
+    time.sleep(1)
+```
+
+**장점:** 구현 단순, 방화벽 친화적
+**단점:** 불필요한 요청 발생, 실시간성 부족
+
+### 패턴 2: SSE (Server-Sent Events)
+
+서버가 클라이언트에게 **단방향으로 푸시**하는 방식. HTTP 커넥션 유지.
+
+```
+1. Client → Gateway: "처리해줘" (커넥션 유지!)
+
+2. Gateway → Client: "진행중... 30%"
+   Gateway → Client: "진행중... 60%"
+
+3. Gateway → Client: "완료! 결과는 {...}"
+```
+
+```python
+# 스트리밍 수신
+with httpx.stream("POST", "/process", json=data) as response:
+    for line in response.iter_lines():
+        event = json.loads(line)
+        if event["status"] == "completed":
+            return event["result"]
+```
+
+**ChatGPT, Claude API가 이 방식!** LLM 토큰 스트리밍에 적합.
+
+### 패턴 3: WebSocket
+
+**양방향 실시간 통신**. 클라이언트와 서버가 자유롭게 메시지 교환.
+
+```
+1. Client ◀──WebSocket 연결──▶ Gateway (양방향)
+
+2. Client → Gateway: "처리해줘"
+
+3. (백그라운드에서 처리...)
+
+4. Gateway → Client: "완료!" (서버가 먼저 푸시)
+```
+
+**실시간 채팅, 게임, 협업 도구**에 적합.
+
+### 패턴 4: Webhook (Callback URL)
+
+클라이언트가 "끝나면 이 URL로 알려줘"라고 콜백 주소를 전달.
+
+```
+1. Client → Gateway: "처리해줘, 끝나면 https://my-server/callback 으로"
+   Gateway → Client: "OK" (즉시 응답)
+
+2. (백그라운드에서 처리...)
+
+3. Reporter → https://my-server/callback: "완료! 결과는 {...}"
+```
+
+```python
+# 요청 시
+httpx.post("/process", json={
+    "data": {...},
+    "callback_url": "https://my-server/webhook/result"
+})
+
+# 내 서버에서 결과 수신
+@app.post("/webhook/result")
+def receive_result(result: dict):
+    save_to_db(result)
+```
+
+**결제 시스템 (PG사 연동), 외부 API 연동**에서 많이 사용.
+
+### 비동기 응답 패턴 비교
+
+| 패턴 | 실시간성 | 구현 복잡도 | 사용 사례 |
+|------|---------|------------|----------|
+| **폴링** | 낮음 | 낮음 | 파일 업로드 처리, 배치 작업 |
+| **SSE** | 높음 | 중간 | LLM 스트리밍, 알림 |
+| **WebSocket** | 매우 높음 | 높음 | 채팅, 게임, 협업 |
+| **Webhook** | 이벤트 기반 | 중간 | 결제, 외부 연동 |
+
+### 내부 구조: Correlation ID 패턴
+
+비동기 체인에서 "누구의 요청인지" 추적하는 방법:
+
+```mermaid
+flowchart LR
+    Client -->|요청| Gateway
+    Gateway -->|ID: abc123| Q[Message Queue]
+    Q -->|ID: abc123| A[Agent1]
+    A -->|ID: abc123| B[Agent2]
+    B -->|ID: abc123 + 결과| Q2[Result Queue]
+    Q2 -->|ID: abc123 + 결과| Gateway
+    Gateway -->|SSE/Polling| Client
+
+    style Q fill:#FFF3E0,color:#000
+    style Q2 fill:#FFF3E0,color:#000
+```
+
+1. Gateway가 **Correlation ID** 발급 (예: `abc123`)
+2. 이 ID가 모든 서비스를 거쳐 전달됨
+3. 최종 서비스가 결과 + ID를 함께 반환
+4. Gateway가 ID로 대기 중인 클라이언트 매칭
+
+## 7. 선택 기준
 
 ### 동기식이 적합한 경우
 
