@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **110개**
+- 총 TIL 개수: **111개**
 
 - 카테고리 수: **21개**
 
@@ -42,6 +42,8 @@
 - [ML 모델 서빙이란 무엇인가](ai/ML-모델-서빙이란-무엇인가.md)
 
 - [Multi-turn Conversation (멀티턴 대화)](ai/Multi-turn-Conversation-멀티턴-대화.md)
+
+- [Synthetic Data: AI 학습의 비밀 무기](ai/Synthetic-Data-AI-학습의-비밀-무기.md)
 
 - [Vector DB, AI 시대에 갑자기 뜬 이유](ai/Vector-DB-AI-시대에-갑자기-뜬-이유.md)
 
