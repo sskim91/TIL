@@ -9,13 +9,15 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **111개**
+- 총 TIL 개수: **114개**
 
 - 카테고리 수: **21개**
 
 ## 📚 카테고리
 
 ### ai
+
+- [AI Agent 워크플로 패턴 - 프롬프트 체이닝](ai/AI-Agent-워크플로-패턴-프롬프트-체이닝.md)
 
 - [AI Agent와 Agentic AI](ai/AI-Agent와-Agentic-AI.md)
 
@@ -46,6 +48,8 @@
 - [Synthetic Data: AI 학습의 비밀 무기](ai/Synthetic-Data-AI-학습의-비밀-무기.md)
 
 - [Vector DB, AI 시대에 갑자기 뜬 이유](ai/Vector-DB-AI-시대에-갑자기-뜬-이유.md)
+
+- [효과적인 AI Agent 구축하기 - Anthropic 가이드](ai/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
 
 
 
@@ -252,6 +256,8 @@
 - [Python의 __init__과 __all__](python/Python의-__init__과-__all__.md)
 
 - [Python의 Enum 완벽 가이드](python/Python의-Enum-완벽-가이드.md)
+
+- [Python의 enumerate - 인덱스와 값을 동시에](python/Python의-enumerate-인덱스와-값을-동시에.md)
 
 - [Python의 http.client와 requests](python/Python의-http.client와-requests.md)
 
