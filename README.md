@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **114개**
+- 총 TIL 개수: **115개**
 
-- 카테고리 수: **21개**
+- 카테고리 수: **22개**
 
 ## 📚 카테고리
 
@@ -268,6 +268,12 @@
 - [Python의 with 문 (Context Manager)](python/Python의-with-문-Context-Manager.md)
 
 - [Ray Serve와 FastAPI: ML 모델 서빙의 완성](python/Ray-Serve와-FastAPI-ML-모델-서빙의-완성.md)
+
+
+
+### react
+
+- [TanStack Query가 탄생한 이유](react/TanStack-Query가-탄생한-이유.md)
 
 
 
