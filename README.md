@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **115개**
+- 총 TIL 개수: **116개**
 
-- 카테고리 수: **22개**
+- 카테고리 수: **23개**
 
 ## 📚 카테고리
 
@@ -50,6 +50,12 @@
 - [Vector DB, AI 시대에 갑자기 뜬 이유](ai/Vector-DB-AI-시대에-갑자기-뜬-이유.md)
 
 - [효과적인 AI Agent 구축하기 - Anthropic 가이드](ai/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
+
+
+
+### aws
+
+- [Terraform으로 AWS 인프라를 코드로 관리하기](aws/Terraform으로-AWS-인프라를-코드로-관리하기.md)
 
 
 
