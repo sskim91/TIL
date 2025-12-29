@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **116개**
+- 총 TIL 개수: **117개**
 
 - 카테고리 수: **23개**
 
@@ -54,6 +54,8 @@
 
 
 ### aws
+
+- [boto3: Python으로 AWS 인프라 제어하기](aws/boto3-Python으로-AWS-인프라-제어하기.md)
 
 - [Terraform으로 AWS 인프라를 코드로 관리하기](aws/Terraform으로-AWS-인프라를-코드로-관리하기.md)
 
