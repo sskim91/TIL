@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **117개**
+- 총 TIL 개수: **118개**
 
-- 카테고리 수: **23개**
+- 카테고리 수: **24개**
 
 ## 📚 카테고리
 
@@ -104,6 +104,12 @@
 ### design-pattern
 
 - [Python Factory 패턴](design-pattern/Python-Factory-패턴.md)
+
+
+
+### devops
+
+- [GitOps: Git을 Single Source of Truth로 삼는 운영 모델](devops/GitOps-Git을-Single-Source-of-Truth로-삼는-운영-모델.md)
 
 
 
