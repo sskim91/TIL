@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **118개**
+- 총 TIL 개수: **119개**
 
 - 카테고리 수: **24개**
 
@@ -80,6 +80,8 @@
 - [Pub/Sub 패턴](computer-science/Pub-Sub-패턴.md)
 
 - [동기-비동기, 블로킹-논블로킹](computer-science/동기-비동기-블로킹-논블로킹.md)
+
+- [비동기의 계층 구조 - async/await는 빙산의 일각](computer-science/비동기의-계층-구조-async-await는-빙산의-일각.md)
 
 
 
