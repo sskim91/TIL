@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **120개**
+- 총 TIL 개수: **121개**
 
 - 카테고리 수: **24개**
 
@@ -114,6 +114,8 @@
 ### devops
 
 - [GitOps: Git을 Single Source of Truth로 삼는 운영 모델](devops/GitOps-Git을-Single-Source-of-Truth로-삼는-운영-모델.md)
+
+- [tmux - 터미널 멀티플렉서의 모든 것](devops/tmux-터미널-멀티플렉서의-모든-것.md)
 
 
 
