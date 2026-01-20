@@ -274,32 +274,43 @@ Node.js로 코드를 작성할 때, 우리는 멀티스레드를 전혀 의식�
 
 ### 5.3 mermaid 스타일 규칙 (CRITICAL)
 
-**`style` 사용 시 `color`를 반드시 명시하라. 생략하면 글씨가 안 보일 수 있다.**
+**개별 노드는 어두운 배경 + 흰 글씨만 사용하라. subgraph는 기본 배경을 사용하라.**
 
 ```markdown
 ❌ Bad: style Node fill:#e1f5ff          (color 생략 → 글씨 안 보임)
-❌ Bad: style Node fill:#fff3e0          (color 생략 → 글씨 안 보임)
-❌ Bad: style Node fill:#333,color:#666  (어두운 배경에 어두운 글씨 → 안 보임)
+❌ Bad: style Node fill:#E3F2FD,color:#000  (밝은 배경 → 눈에 안 띔)
+❌ Bad: style LangChain fill:#E3F2FD,color:#000  (subgraph에 밝은 색 → 눈 아픔)
 
 ✅ Good: style Node fill:#1565C0,color:#fff  (어두운 배경 + 흰 글씨)
-✅ Good: style Node fill:#E3F2FD,color:#000  (밝은 배경 + 검은 글씨)
-✅ Good: style Node fill:#fff3e0,color:#000  (밝은 배경 + 검은 글씨)
+✅ Good: subgraph 사용 시 style 생략 → 기본 배경 사용
 ```
 
-**권장 색상 조합:**
+**권장 색상 조합 (어두운 배경 + 흰 글씨만):**
 
-| 용도 | fill (배경) | color (글씨) | 예시 |
-|------|-------------|--------------|------|
-| 강조 (파랑) | `#1565C0` | `#fff` | 핵심 노드 |
-| 성공/완료 | `#2E7D32` | `#fff` | 완료 상태 |
-| 경고/주의 | `#E65100` | `#fff` | 주의 필요 |
-| 오류/위험 | `#C62828` | `#fff` | 에러 상태 |
-| 일반 (밝은 파랑) | `#E3F2FD` | `#000` | 일반 노드 |
-| 일반 (밝은 초록) | `#E8F5E9` | `#000` | 일반 노드 |
-| 일반 (밝은 주황) | `#FFF3E0` | `#000` | 일반 노드 |
-| 일반 (밝은 분홍) | `#FFEBEE` | `#000` | 일반 노드 |
+| 용도 | fill (배경) | color (글씨) |
+|------|-------------|--------------|
+| 시작/핵심 (파랑) | `#1565C0` | `#fff` |
+| 종료/성공 (초록) | `#2E7D32` | `#fff` |
+| 조건/분기 (주황) | `#E65100` | `#fff` |
+| 오류/위험 (빨강) | `#C62828` | `#fff` |
 
-> **원칙:** 어두운 배경(`#1565C0`, `#2E7D32` 등)에는 `color:#fff`, 밝은 배경(`#E3F2FD`, `#FFF3E0` 등)에는 `color:#000`
+**subgraph 규칙:**
+
+```markdown
+❌ Bad: subgraph에 style 지정
+subgraph Group["그룹"]
+    ...
+end
+style Group fill:#E3F2FD,color:#000  ← 하지 마라
+
+✅ Good: subgraph는 기본 배경 사용
+subgraph Group["그룹"]
+    ...
+end
+(style 생략)
+```
+
+> **원칙:** 개별 노드만 어두운 배경(`#1565C0`, `#2E7D32`, `#E65100`, `#C62828`) + `color:#fff`로 강조. subgraph는 style 지정하지 않음.
 
 ### 5.4 mermaid 줄바꿈 규칙
 
