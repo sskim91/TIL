@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **121개**
+- 총 TIL 개수: **122개**
 
 - 카테고리 수: **24개**
 
@@ -30,6 +30,8 @@
 - [JSON-RPC와 MCP의 관계](ai/JSON-RPC와-MCP의-관계.md)
 
 - [LangChain Agent 생성 및 사용법](ai/LangChain-Agent-생성-및-사용법.md)
+
+- [LangGraph - LLM 애플리케이션을 위한 상태 머신](ai/LangGraph-LLM-애플리케이션을-위한-상태-머신.md)
 
 - [LLM Agent란 무엇인가](ai/LLM-Agent란-무엇인가.md)
 
