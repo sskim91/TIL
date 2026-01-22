@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **123개**
+- 총 TIL 개수: **130개**
 
 - 카테고리 수: **24개**
 
@@ -32,6 +32,20 @@
 - [LangChain Agent 생성 및 사용법](ai/LangChain-Agent-생성-및-사용법.md)
 
 - [LangGraph - LLM 애플리케이션을 위한 상태 머신](ai/LangGraph-LLM-애플리케이션을-위한-상태-머신.md)
+
+- [LangGraph Durable Execution - 실패해도 이어서 실행하기](ai/LangGraph-Durable-Execution-실패해도-이어서-실행하기.md)
+
+- [LangGraph Interrupts - 사람의 승인이 필요할 때](ai/LangGraph-Interrupts-사람의-승인이-필요할-때.md)
+
+- [LangGraph Memory - 기억을 관리하는 두 가지 방법](ai/LangGraph-Memory-기억을-관리하는-두-가지-방법.md)
+
+- [LangGraph Persistence - 상태를 영속화하는 방법](ai/LangGraph-Persistence-상태를-영속화하는-방법.md)
+
+- [LangGraph Streaming - 실시간으로 결과 받기](ai/LangGraph-Streaming-실시간으로-결과-받기.md)
+
+- [LangGraph Subgraph - 그래프 안의 그래프](ai/LangGraph-Subgraph-그래프-안의-그래프.md)
+
+- [LangGraph Time Travel - 과거로 돌아가 다시 실행하기](ai/LangGraph-Time-Travel-과거로-돌아가-다시-실행하기.md)
 
 - [LLM Agent란 무엇인가](ai/LLM-Agent란-무엇인가.md)
 
