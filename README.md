@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **130개**
+- 총 TIL 개수: **131개**
 
 - 카테고리 수: **24개**
 
@@ -242,6 +242,8 @@
 ### nodejs
 
 - [Node.js가 싱글스레드라는 미신](nodejs/Node.js가-싱글스레드라는-미신.md)
+
+- [Zustand: Redux 보일러플레이트에 지쳤다면](nodejs/Zustand-Redux-보일러플레이트에-지쳤다면.md)
 
 
 
