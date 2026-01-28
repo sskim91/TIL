@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **135개**
+- 총 TIL 개수: **136개**
 
 - 카테고리 수: **24개**
 
@@ -108,6 +108,8 @@
 - [MVCC와 MySQL의 Gap Lock](database/MVCC와-MySQL의-Gap-Lock.md)
 
 - [Redis String vs Hash: 언제 무엇을 써야 하는가](database/Redis-String-vs-Hash-언제-무엇을-써야-하는가.md)
+
+- [대리키 vs 자연키 - 기본키 설계 전략](database/대리키-vs-자연키-기본키-설계-전략.md)
 
 - [데이터베이스 ACID와 트랜잭션 격리 수준](database/데이터베이스-ACID와-트랜잭션-격리-수준.md)
 
