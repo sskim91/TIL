@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **137개**
+- 총 TIL 개수: **138개**
 
-- 카테고리 수: **24개**
+- 카테고리 수: **25개**
 
 ## 📚 카테고리
 
@@ -148,6 +148,12 @@
 - [Dockerfile과 docker-compose의 차이](docker/Dockerfile과-docker-compose의-차이.md)
 
 - [Docker의 Copy-on-Write 전략](docker/Docker의-Copy-on-Write-전략.md)
+
+
+
+### economics
+
+- [명목임금 vs 실질임금 - 월급이 올랐는데 왜 더 가난해졌을까?](economics/명목임금-vs-실질임금-월급이-올랐는데-왜-더-가난해졌을까.md)
 
 
 
