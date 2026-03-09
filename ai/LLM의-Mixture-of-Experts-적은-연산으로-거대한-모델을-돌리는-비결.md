@@ -145,7 +145,90 @@ $W_g$는 학습 가능한 가중치 행렬이고, TopK는 상위 K개의 Expert�
 
 각 Expert는 독립적인 FFN이다. 구조는 일반 Transformer의 FFN과 동일하지만, 각각 서로 다른 가중치를 갖는다. 학습 과정에서 각 Expert는 자연스럽게 서로 다른 패턴을 학습하게 된다.
 
-### 3.2 실제 모델 사례
+### 3.2 토큰 하나가 MoE를 통과하는 과정
+
+3.1에서 구조를 봤으니, 이제 실제로 토큰 하나가 어떻게 흘러가는지 따라가 보자. Mixtral 8x7B(8 Expert, Top-2) 기준이다.
+
+#### 한 레이어 내부
+
+토큰 "안녕"이 레이어 하나를 통과하는 과정이다. Attention까지는 Dense 모델과 동일하고, **FFN 단계에서만 달라진다.**
+
+```mermaid
+sequenceDiagram
+    participant T as 토큰 벡터<br>(d=4096)
+    participant LN1 as Layer Norm
+    participant Attn as Self-Attention<br>(공유, 항상 연산)
+    participant LN2 as Layer Norm
+    participant R as Router<br>(W_g 행렬 연산)
+    participant E2 as Expert 2 FFN<br>(가중치 0.6)
+    participant E5 as Expert 5 FFN<br>(가중치 0.4)
+    participant Out as 레이어 출력
+
+    T->>LN1: 정규화
+    LN1->>Attn: 다른 토큰들과 관계 계산
+    Attn->>T: +Residual Connection
+    T->>LN2: 정규화
+    LN2->>R: W_g · x → 8개 Expert 점수 계산
+    Note over R: [0.1, 0.6, 0.05, 0.02, 0.4, 0.01, 0.01, 0.01]<br>Top-2 선택 → Expert 2, Expert 5
+    R->>E2: 토큰 벡터 전달
+    R->>E5: 토큰 벡터 전달
+    Note over E2: 4096→16384→4096<br>(FFN 연산)
+    Note over E5: 4096→16384→4096<br>(FFN 연산)
+    E2->>Out: 0.6 × E2(x)
+    E5->>Out: 0.4 × E5(x)
+    Note over Out: 0.6×E2(x) + 0.4×E5(x)<br>+Residual Connection
+```
+
+이 과정에서 **Expert 1, 3, 4, 6, 7, 8은 아무 연산도 하지 않는다.** 메모리에 올라가 있지만 그냥 쉬고 있는 것이다.
+
+#### 32개 레이어를 전부 통과하면
+
+핵심은 **매 레이어의 Router가 독립적으로 Expert를 선택한다** 는 점이다. Layer 1에서 Expert 2, 5를 썼다고 Layer 2에서도 같은 Expert를 쓰는 게 아니다.
+
+```mermaid
+flowchart TD
+    Input["토큰 입력"] --> L1
+
+    subgraph L1["Layer 1"]
+        A1["Attention (공유)"] --> R1["Router → Expert 2, 5 선택"]
+    end
+
+    L1 --> L2
+    subgraph L2["Layer 2"]
+        A2["Attention (공유)"] --> R2["Router → Expert 1, 7 선택"]
+    end
+
+    L2 --> L3
+    subgraph L3["Layer 3"]
+        A3["Attention (공유)"] --> R3["Router → Expert 3, 5 선택"]
+    end
+
+    L3 --> L32
+    subgraph L32["Layer 32"]
+        A32["Attention (공유)"] --> R32["Router → Expert 4, 6 선택"]
+    end
+
+    L32 --> Output["다음 토큰 예측 확률"]
+
+    style A1 fill:#1565C0,color:#fff
+    style A2 fill:#1565C0,color:#fff
+    style A3 fill:#1565C0,color:#fff
+    style A32 fill:#1565C0,color:#fff
+    style R1 fill:#2E7D32,color:#fff
+    style R2 fill:#2E7D32,color:#fff
+    style R3 fill:#2E7D32,color:#fff
+    style R32 fill:#2E7D32,color:#fff
+```
+
+32개 레이어를 전부 통과하면, 한 토큰 기준으로도 8개 Expert 전부가 최소 한 번은 사용될 가능성이 높다. 여기에 배치 내 여러 토큰까지 고려하면 거의 확실히 8개 전부 사용된다. **이것이 모든 Expert를 메모리에 올려야 하는 근본적인 이유다.**
+
+| 구분 | 매 레이어에서 하는 일 |
+|------|---------------------|
+| **Attention** | 항상 전부 연산 (공유 파라미터) |
+| **FFN (Expert)** | 8개 중 **2개만** 연산 (Router가 선택) |
+| **나머지 6개 Expert** | 해당 레이어에서 연산 없음 (메모리만 차지) |
+
+### 3.3 실제 모델 사례
 
 | 모델 | 총 파라미터 | 활성 파라미터 | Expert 수 | Top-K |
 |------|------------|-------------|-----------|-------|
@@ -165,7 +248,7 @@ $$
 \text{총 파라미터} = \underbrace{8 \times 5.6B}_{\text{8개 Expert FFN}} + \underbrace{2.3B}_{\text{공유 레이어 (Attention 등)}} \approx 47B
 $$
 
-### 3.3 Router의 학습 문제: Load Balancing
+### 3.4 Router의 학습 문제: Load Balancing
 
 MoE에서 가장 까다로운 문제 중 하나는 **Expert 불균형** 이다. 학습 초기에 특정 Expert가 다른 Expert보다 약간만 더 잘하면, Router가 그 Expert에 토큰을 몰아보내게 된다. 그러면 해당 Expert만 더 잘 학습되고, 나머지 Expert는 학습 기회를 잃는 악순환이 생긴다. 이를 **"Rich-get-richer"** 문제라 한다.
 
