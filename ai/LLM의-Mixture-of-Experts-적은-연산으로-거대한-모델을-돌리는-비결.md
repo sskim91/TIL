@@ -69,10 +69,10 @@ GPT, Llama, Mistral 같은 LLM은 Decoder-Only Transformer다. 하나의 Transfo
 flowchart TD
     Input["입력 토큰 임베딩"] --> LN1["Layer Norm"]
     LN1 --> Attn["Self-Attention"]
-    Attn --> Add1["+ Residual Connection"]
+    Attn --> Add1["+Residual Connection"]
     Add1 --> LN2["Layer Norm"]
     LN2 --> FFN["FFN<br>(Feed-Forward Network)"]
-    FFN --> Add2["+ Residual Connection"]
+    FFN --> Add2["+Residual Connection"]
     Add2 --> Output["다음 블록으로"]
 
     style Attn fill:#1565C0,color:#fff
@@ -151,9 +151,11 @@ $W_g$는 학습 가능한 가중치 행렬이고, TopK는 상위 K개의 Expert�
 |------|------------|-------------|-----------|-------|
 | **Mixtral 8x7B** | 47B | 13B | 8 | 2 |
 | **DeepSeek-V2** | 236B | 21B | 160 | 6 |
-| **DeepSeek-V3** | 671B | 37B | 256 | 8 |
+| **DeepSeek-V3** | 671B | 37B | 1+256 | 8 |
 | **Grok-1** | 314B | 약 86B | 8 | 2 |
 | **DBRX** | 132B | 36B | 16 | 4 |
+
+DeepSeek-V3의 Expert 수가 "1+256"인 이유는, 1개의 **Shared Expert(공유 전문가)** 가 모든 토큰에 대해 항상 활성화되고, 나머지 256개 중 Top-8이 라우팅되는 구조이기 때문이다. Shared Expert는 모든 토큰에 공통적으로 필요한 보편적 지식을 담당하고, 라우팅 Expert들은 토큰별로 특화된 처리를 담당한다.
 
 여기서 의문이 생긴다. Mixtral 8x7B는 이름이 "8x7B"인데 왜 총 파라미터가 56B(8×7B)가 아니라 47B일까?
 
@@ -189,6 +191,8 @@ $$
 
 결과적으로, Mixtral 8x7B를 서빙하려면 **47B 파라미터 전체를 GPU 메모리에 올려야 한다.** FP16 기준으로 약 94GB의 VRAM이 필요하다. 추론 시 연산량은 12B Dense 모델 수준이지만, 메모리는 47B Dense 모델 수준이 필요한 셈이다.
 
+여기에 **KV 캐시(KV Cache)** 문제까지 더해진다. 추론 시 이전 토큰들의 Key/Value 벡터를 캐시에 저장해야 하는데, 거대한 Expert 가중치가 VRAM의 대부분을 차지하기 때문에 긴 컨텍스트 처리를 위한 KV 캐시 여유 공간이 Dense 모델 대비 부족해진다. DeepSeek-V3가 **Multi-head Latent Attention(MLA)** 을 도입한 이유도 KV 캐시 크기를 압축하여 MoE의 메모리 병목을 완화하기 위해서다.
+
 ```mermaid
 flowchart LR
     subgraph Memory["GPU 메모리 (전부 로딩)"]
@@ -204,7 +208,7 @@ flowchart LR
         Active["Expert 2 +<br>Expert 5만<br>활성화"]
     end
 
-    Memory -->|"Router가 선택"| Compute
+    Shared -->|"Router가 선택"| Active
 
     style E1 fill:#C62828,color:#fff
     style E2 fill:#2E7D32,color:#fff
