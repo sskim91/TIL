@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **142개**
+- 총 TIL 개수: **143개**
 
 - 카테고리 수: **25개**
 
@@ -56,6 +56,8 @@
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
 - [llms.txt - AI 시대의 robots.txt](ai/llms.txt-AI-시대의-robots.txt.md)
+
+- [LLM의 Mixture of Experts - 적은 연산으로 거대한 모델을 돌리는 비결](ai/LLM의-Mixture-of-Experts-적은-연산으로-거대한-모델을-돌리는-비결.md)
 
 - [MCP (Model Context Protocol) 이해하기](ai/MCP-Model-Context-Protocol-이해하기.md)
 
