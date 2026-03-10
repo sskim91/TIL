@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **143개**
+- 총 TIL 개수: **144개**
 
 - 카테고리 수: **25개**
 
@@ -362,6 +362,8 @@
 - [Spring AI Agentic Patterns (Part 2): AskUserQuestionTool - 행동하기 전에 명확히 하는 에이전트](spring/Spring-AI-Agentic-Patterns-Part2-AskUserQuestionTool.md)
 
 - [Spring AI Agentic Patterns (Part 3): AI 에이전트가 작업을 잊어버리는 이유 (그리고 해결 방법)](spring/Spring-AI-Agentic-Patterns-Part3-TodoWriteTool.md)
+
+- [Spring Boot 4.0 마이그레이션 가이드](spring/Spring-Boot-4.0-마이그레이션-가이드.md)
 
 - [Spring Boot에서 JSP를 권장하지 않는 이유](spring/Spring-Boot에서-JSP를-권장하지-않는-이유.md)
 
