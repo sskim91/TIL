@@ -23,6 +23,7 @@ import argparse
 import json
 import re
 import subprocess
+import unicodedata
 from pathlib import Path
 
 # ============================================================
@@ -306,9 +307,12 @@ def sync_full():
                         print(f"  ⚠️  {md_file.name} 처리 실패: {e}")
 
     # Orphan 정리: 소스에 없는 Obsidian 파일만 삭제
+    # macOS(APFS/HFS+)는 파일명을 NFD로 저장하지만,
+    # Python 문자열(synced_files)은 NFC이므로 비교 전에 정규화 필요
+
     orphan_count = 0
     for f in OBSIDIAN_PATH.glob("*.md"):
-        if f.name not in synced_files:
+        if unicodedata.normalize("NFC", f.name) not in synced_files:
             try:
                 f.unlink()
                 orphan_count += 1
