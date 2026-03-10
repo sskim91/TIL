@@ -114,7 +114,7 @@ def generate_frontmatter(title: str, sources: list[str], topic: str, related_not
 
     lines.append("tags:")
     lines.append(f"  - {topic.lower()}")
-    lines.append("  - TIL")
+    lines.append("  - til")
 
     lines.append("---")
     lines.append("")
