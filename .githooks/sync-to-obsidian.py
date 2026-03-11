@@ -172,8 +172,8 @@ def process_file(src_path: Path, topic: str) -> tuple[str, str]:
     # 내부 링크 변환
     content = convert_internal_links(content)
 
-    # 태그 매핑 조회
-    custom_tags = TAG_MAPPING.get(src_path.stem)
+    # 태그 매핑 조회 (macOS glob은 NFD를 반환하므로 NFC로 정규화)
+    custom_tags = TAG_MAPPING.get(unicodedata.normalize("NFC", src_path.stem))
 
     # Frontmatter 생성 및 결합
     frontmatter = generate_frontmatter(title, sources, topic, related_notes, custom_tags)
@@ -301,7 +301,7 @@ def sync_full():
                         filename, content = process_file(md_file, topic)
                         dest_path = OBSIDIAN_PATH / f"{filename}.md"
                         dest_path.write_text(content, encoding="utf-8")
-                        synced_files.add(f"{filename}.md")
+                        synced_files.add(unicodedata.normalize("NFC", f"{filename}.md"))
                         synced_count += 1
                     except Exception as e:
                         print(f"  ⚠️  {md_file.name} 처리 실패: {e}")
