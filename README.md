@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **144개**
+- 총 TIL 개수: **145개**
 
 - 카테고리 수: **25개**
 
@@ -70,6 +70,8 @@
 - [Synthetic Data: AI 학습의 비밀 무기](ai/Synthetic-Data-AI-학습의-비밀-무기.md)
 
 - [Vector DB, AI 시대에 갑자기 뜬 이유](ai/Vector-DB-AI-시대에-갑자기-뜬-이유.md)
+
+- [vLLM - GPU 위의 LLM은 누가 서빙하는가](ai/vLLM-GPU-위의-LLM은-누가-서빙하는가.md)
 
 - [효과적인 AI Agent 구축하기 - Anthropic 가이드](ai/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
 
