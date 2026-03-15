@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **145개**
+- 총 TIL 개수: **146개**
 
 - 카테고리 수: **25개**
 
@@ -72,6 +72,8 @@
 - [Vector DB, AI 시대에 갑자기 뜬 이유](ai/Vector-DB-AI-시대에-갑자기-뜬-이유.md)
 
 - [vLLM - GPU 위의 LLM은 누가 서빙하는가](ai/vLLM-GPU-위의-LLM은-누가-서빙하는가.md)
+
+- [컴퓨터에게 단어의 의미를 가르치는 법](ai/컴퓨터에게-단어의-의미를-가르치는-법.md)
 
 - [효과적인 AI Agent 구축하기 - Anthropic 가이드](ai/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
 
