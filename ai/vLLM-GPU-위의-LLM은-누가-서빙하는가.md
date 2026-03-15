@@ -15,6 +15,7 @@ flowchart LR
     C -->|"생성된 토큰"| B
     B -->|"JSON 응답"| A
 
+    style A fill:#E65100,color:#fff
     style B fill:#1565C0,color:#fff
     style C fill:#2E7D32,color:#fff
 ```
@@ -94,7 +95,9 @@ flowchart TB
 
     traditional --> waste
 
+    style A fill:#1565C0,color:#fff
     style B fill:#C62828,color:#fff
+    style C fill:#1565C0,color:#fff
     style D fill:#C62828,color:#fff
     style E fill:#E65100,color:#fff
     style F fill:#E65100,color:#fff
@@ -123,7 +126,9 @@ flowchart TB
 
     paged --> benefit
 
+    style A fill:#1565C0,color:#fff
     style B fill:#2E7D32,color:#fff
+    style C fill:#1565C0,color:#fff
     style D fill:#2E7D32,color:#fff
     style E fill:#1565C0,color:#fff
     style F fill:#1565C0,color:#fff
@@ -150,14 +155,14 @@ flowchart TB
 sequenceDiagram
     participant GPU
 
-    rect rgb(200, 220, 255)
+    rect rgba(198, 40, 40, 0.3)
         Note over GPU: Static Batching
         GPU->>GPU: 요청 A (10 토큰) ■■□□□□□□□□
         GPU->>GPU: 요청 B (500 토큰) ■■■■■■■■■■
         Note right of GPU: A 끝나도 B 끝날 때까지 대기<br>→ GPU 낭비
     end
 
-    rect rgb(200, 255, 220)
+    rect rgba(46, 125, 50, 0.3)
         Note over GPU: Continuous Batching
         GPU->>GPU: 요청 A 완료 → 즉시 요청 C 투입
         GPU->>GPU: 요청 B 진행 중
@@ -179,6 +184,8 @@ sequenceDiagram
 이 두 가지 기술(PagedAttention + Continuous Batching)이 vLLM의 핵심이다. 같은 GPU 하드웨어에서 **처리량을 2~4배** 끌어올리는 것이 vLLM이 사실상 업계 표준이 된 이유다.
 
 ### 2.3 Tensor Parallelism - 거대 모델을 쪼개서 올린다
+
+그런데 아무리 메모리 효율과 배칭을 최적화해도, 모델 자체가 GPU 한 장에 안 올라가면 아무 소용이 없다.
 
 120B 모델은 FP16 기준으로 약 240GB다. H100 한 장의 VRAM이 80GB이니, 한 장에는 절대 올라가지 않는다.
 
@@ -206,6 +213,7 @@ flowchart TB
         E --> F
     end
 
+    style A fill:#E65100,color:#fff
     style B fill:#1565C0,color:#fff
     style C fill:#1565C0,color:#fff
     style D fill:#1565C0,color:#fff
@@ -224,6 +232,10 @@ vllm serve gpt-oss-120b \
 ---
 
 ## 3. OpenAI 호환 API - base_url만 바꾸면 끝
+
+여기까지가 vLLM 내부의 이야기다. PagedAttention으로 메모리를 아끼고, Continuous Batching으로 GPU를 쉬지 않게 하고, Tensor Parallelism으로 거대 모델을 여러 GPU에 나눠 올린다. 하지만 이 모든 최적화가 있어도, **사용자가 쉽게 요청을 보낼 수 없으면 의미가 없다.**
+
+그래서 vLLM은 한 가지 더 해결했다. API를 직접 설계하지 않고, 이미 업계 표준이 된 **OpenAI의 API 형식을 그대로 구현** 한 것이다.
 
 ### 3.1 SDK는 결국 HTTP 래퍼다
 
@@ -314,9 +326,12 @@ flowchart TB
     A -->|"로컬 개발<br>맥북/PC"| E["Ollama"]
     A -->|"JSON 출력<br>Agent 시스템"| F["SGLang"]
 
+    style A fill:#1565C0,color:#fff
     style B fill:#1565C0,color:#fff
     style C fill:#2E7D32,color:#fff
     style D fill:#E65100,color:#fff
+    style E fill:#E65100,color:#fff
+    style F fill:#C62828,color:#fff
 ```
 
 ---
