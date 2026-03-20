@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **146개**
+- 총 TIL 개수: **147개**
 
 - 카테고리 수: **25개**
 
@@ -92,6 +92,8 @@
 ### backend
 
 - [BaaS (Backend as a Service)](backend/BaaS-Backend-as-a-Service.md)
+
+- [FastAPI에는 왜 세션이 없을까](backend/FastAPI에는-왜-세션이-없을까.md)
 
 - [마이크로서비스 통신 패턴: 동기 vs 비동기](backend/마이크로서비스-통신-패턴-동기-vs-비동기.md)
 
