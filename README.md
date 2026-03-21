@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **153개**
+- 총 TIL 개수: **160개**
 
 - 카테고리 수: **26개**
 
@@ -361,9 +361,23 @@
 
 ### redis
 
+- [Redis 5대 자료구조 - 이것만 알면 실무가 된다](redis/Redis-5대-자료구조-이것만-알면-실무가-된다.md)
+
+- [Redis Cluster의 내부 동작과 Hash Slot Rebalancing](redis/Redis-Cluster의-내부-동작과-Hash-Slot-Rebalancing.md)
+
 - [Redis Pub/Sub이 폐쇄망에서 죽는 이유](redis/Redis-Pub-Sub이-폐쇄망에서-죽는-이유.md)
 
+- [Redis Stream - Pub/Sub의 한계를 넘어선 영속적 메시징](redis/Redis-Stream-Pub-Sub의-한계를-넘어선-영속적-메시징.md)
+
+- [Redis 고급 실행 패턴 - Pub/Sub부터 Lua Script까지](redis/Redis-고급-실행-패턴-Pub-Sub부터-Lua-Script까지.md)
+
+- [Redis 운영에서 반드시 알아야 할 것들 - KEYS의 함정과 영속성 전략](redis/Redis-운영에서-반드시-알아야-할-것들-KEYS의-함정과-영속성-전략.md)
+
+- [Redis 캐시 전략과 Cache Stampede 방어](redis/Redis-캐시-전략과-Cache-Stampede-방어.md)
+
 - [Redis는 왜 쓰는가](redis/Redis는-왜-쓰는가.md)
+
+- [Redis의 정체와 4가지 아키텍처 진화 과정](redis/Redis의-정체와-4가지-아키텍처-진화-과정.md)
 
 
 
