@@ -47,7 +47,7 @@ flowchart LR
 
 ### 1.1 worker_processes: 몇 개의 Worker를 띄울 것인가?
 
-앞선 TIL에서 NGINX의 Master-Worker 구조를 살펴봤다. Master는 관리만 하고, 실제 요청은 Worker가 처리한다. 그렇다면 Worker를 몇 개 띄워야 할까?
+NGINX는 **Master-Worker 구조** 로 동작한다. Master 프로세스는 설정 관리만 하고, 실제 클라이언트 요청은 Worker 프로세스가 이벤트 루프를 통해 처리한다. (자세한 구조는 [C10K 문제 - Apache와 NGINX가 선택한 서로 다른 길](C10K-문제-Apache와-NGINX가-선택한-서로-다른-길.md) 참고) 그렇다면 Worker를 몇 개 띄워야 할까?
 
 **정답은 CPU 코어 수와 동일하게 설정하는 것이다.** Worker 하나는 하나의 CPU 코어에 바인딩되어 동작하기 때문에, 코어 수보다 적으면 놀고 있는 코어가 생기고, 많으면 Context Switching 오버헤드가 발생한다.
 
@@ -279,7 +279,7 @@ gzip_types
     image/svg+xml;
 ```
 
-이전 TIL에서 배운 모듈화 패턴을 적용하면, 이 파일을 `snippets/compression.conf`에 저장하고 필요한 서버에서 `include`하면 된다.
+NGINX의 `include` 지시어를 활용한 **모듈화 패턴** 을 적용하면, 이 파일을 `snippets/compression.conf`에 저장하고 필요한 서버에서 `include`하면 된다. (모듈화 패턴에 대한 자세한 설명은 [NGINX 설정의 철학 - Context Block부터 모듈화까지](NGINX-설정의-철학-Context-Block부터-모듈화까지.md) 참고)
 
 ```nginx
 # /etc/nginx/conf.d/web.conf
@@ -360,7 +360,7 @@ http {
 
 4. **모듈화 패턴으로 설정을 관리하라**
    - 압축 설정은 `snippets/compression.conf`로 분리
-   - 이전 TIL에서 배운 `include` + `snippets/` 패턴을 실제로 적용
+   - `include` + `snippets/` 패턴으로 설정 재사용 ([모듈화 패턴 참고](NGINX-설정의-철학-Context-Block부터-모듈화까지.md))
 
 ---
 

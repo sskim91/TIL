@@ -73,7 +73,7 @@ flowchart LR
 - **SSL 터미네이션:** NGINX에서 HTTPS를 처리하고, 백엔드는 HTTP로 통신 (성능 향상)
 - **로드밸런싱:** 여러 백엔드 서버에 트래픽을 분산
 - **캐싱:** 자주 요청되는 응답을 NGINX가 캐싱하여 백엔드 부하 감소
-- **압축:** 이전 TIL에서 배운 gzip 압축을 NGINX 레벨에서 처리
+- **압축:** gzip 압축을 NGINX 레벨에서 처리 ([gzip 설정 상세](NGINX-성능-최적화-설정-Process-Model부터-Compression까지.md))
 
 ## 2. HTTP 리버스 프록시 설정
 
@@ -156,7 +156,7 @@ location / {
 
 ### 2.5 실무 프록시 템플릿
 
-위의 세 가지 문제를 모두 해결한 실무 템플릿이다. 이전 TIL에서 배운 모듈화 패턴을 적용하여 `snippets/proxy-params.conf`로 분리할 수 있다.
+위의 세 가지 문제를 모두 해결한 실무 템플릿이다. NGINX의 `include` 지시어로 공통 설정을 `snippets/proxy-params.conf`에 분리하면 여러 서버에서 재사용할 수 있다.
 
 ```nginx
 # /etc/nginx/snippets/proxy-params.conf

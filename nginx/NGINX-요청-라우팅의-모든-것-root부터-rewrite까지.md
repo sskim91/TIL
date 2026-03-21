@@ -207,7 +207,7 @@ server {
 
 ### 2.4 실무 디렉토리 구조
 
-이전 TIL에서 배운 모듈화 패턴을 적용하면, 도메인별로 설정 파일을 분리한다.
+NGINX의 `include` 지시어와 `conf.d/` 디렉토리를 활용한 **모듈화 패턴** 으로, 도메인별로 설정 파일을 분리한다. (`nginx.conf`에서 `include /etc/nginx/conf.d/*.conf;`로 자동 로드)
 
 ```bash
 /etc/nginx/
