@@ -31,7 +31,7 @@ from pathlib import Path
 # ============================================================
 
 TIL_PATH = Path(__file__).parent.parent
-OBSIDIAN_PATH = Path.home() / "Library/Mobile Documents/iCloud~md~obsidian/Documents/Note/09.TIL"
+OBSIDIAN_PATH = Path.home() / "Library/Mobile Documents/iCloud~md~obsidian/Documents/Note/Wiki"
 TAG_MAPPING_PATH = TIL_PATH / "tag-mapping.json"
 
 # 제외할 파일/폴더
