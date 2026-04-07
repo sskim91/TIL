@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **160개**
+- 총 TIL 개수: **163개**
 
 - 카테고리 수: **26개**
 
@@ -55,6 +55,8 @@
 
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
+- [LLM 위키 — LLM을 활용한 개인 지식 베이스 구축 패턴](ai/LLM-위키-LLM을-활용한-개인-지식-베이스-구축-패턴.md)
+
 - [llms.txt - AI 시대의 robots.txt](ai/llms.txt-AI-시대의-robots.txt.md)
 
 - [LLM의 Mixture of Experts - 적은 연산으로 거대한 모델을 돌리는 비결](ai/LLM의-Mixture-of-Experts-적은-연산으로-거대한-모델을-돌리는-비결.md)
@@ -73,7 +75,11 @@
 
 - [vLLM - GPU 위의 LLM은 누가 서빙하는가](ai/vLLM-GPU-위의-LLM은-누가-서빙하는가.md)
 
+- [로컬 LLM 추론 — Apple Silicon이 NVIDIA GPU를 이기는 순간](ai/로컬-LLM-추론-Apple-Silicon이-NVIDIA-GPU를-이기는-순간.md)
+
 - [컴퓨터에게 단어의 의미를 가르치는 법](ai/컴퓨터에게-단어의-의미를-가르치는-법.md)
+
+- [프로덕션 LLM 서빙에서 FP32를 아무도 안 쓰는 이유](ai/프로덕션-LLM-서빙에서-FP32를-아무도-안-쓰는-이유.md)
 
 - [효과적인 AI Agent 구축하기 - Anthropic 가이드](ai/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
 
