@@ -6,9 +6,13 @@ TIL -> Obsidian 동기화 스크립트
   python sync-to-obsidian.py          # 전체 동기화 (처음 설정, pull 후)
   python sync-to-obsidian.py --diff   # 변경분만 동기화 (커밋 후)
 
-■ 동작 방식:
-  전체 모드: 모든 .md 파일을 Obsidian에 동기화 (upsert + orphan 정리)
-  diff 모드: 마지막 커밋에서 변경된 .md 파일만 동기화 (빠름)
+■ 동작 방식 (Additive only — 삭제 없음):
+  전체 모드: 모든 .md 파일을 Obsidian에 upsert
+  diff 모드: 마지막 커밋에서 변경된 .md 파일만 upsert (빠름)
+
+  Wiki는 TIL 외 개인 노트도 들어있는 공유 폴더이므로
+  이 스크립트는 절대 파일을 삭제하지 않는다.
+  TIL에서 삭제한 파일은 Obsidian에서 수동으로 정리한다.
 
 ■ Hook 구성:
   post-commit → --diff 모드 (내가 커밋할 때, 변경분만)
@@ -209,27 +213,6 @@ def get_changed_md_files() -> list[Path]:
     return changed
 
 
-def get_deleted_md_files() -> list[str]:
-    """마지막 커밋에서 삭제된 .md 파일 목록 반환
-
-    --diff-filter=D: 삭제된 파일만 필터링
-    """
-    result = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "--diff-filter=D", "HEAD"],
-        capture_output=True,
-        text=True,
-        cwd=TIL_PATH,
-    )
-
-    deleted = []
-    for line in result.stdout.strip().split("\n"):
-        if line and line.endswith(".md"):
-            # 파일명만 추출 (경로에서 stem)
-            filename = Path(line).stem
-            deleted.append(filename)
-    return deleted
-
-
 # ============================================================
 # 동기화 함수들
 # ============================================================
@@ -237,24 +220,13 @@ def get_deleted_md_files() -> list[str]:
 def sync_diff():
     """변경분만 동기화 (post-commit용, 빠름)
 
-    마지막 커밋에서 변경된 .md 파일만 처리한다.
-    - 수정/추가된 파일 → Obsidian에 복사
-    - 삭제된 파일 → Obsidian에서도 삭제
+    마지막 커밋에서 변경/추가된 .md 파일만 Obsidian에 upsert한다.
+    파일 삭제는 절대 수행하지 않는다 (Wiki는 공유 폴더).
     """
     OBSIDIAN_PATH.mkdir(parents=True, exist_ok=True)
 
-    # 1. 삭제된 파일 처리
-    deleted_files = get_deleted_md_files()
-    for filename in deleted_files:
-        if filename not in {f.replace(".md", "") for f in EXCLUDE_FILES}:
-            dest_path = OBSIDIAN_PATH / f"{filename}.md"
-            if dest_path.exists():
-                dest_path.unlink()
-                print(f"  🗑️  {filename}.md 삭제")
-
-    # 2. 변경된 파일 처리
     changed_files = get_changed_md_files()
-    if not changed_files and not deleted_files:
+    if not changed_files:
         print("📝 변경된 .md 파일 없음")
         return
 
@@ -277,20 +249,17 @@ def sync_diff():
         except Exception as e:
             print(f"  ⚠️  {src_path.name} 처리 실패: {e}")
 
-    print(f"✅ Obsidian 동기화 완료: {synced_count}개 변경, {len(deleted_files)}개 삭제")
+    print(f"✅ Obsidian 동기화 완료: {synced_count}개 변경")
 
 
 def sync_full():
     """전체 동기화 (post-merge용, 처음 설정용)
 
-    모든 .md 파일을 처리한다.
-    Upsert 방식: 소스 파일을 기준으로 덮어쓰기하고,
-    소스에 없는 orphan 파일만 삭제한다.
+    TIL의 모든 .md 파일을 Obsidian에 upsert한다.
+    파일 삭제는 절대 수행하지 않는다 (Wiki는 공유 폴더).
     """
     OBSIDIAN_PATH.mkdir(parents=True, exist_ok=True)
 
-    # TIL 소스 파일 순회 → upsert
-    synced_files = set()
     synced_count = 0
     for item in TIL_PATH.iterdir():
         if item.is_dir() and item.name not in EXCLUDE_DIRS:
@@ -301,26 +270,11 @@ def sync_full():
                         filename, content = process_file(md_file, topic)
                         dest_path = OBSIDIAN_PATH / f"{filename}.md"
                         dest_path.write_text(content, encoding="utf-8")
-                        synced_files.add(unicodedata.normalize("NFC", f"{filename}.md"))
                         synced_count += 1
                     except Exception as e:
                         print(f"  ⚠️  {md_file.name} 처리 실패: {e}")
 
-    # Orphan 정리: 소스에 없는 Obsidian 파일만 삭제
-    # macOS(APFS/HFS+)는 파일명을 NFD로 저장하지만,
-    # Python 문자열(synced_files)은 NFC이므로 비교 전에 정규화 필요
-
-    orphan_count = 0
-    for f in OBSIDIAN_PATH.glob("*.md"):
-        if unicodedata.normalize("NFC", f.name) not in synced_files:
-            try:
-                f.unlink()
-                orphan_count += 1
-                print(f"  🗑️  orphan 삭제: {f.name}")
-            except PermissionError as e:
-                print(f"  ⚠️  {f.name} 삭제 실패: {e}")
-
-    print(f"✅ Obsidian 동기화 완료: {synced_count}개 문서, {orphan_count}개 orphan 삭제")
+    print(f"✅ Obsidian 동기화 완료: {synced_count}개 문서")
 
 
 # ============================================================
