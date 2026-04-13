@@ -28,11 +28,14 @@
   "Vector-DB-AI-시대에-갑자기-뜬-이유": ["ai/vector-db"],
   "효과적인-AI-Agent-구축하기-Anthropic-가이드": ["ai/agent"],
   "효과적인-에이전트-구축하기": ["ai/agent"],
+  "컴퓨터에게-단어의-의미를-가르치는-법": ["ai/embedding"],
+  "vLLM-GPU-위의-LLM은-누가-서빙하는가": ["ai/vllm"],
 
   "boto3-Python으로-AWS-인프라-제어하기": ["aws/boto3"],
   "Terraform으로-AWS-인프라를-코드로-관리하기": ["aws/terraform"],
 
   "BaaS-Backend-as-a-Service": ["backend/baas"],
+  "FastAPI에는-왜-세션이-없을까": ["backend/session"],
   "마이크로서비스-통신-패턴-동기-vs-비동기": ["backend/microservice"],
 
   "Cardinality-컴퓨터-과학에서의-의미와-활용": ["cs/cardinality"],
@@ -64,6 +67,13 @@
   "Docker의-Copy-on-Write-전략": ["docker/filesystem"],
 
   "명목임금-vs-실질임금-월급이-올랐는데-왜-더-가난해졌을까": ["economics/wage"],
+
+  "C10K-문제-Apache와-NGINX가-선택한-서로-다른-길": ["nginx/architecture"],
+  "NGINX-리버스-프록시와-로드밸런싱-완전-정복": ["nginx/reverse-proxy"],
+  "NGINX-요청-라우팅의-모든-것-root부터-rewrite까지": ["nginx/routing"],
+  "NGINX-성능-최적화-설정-Process-Model부터-Compression까지": ["nginx/performance"],
+  "NGINX-설정의-철학-Context-Block부터-모듈화까지": ["nginx/config"],
+  "NGINX-프로덕션-배포-HTTPS와-HTTP2-그리고-캐싱": ["nginx/production"],
 
   "프론트엔드-개발의-변화": ["frontend/trend"],
 
@@ -108,6 +118,7 @@
   "Zustand-Redux-보일러플레이트에-지쳤다면": ["frontend/zustand"],
 
   "FastAPI-왜-빠르고-왜-쓰는가": ["python/fastapi"],
+  "Uvicorn-Worker는-왜-프로세스인가-FastAPI-프로덕션-배포의-핵심": ["python/fastapi", "python/deployment"],
   "httpx-왜-requests-대신-쓰는가": ["python/httpx"],
   "Pydantic-실무-활용-BaseSettings와-Field": ["python/pydantic"],
   "Python-@dataclass": ["python/dataclass"],
@@ -140,7 +151,14 @@
 
   "TanStack-Query가-탄생한-이유": ["react/tanstack-query"],
 
+  "Redis-운영에서-반드시-알아야-할-것들-KEYS의-함정과-영속성-전략": ["redis/operations"],
+  "Redis-고급-실행-패턴-Pub-Sub부터-Lua-Script까지": ["redis/patterns"],
+  "Redis-캐시-전략과-Cache-Stampede-방어": ["redis/cache"],
+  "Redis의-정체와-4가지-아키텍처-진화-과정": ["redis/architecture"],
+  "Redis-5대-자료구조-이것만-알면-실무가-된다": ["redis/data-structure"],
+  "Redis-Cluster의-내부-동작과-Hash-Slot-Rebalancing": ["redis/cluster"],
   "Redis-Pub-Sub이-폐쇄망에서-죽는-이유": ["redis/pub-sub"],
+  "Redis-Stream-Pub-Sub의-한계를-넘어선-영속적-메시징": ["redis/stream"],
   "Redis는-왜-쓰는가": ["redis/intro"],
 
   "MITM-Man-In-The-Middle-중간자-공격": ["security/mitm"],
