@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **164개**
+- 총 TIL 개수: **165개**
 
 - 카테고리 수: **26개**
 
@@ -346,6 +346,8 @@
 - [Python의 Enum 완벽 가이드](python/Python의-Enum-완벽-가이드.md)
 
 - [Python의 enumerate - 인덱스와 값을 동시에](python/Python의-enumerate-인덱스와-값을-동시에.md)
+
+- [Python의 GIL — 락이 있는데 왜 멀티스레딩이 동작하는가](python/Python의-GIL-락이-있는데-왜-멀티스레딩이-동작하는가.md)
 
 - [Python의 http.client와 requests](python/Python의-http.client와-requests.md)
 
