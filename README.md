@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **163개**
+- 총 TIL 개수: **164개**
 
 - 카테고리 수: **26개**
 
@@ -356,6 +356,8 @@
 - [Python의 with 문 (Context Manager)](python/Python의-with-문-Context-Manager.md)
 
 - [Ray Serve와 FastAPI: ML 모델 서빙의 완성](python/Ray-Serve와-FastAPI-ML-모델-서빙의-완성.md)
+
+- [Uvicorn Worker는 왜 프로세스인가 - FastAPI 프로덕션 배포의 핵심](python/Uvicorn-Worker는-왜-프로세스인가-FastAPI-프로덕션-배포의-핵심.md)
 
 
 
