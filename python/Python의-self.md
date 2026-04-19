@@ -58,11 +58,11 @@ public class Dog {
     private String name;
 
     public Dog(String name) {
-        this.name = name;  // this는 생략 가능
+        this.name = name;  // 파라미터와 필드 이름이 같아 this 필수 (shadowing)
     }
 
     public void bark() {
-        System.out.println(name + " barks!");  // this 생략
+        System.out.println(name + " barks!");  // 충돌 없으므로 this 생략 가능
     }
 }
 ```
@@ -116,8 +116,9 @@ print(student.last_study_hours) # 3 (인스턴스 변수, 유지됨)
 ```
 
 **핵심:**
-- `self.` 붙이면 → 인스턴스 변수 (객체에 저장, 유지됨)
-- `self.` 없으면 → 지역 변수 (함수 끝나면 사라짐)
+- `self.`에 대입 → 인스턴스 변수 (객체에 저장, 유지됨)
+- `self.` 없이 메서드 안에서 대입 → 지역 변수 (함수 끝나면 사라짐)
+- **인스턴스 변수는 읽기/쓰기 모두 반드시 `self.`이 필요합니다.** Python의 LEGB(Local → Enclosing → Global → Built-in) 탐색 범위에는 **인스턴스 속성이 포함되지 않기** 때문입니다. Java의 `this`를 생략하면 컴파일러가 멤버 변수까지 자동으로 찾아주지만, Python은 그렇지 않습니다.
 
 ## 5. 실전 예시: 은행 계좌
 
@@ -268,7 +269,7 @@ person = Person("홍길동", 30)  # OK
 ```python
 class Temperature:
     def __init__(self, celsius):
-        self._celsius = celsius
+        self.celsius = celsius  # setter 호출 → 검증 통과 후 self._celsius 저장
 
     @property
     def celsius(self):
