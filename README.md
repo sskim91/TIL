@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **169개**
+- 총 TIL 개수: **170개**
 
-- 카테고리 수: **26개**
+- 카테고리 수: **27개**
 
 ## 📚 카테고리
 
@@ -300,6 +300,12 @@
 - [Node.js가 싱글스레드라는 미신](nodejs/Node.js가-싱글스레드라는-미신.md)
 
 - [Zustand: Redux 보일러플레이트에 지쳤다면](nodejs/Zustand-Redux-보일러플레이트에-지쳤다면.md)
+
+
+
+### product-analytics
+
+- [왜 서비스 회사는 DAU/MAU 정의에 그토록 집착할까?](product-analytics/왜-서비스-회사는-DAU-MAU-정의에-그토록-집착할까.md)
 
 
 
