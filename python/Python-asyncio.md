@@ -30,13 +30,16 @@ print(f"소요 시간: {time.time() - start:.2f}초")  # 약 3초 ❌
 import aiohttp
 import asyncio
 
+async def fetch(session, url):
+    async with session.get(url) as response:
+        return await response.json()
+
 async def fetch_websites():
     urls = ["https://api1.com", "https://api2.com", "https://api3.com"]
 
     async with aiohttp.ClientSession() as session:
-        tasks = [session.get(url) for url in urls]
-        responses = await asyncio.gather(*tasks)  # 동시에 요청!
-        return [await r.json() for r in responses]
+        tasks = [fetch(session, url) for url in urls]
+        return await asyncio.gather(*tasks)  # 동시에 요청!
 
 start = time.time()
 data = asyncio.run(fetch_websites())
@@ -240,20 +243,21 @@ for user_id in [1, 2, 3]:
 ```python
 import aiohttp
 
-async def fetch_user_data(user_id):
+async def fetch_user_data(session, user_id):
     # ✅ 논블로킹: 기다리는 동안 다른 요청 가능
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"https://api.example.com/users/{user_id}") as response:
-            # 응답 기다리는 동안 다른 작업으로 전환!
-            return await response.json()
+    async with session.get(f"https://api.example.com/users/{user_id}") as response:
+        # 응답 기다리는 동안 다른 작업으로 전환!
+        return await response.json()
 
 # 3명의 사용자 데이터 동시에 가져오기
 async def main():
-    users = await asyncio.gather(
-        fetch_user_data(1),
-        fetch_user_data(2),
-        fetch_user_data(3)
-    )
+    # 세션은 한 번만 생성해서 재사용 (커넥션 풀 · DNS 캐시 공유)
+    async with aiohttp.ClientSession() as session:
+        users = await asyncio.gather(
+            fetch_user_data(session, 1),
+            fetch_user_data(session, 2),
+            fetch_user_data(session, 3)
+        )
     return users
 
 asyncio.run(main())
@@ -598,20 +602,28 @@ print(final)
 
 ### 개념
 
+이벤트 루프는 asyncio의 심장. 아래 흐름을 모든 태스크가 끝날 때까지 반복한다.
+
+```mermaid
+flowchart TD
+    Start([루프 시작]) --> Pick[실행 가능한 태스크 선택]
+    Pick --> Run[태스크 실행]
+    Run --> Await{await 만남?}
+    Await -->|Yes| Yield[제어권 반납<br/>다른 태스크로 전환]
+    Await -->|No| Done{태스크 완료?}
+    Yield --> IO[I/O 완료 감시]
+    IO --> Pick
+    Done -->|No| Run
+    Done -->|Yes| Any{남은 태스크?}
+    Any -->|Yes| Pick
+    Any -->|No| End([루프 종료])
+
+    style Start fill:#1565C0,color:#fff
+    style End fill:#1565C0,color:#fff
+    style Yield fill:#2E7D32,color:#fff
+```
+
 ```python
-# 이벤트 루프 = asyncio의 심장
-
-# ┌─────────────────────────────────────┐
-# │         Event Loop                  │
-# │                                     │
-# │  while True:                        │
-# │      1. 실행 가능한 태스크 찾기      │
-# │      2. 태스크 실행                  │
-# │      3. await 만나면 다른 태스크로   │
-# │      4. I/O 완료 확인 후 재개        │
-# │      5. 모든 태스크 완료까지 반복    │
-# └─────────────────────────────────────┘
-
 import asyncio
 
 async def task1():
@@ -625,7 +637,12 @@ async def task2():
     print("Task 2 완료")
 
 # asyncio.run()이 이벤트 루프를 생성하고 실행
-asyncio.run(asyncio.gather(task1(), task2()))
+# 주의: asyncio.gather()는 실행 중인 루프를 필요로 하므로
+#       반드시 async def 함수 안에서 호출해야 함 (Python 3.10+)
+async def main():
+    await asyncio.gather(task1(), task2())
+
+asyncio.run(main())
 
 # 실행 순서:
 # Task 1 시작
@@ -650,14 +667,19 @@ result = asyncio.run(my_task())
 
 
 # ========== 방법 2: 이벤트 루프 직접 제어 (고급) ==========
-# 이벤트 루프 생성
-loop = asyncio.get_event_loop()
+# asyncio.get_event_loop() 동작 변화:
+#   - Python 3.10~3.13: 실행 중 루프가 없으면 DeprecationWarning 후 새 루프 반환
+#   - Python 3.14+: 실행 중 루프가 없으면 RuntimeError 발생
+# 새 루프를 만들려면 버전 무관하게 new_event_loop()를 사용해야 안전.
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
 
-# 태스크 실행
-result = loop.run_until_complete(my_task())
-
-# 루프 종료
-loop.close()
+try:
+    # 태스크 실행
+    result = loop.run_until_complete(my_task())
+finally:
+    # 루프 종료
+    loop.close()
 
 
 # ========== 방법 3: 여러 태스크 실행 ==========
@@ -666,9 +688,13 @@ async def main():
     results = await asyncio.gather(*tasks)
     return results
 
-loop = asyncio.get_event_loop()
-results = loop.run_until_complete(main())
-loop.close()
+# 대부분의 경우 asyncio.run()이 정답 — 아래는 고급 API 소개 목적
+loop = asyncio.new_event_loop()
+asyncio.set_event_loop(loop)
+try:
+    results = loop.run_until_complete(main())
+finally:
+    loop.close()
 ```
 
 ### 이벤트 루프 동작 원리
@@ -797,7 +823,9 @@ async def main():
         # 최대 2초만 기다림
         result = await asyncio.wait_for(slow_task(), timeout=2.0)
         print(result)
-    except asyncio.TimeoutError:
+    except TimeoutError:
+        # Python 3.11+에서는 내장 TimeoutError 사용
+        # (asyncio.TimeoutError는 deprecated alias)
         print("타임아웃! 2초 안에 완료되지 않음")
 
 asyncio.run(main())
@@ -965,17 +993,26 @@ def fetch_users_sync():
 import asyncpg
 import asyncio
 
+async def fetch_one(pool, query):
+    # 풀에서 별도 커넥션을 획득해야 실제 병렬 가능
+    async with pool.acquire() as conn:
+        return await conn.fetch(query)
+
 async def fetch_users_async():
     """비동기 방식 데이터베이스 쿼리"""
-    conn = await asyncpg.connect("postgresql://localhost/mydb")
+    # ⚠️ 주의: asyncpg.Connection 한 개는 동시에 여러 쿼리를 못 돌림.
+    #          "another operation is in progress" 에러가 발생하므로
+    #          병렬 쿼리는 반드시 create_pool()로 커넥션을 나눠야 함.
+    pool = await asyncpg.create_pool("postgresql://localhost/mydb")
 
-    # 두 쿼리 동시 실행!
-    users, orders = await asyncio.gather(
-        conn.fetch("SELECT * FROM users WHERE age > 20"),
-        conn.fetch("SELECT * FROM orders WHERE user_id = 1")
-    )
-
-    await conn.close()
+    try:
+        # 각 쿼리가 서로 다른 커넥션에서 실행 → 진짜 동시 실행
+        users, orders = await asyncio.gather(
+            fetch_one(pool, "SELECT * FROM users WHERE age > 20"),
+            fetch_one(pool, "SELECT * FROM orders WHERE user_id = 1")
+        )
+    finally:
+        await pool.close()
 
     return users, orders
 
@@ -1133,7 +1170,8 @@ async def slow_task():
 async def main():
     try:
         result = await asyncio.wait_for(slow_task(), timeout=2.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
+        # Python 3.11+: 내장 TimeoutError (asyncio.TimeoutError는 deprecated alias)
         print("타임아웃! 작업 취소됨")
     except Exception as e:
         print(f"기타 에러: {e}")
@@ -1155,19 +1193,28 @@ def blocking_function(url):
     response = requests.get(url)
     return response.text
 
+# ========== 권장: asyncio.to_thread() (Python 3.9+) ==========
+# 루프 객체를 직접 다루지 않아도 되는 고수준 API
 async def main():
-    loop = asyncio.get_event_loop()
+    result = await asyncio.to_thread(blocking_function, "https://example.com")
+    print(f"결과 길이: {len(result)}")
 
-    # 동기 함수를 별도 스레드에서 실행
+asyncio.run(main())
+
+
+# ========== 구 API: loop.run_in_executor() ==========
+# 커스텀 executor를 지정해야 할 때만 사용
+async def main_legacy():
+    # 실행 중인 루프임이 보장되므로 get_running_loop() 사용
+    loop = asyncio.get_running_loop()
     result = await loop.run_in_executor(
         None,  # 기본 executor 사용
         blocking_function,
         "https://example.com"
     )
-
     print(f"결과 길이: {len(result)}")
 
-asyncio.run(main())
+asyncio.run(main_legacy())
 ```
 
 ### CPU 집약적 작업 처리
@@ -1181,7 +1228,8 @@ def cpu_intensive_task(n):
     return sum(i * i for i in range(n))
 
 async def main():
-    loop = asyncio.get_event_loop()
+    # 코루틴 내부이므로 실행 중인 루프를 가져오는 게 의도에 더 부합
+    loop = asyncio.get_running_loop()
 
     # ProcessPoolExecutor로 CPU 집약적 작업 처리
     with ProcessPoolExecutor() as executor:
@@ -1199,8 +1247,9 @@ asyncio.run(main())
 
 ### CompletableFuture vs asyncio
 
+**Python asyncio**
+
 ```python
-# ========== Python asyncio ==========
 import asyncio
 
 async def fetch_data(id):
@@ -1216,33 +1265,37 @@ async def main():
     print(results)
 
 asyncio.run(main())
+```
 
+**Java CompletableFuture**
 
-# ========== Java CompletableFuture ==========
-// import java.util.concurrent.CompletableFuture;
+```java
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
-CompletableFuture<String> future1 = CompletableFuture.supplyAsync(() -> {
-    Thread.sleep(1000);
-    return "데이터 1";
-});
+// Thread.sleep()은 InterruptedException(Checked)이라 람다 안에서 반드시 처리
+Supplier<String> delayedData = () -> {
+    try {
+        Thread.sleep(1000);
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new RuntimeException(e);
+    }
+    return "데이터";
+};
 
-CompletableFuture<String> future2 = CompletableFuture.supplyAsync(() -> {
-    Thread.sleep(1000);
-    return "데이터 2";
-});
-
-CompletableFuture<String> future3 = CompletableFuture.supplyAsync(() -> {
-    Thread.sleep(1000);
-    return "데이터 3";
-});
+CompletableFuture<String> future1 = CompletableFuture.supplyAsync(delayedData);
+CompletableFuture<String> future2 = CompletableFuture.supplyAsync(delayedData);
+CompletableFuture<String> future3 = CompletableFuture.supplyAsync(delayedData);
 
 CompletableFuture.allOf(future1, future2, future3).join();
 ```
 
 ### Reactor (Spring WebFlux) vs asyncio
 
+**Python asyncio + FastAPI**
+
 ```python
-# ========== Python asyncio + FastAPI ==========
 from fastapi import FastAPI
 import asyncio
 
@@ -1253,27 +1306,30 @@ async def get_user(id: int):
     user = await fetch_user_from_db(id)
     posts = await fetch_user_posts(id)
     return {"user": user, "posts": posts}
+```
 
+**Java Spring WebFlux**
 
-# ========== Java Spring WebFlux ==========
-// @RestController
-// public class UserController {
-//
-//     @GetMapping("/users/{id}")
-//     public Mono<UserResponse> getUser(@PathVariable int id) {
-//         Mono<User> user = userRepository.findById(id);
-//         Mono<List<Post>> posts = postRepository.findByUserId(id);
-//
-//         return Mono.zip(user, posts)
-//             .map(tuple -> new UserResponse(tuple.getT1(), tuple.getT2()));
-//     }
-// }
+```java
+@RestController
+public class UserController {
+
+    @GetMapping("/users/{id}")
+    public Mono<UserResponse> getUser(@PathVariable int id) {
+        Mono<User> user = userRepository.findById(id);
+        Mono<List<Post>> posts = postRepository.findByUserId(id);
+
+        return Mono.zip(user, posts)
+            .map(tuple -> new UserResponse(tuple.getT1(), tuple.getT2()));
+    }
+}
 ```
 
 ### Virtual Threads (Java 21+) vs asyncio
 
+**Python asyncio**
+
 ```python
-# ========== Python asyncio ==========
 import asyncio
 
 async def task(name):
@@ -1285,19 +1341,26 @@ async def main():
     await asyncio.gather(*[task(f"Task{i}") for i in range(1000)])
 
 asyncio.run(main())
+```
 
+**Java Virtual Threads (Java 21+)**
 
-# ========== Java Virtual Threads (Java 21+) ==========
-// try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-//     for (int i = 0; i < 1000; i++) {
-//         int taskId = i;
-//         executor.submit(() -> {
-//             System.out.println("Task" + taskId + " 시작");
-//             Thread.sleep(1000);
-//             System.out.println("Task" + taskId + " 완료");
-//         });
-//     }
-// }
+```java
+try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    for (int i = 0; i < 1000; i++) {
+        int taskId = i;
+        executor.submit(() -> {
+            System.out.println("Task" + taskId + " 시작");
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            System.out.println("Task" + taskId + " 완료");
+        });
+    }
+}
 ```
 
 ### 비교표

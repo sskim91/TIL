@@ -4,7 +4,7 @@ Java의 `abstract class`와 `@Override`, Python에서는 어떻게 다를까?
 
 ## 결론부터 말하면
 
-Python의 **ABC**(Abstract Base Class)를 상속하고 `@abstractmethod` 데코레이터를 사용하면 추상 클래스를 만들 수 있습니다. Java의 `@Override`는 없으며, 구현 강제는 **런타임(인스턴스화 시)**에 검증됩니다.
+Python의 **ABC**(Abstract Base Class)를 상속하고 `@abstractmethod` 데코레이터를 사용하면 추상 클래스를 만들 수 있습니다. 구현 강제는 **런타임(인스턴스화 시)**에 검증됩니다. 오버라이드 표시는 Python 3.12+의 `typing.override`로 가능하지만 **선택적**이며 타입 체커 보조용입니다(Java `@Override`와 달리 언어 차원의 강제는 아님).
 
 ```python
 from abc import ABC, abstractmethod
@@ -15,7 +15,7 @@ class Animal(ABC):
     def make_sound(self):
         pass
 
-# 구현 클래스 (@Override 같은 거 없음, 그냥 구현하면 됨)
+# 구현 클래스 (Python 3.12+라면 typing.override를 선택적으로 붙일 수 있음)
 class Dog(Animal):  # 괄호 안에 부모 클래스!
     def make_sound(self):
         return "멍멍!"
@@ -63,7 +63,8 @@ try:
     animal = Animal()
 except TypeError as e:
     print(e)
-    # Can't instantiate abstract class Animal with abstract method make_sound
+    # Python 3.12+: Can't instantiate abstract class Animal without an implementation for abstract method 'make_sound'
+    # Python 3.11-: Can't instantiate abstract class Animal with abstract method make_sound
 ```
 
 ## 2. 상속 문법 (Java와 비교)
@@ -110,11 +111,11 @@ class FlyingDog(Animal, Flyable):  # 여러 부모 가능
 
 ### 상속 문법 비교
 
-| 언어 | 상속 문법 | 예시 |
-|------|----------|------|
-| **Java** | `extends` 키워드 | `class Dog extends Animal` |
-| **Python** | 괄호 안에 부모 클래스 | `class Dog(Animal)` |
-| **다중 상속** | 인터페이스만 가능 | 여러 부모 클래스 가능 |
+| 비교 항목 | Java | Python |
+|----------|------|--------|
+| **상속 키워드** | `extends` | 괄호 `(부모)` |
+| **예시** | `class Dog extends Animal` | `class Dog(Animal)` |
+| **다중 상속** | class는 단일 상속만 가능, interface만 다중 구현 (`implements A, B`) | class 다중 상속 지원 (`class Duck(Flyable, Swimmable)`) |
 
 ```python
 # Python 상속 문법 정리
@@ -187,7 +188,8 @@ class Animal(ABC):  # (부모클래스) 형태
 
 # 구현 클래스
 class Dog(Animal):  # (부모클래스) 형태
-    # @Override 같은 게 없음! 그냥 구현하면 됨
+    # Java처럼 언어가 강제하진 않음. Python 3.12+에서는 typing.override를
+    # 선택적으로 붙여 타입 체커(mypy, pyright)에게 "오버라이드 의도"를 알릴 수 있음.
     def make_sound(self):
         print("멍멍!")
 
@@ -198,6 +200,27 @@ class Dog(Animal):  # (부모클래스) 형태
 # make_sound()를 구현 안 하면 → 인스턴스화 시 TypeError!
 ```
 
+### 검증 시점 차이 한눈에 보기
+
+```mermaid
+sequenceDiagram
+    participant Dev as 개발자
+    participant Compile as 컴파일/import
+    participant Runtime as 런타임
+
+    Note over Dev,Runtime: Java — 컴파일 타임 FAIL
+    Dev->>Compile: class Dog extends Animal { }<br/>(makeSound 미구현)
+    Compile-->>Dev: ❌ 컴파일 에러<br/>배포 이전에 차단
+
+    Note over Dev,Runtime: Python — 런타임 FAIL
+    Dev->>Compile: class BadDog(Animal): pass<br/>(make_sound 미구현)
+    Compile-->>Dev: ✅ import 통과<br/>클래스 정의는 허용
+    Dev->>Runtime: BadDog()
+    Runtime-->>Dev: ❌ TypeError<br/>인스턴스화 시점에서야 감지
+```
+
+Python의 "런타임 FAIL"은 **미구현 클래스가 import까지는 통과한다**는 뜻. 즉 테스트가 실제로 해당 클래스를 생성하지 않으면 배포 후에야 터질 수 있다는 실무 위험 포인트다.
+
 ### 주요 차이점
 
 | 특징 | Java | Python |
@@ -205,7 +228,7 @@ class Dog(Animal):  # (부모클래스) 형태
 | **추상 클래스 선언** | `abstract class` 키워드 | `ABC` 상속 |
 | **상속 문법** | `extends` 키워드 | `(부모클래스)` |
 | **추상 메서드 선언** | `abstract` 키워드 | `@abstractmethod` 데코레이터 |
-| **오버라이드 표시** | `@Override` 어노테이션 | **표시 없음** (그냥 구현) |
+| **오버라이드 표시** | `@Override` (선택적이지만 강력 권장) | `typing.override` (3.12+, 선택적, 타입 체커 보조) |
 | **검증 시점** | **컴파일 타임** | **런타임** (인스턴스화 시) |
 | **구현 안 할 시** | 컴파일 에러 | `TypeError` (인스턴스화 시) |
 | **다중 상속** | 인터페이스로 가능 | 다중 상속 가능 |
@@ -268,7 +291,7 @@ try:
     bike = Bicycle()
 except TypeError as e:
     print(e)
-    # Can't instantiate abstract class Bicycle with abstract method stop
+    # Can't instantiate abstract class Bicycle without an implementation for abstract method 'stop'
 
 # ✅ 모든 추상 메서드 구현
 class Motorcycle(Vehicle):
@@ -450,6 +473,7 @@ duck.swim()  # "오리가 헤엄칩니다"
 ### 도형 계산
 
 ```python
+import math
 from abc import ABC, abstractmethod
 
 class Shape(ABC):
@@ -470,10 +494,10 @@ class Circle(Shape):
         self.radius = radius
 
     def area(self):
-        return 3.14159 * self.radius ** 2
+        return math.pi * self.radius ** 2
 
     def perimeter(self):
-        return 2 * 3.14159 * self.radius
+        return 2 * math.pi * self.radius
 
 class Rectangle(Shape):
     def __init__(self, width, height):
@@ -556,7 +580,7 @@ try:
     dog = BadDog("바둑이")
 except TypeError as e:
     print(e)
-    # Can't instantiate abstract class BadDog with abstract method make_sound
+    # Can't instantiate abstract class BadDog without an implementation for abstract method 'make_sound'
 ```
 
 ### 2. 추상 클래스 인스턴스화 불가
@@ -574,7 +598,7 @@ try:
     obj = Base()
 except TypeError as e:
     print(e)
-    # Can't instantiate abstract class Base with abstract method method
+    # Can't instantiate abstract class Base without an implementation for abstract method 'method'
 ```
 
 ### 3. 모든 추상 메서드 구현 필수
@@ -599,10 +623,10 @@ try:
     rect = Rectangle()
 except TypeError as e:
     print(e)
-    # Can't instantiate abstract class Rectangle with abstract method perimeter
+    # Can't instantiate abstract class Rectangle without an implementation for abstract method 'perimeter'
 ```
 
-### 4. ABC 없이 @abstractmethod 사용 불가
+### 4. ABC 없이 @abstractmethod를 쓰면 강제되지 않음
 
 ```python
 from abc import abstractmethod
@@ -630,7 +654,7 @@ obj = Wrong()  # 에러 없음
 # Java였다면: Animal 타입인지 체크 필요
 # Python: make_sound() 메서드만 있으면 OK!
 
-def make_sound(animal):
+def call_sound(animal):
     # 타입 체크 없음!
     # animal이 Dog인지, Cat인지, 심지어 Animal을 상속했는지도 안 봄
     # make_sound() 메서드만 있으면 작동!
@@ -648,9 +672,9 @@ class Robot:  # Animal을 상속하지 않음!
     def make_sound(self):
         return "삐빅삐빅"
 
-make_sound(Dog())    # "멍멍" - 작동!
-make_sound(Cat())    # "야옹" - 작동!
-make_sound(Robot())  # "삐빅삐빅" - 이것도 작동! (make_sound()만 있으면 됨)
+call_sound(Dog())    # "멍멍" - 작동!
+call_sound(Cat())    # "야옹" - 작동!
+call_sound(Robot())  # "삐빅삐빅" - 이것도 작동! (make_sound()만 있으면 됨)
 ```
 
 ### Java와 비교
@@ -667,11 +691,11 @@ makeSound(new Robot());  // ❌ 컴파일 에러
 
 ```python
 # Python: 타입보다 메서드가 중요
-def make_sound(animal):  # 타입 제한 없음
-    animal.make_sound()
+def call_sound(animal):  # 타입 제한 없음
+    print(animal.make_sound())
 
 # Robot은 Animal을 상속 안 해도 됨 → 작동!
-make_sound(Robot())  # ✅ 정상 작동
+call_sound(Robot())  # ✅ 정상 작동
 ```
 
 ### 추상 클래스를 사용하는 이유
@@ -721,7 +745,7 @@ class Animal(ABC):
     def make_sound(self):
         pass
 
-# 구현 클래스 (@Override 같은 거 없음)
+# 구현 클래스 (Python 3.12+: typing.override 선택적 사용 가능)
 class Dog(Animal):  # (부모클래스) - extends 없음!
     def make_sound(self):
         return "멍멍"
@@ -745,7 +769,7 @@ class Dog(Animal):  # 괄호 안에 부모 클래스
 | **추상 클래스** | `abstract class` | `ABC` 상속 |
 | **상속 문법** | `extends` | `(부모클래스)` |
 | **추상 메서드** | `abstract` 키워드 | `@abstractmethod` |
-| **오버라이드** | `@Override` 필요 | **표시 없음** |
+| **오버라이드** | `@Override` (선택적, 관례상 권장) | `typing.override` (3.12+, 선택적) |
 | **검증** | 컴파일 타임 | 런타임 |
 | **강제** | 컴파일 에러 | `TypeError` |
 
@@ -753,7 +777,7 @@ class Dog(Animal):  # 괄호 안에 부모 클래스
 
 1. **ABC는 Abstract Base Class** (장난 아님!)
 2. **상속은 (부모클래스) 형태** - extends 없음
-3. **@Override 같은 어노테이션 없음** - 그냥 구현하면 됨
+3. **오버라이드 표시는 선택적** - Python 3.12+에서 `typing.override`로 표기 가능 (타입 체커 보조용)
 4. **런타임 검증** - 인스턴스화할 때 체크
 5. **기본 구현 가능** - 추상 메서드에도 구현 제공 가능
 6. **다중 상속 지원** - 여러 추상 클래스 동시 상속
