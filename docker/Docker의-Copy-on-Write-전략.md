@@ -311,13 +311,14 @@ flowchart LR
 
 overlay2 외에도 여러 스토리지 드라이버가 있다:
 
-| 드라이버 | 특징 | CoW 단위 | 권장 환경 |
+| 드라이버 | 특징 | CoW 단위 | 현재 상태 |
 |---------|------|----------|----------|
-| **overlay2** | 현재 기본, 가장 널리 사용 | 파일 | 대부분의 Linux |
-| **btrfs** | B-tree 파일시스템, 스냅샷 지원 | 블록 | btrfs 파일시스템 |
-| **zfs** | 고급 기능, 데이터 무결성 | 블록 | ZFS 파일시스템 |
-| **devicemapper** | LVM 기반 | 블록 | 레거시 |
-| **vfs** | CoW 없음, 매번 전체 복사 | - | 테스트용 |
+| **overlay2** | 현재 기본, 거의 모든 환경에서 권장 | 파일 | Linux 표준 |
+| **fuse-overlayfs** | 사용자 공간(FUSE) OverlayFS 구현 | 파일 | rootless Docker 환경 |
+| **btrfs** | B-tree 파일시스템, 스냅샷 지원 | 블록 | 호스트가 btrfs일 때 |
+| **zfs** | 데이터 무결성·스냅샷 등 고급 기능 | 블록 | 호스트가 ZFS일 때 |
+| **devicemapper** | LVM 기반 | 블록 | **deprecated** (사용 권장하지 않음) |
+| **vfs** | CoW 없음, 매번 전체 복사 | - | 테스트·디버깅 전용 |
 
 ```bash
 # 현재 사용 중인 스토리지 드라이버 확인

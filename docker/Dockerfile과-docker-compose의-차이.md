@@ -312,7 +312,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
 ```
 
-> **주의:** `deploy` 키는 **Docker Swarm 모드** 용으로 설계되었다. 일반 `docker compose up`에서는 무시되며, 스케일링하려면 `docker compose up --scale app=3` 명령을 사용해야 한다. 또한 docker-compose는 **자동 로드밸런싱을 제공하지 않으므로,** 위 예시처럼 nginx 같은 리버스 프록시를 앞에 두고 직접 트래픽을 분산시켜야 한다.
+> **주의:** `deploy` 키는 원래 **Docker Swarm**을 위해 설계되었지만, 현재 Compose V2는 `deploy.replicas` 등 일부 속성을 실제로 지원한다(공식 Compose Deploy Specification 참고). 다만 Compose가 지원하는 범위는 컨테이너 수 유지 정도이며, **Swarm·Kubernetes 수준의 자동 로드밸런싱이나 무중단 배포 오케스트레이션은 제공하지 않는다.** 그래서 위 예시처럼 nginx 같은 리버스 프록시를 앞에 두고 직접 트래픽을 분산시켜야 한다. 임시 스케일링이 필요하면 `docker compose up --scale app=3` 명령으로도 동일 효과를 낼 수 있다.
 
 ### 시나리오 3: CI/CD 파이프라인
 
@@ -577,22 +577,26 @@ flowchart TD
 
 ## 8. 자주 하는 실수
 
-### 실수 1: docker-compose에서 build와 image 혼용
+### 실수 1: `build`와 `image`의 동작 오해하기
+
+`build`와 `image`를 한 서비스에 함께 쓰는 건 **잘못된 사용이 아니다.** Compose는 `build`로 이미지를 만들고 `image`에 지정된 태그로 저장하기 때문에, **레지스트리에 푸시할 이미지를 의도된 태그로 한 번에 빌드할 때** 오히려 권장되는 패턴이다.
 
 ```yaml
-# ❌ 둘 다 있으면 build 우선, image 태그는 빌드된 이미지에 적용
 services:
   app:
     build: .
-    image: my-app:latest    # 빌드된 이미지에 이 태그가 붙음
+    image: my-registry/my-app:1.0    # 빌드 결과에 이 태그가 붙고, 그대로 push 가능
+```
 
-# ✅ 명확하게 분리
-# 개발용 (매번 빌드)
+진짜 흔한 실수는 **환경별 의도가 섞이는 것**이다. 로컬 개발과 프로덕션은 한쪽만 쓰는 편이 명확하다:
+
+```yaml
+# 개발용 (소스 변경마다 매번 빌드)
 services:
   app:
     build: .
 
-# 프로덕션용 (미리 빌드된 이미지)
+# 프로덕션용 (CI에서 빌드·푸시된 이미지를 pull만)
 services:
   app:
     image: my-registry/my-app:1.0
