@@ -8,12 +8,12 @@ Pub/Sub으로 주문 이벤트를 발행했는데, 결제 서비스가 30초간 
 
 | 특성 | Pub/Sub | **Stream** |
 |------|---------|-----------|
-| 메시지 영속성 | X (Fire-and-Forget) | **O (디스크에 저장)** |
+| 메시지 영속성 | X (Fire-and-Forget) | **O (Redis 데이터셋에 보관, 디스크 내구성은 RDB/AOF 설정에 따름)** |
 | 소비자 부재 시 | 유실 | **보관 (나중에 소비 가능)** |
 | ACK (처리 확인) | X | **O (XACK)** |
 | 메시지 재처리 | X | **O (ID로 재조회)** |
 | Consumer Group | X | **O (분산 처리)** |
-| 메시지 순서 보장 | X (순서 불확정) | **O (ID 기반 정렬)** |
+| 메시지 순서 보장 | O (발행 순서대로 전달, 단 유실/재전송 보장 없음) | **O (ID 기반 정렬 + 재처리 가능)** |
 
 ## 1. 왜 Pub/Sub으로는 부족한가?
 
@@ -134,6 +134,14 @@ XPENDING orders payment-processors
 XCLAIM orders payment-processors worker-3 30000 1711000001234-0
 # 30000ms(30초) 이상 Pending 상태인 메시지를 worker-3에게 이전
 ```
+
+> **실무 팁:** `XCLAIM`은 인수할 메시지 ID를 하나씩 지정해야 해서, 실제로 장애 복구 로직을 구현하려면 `XPENDING`으로 Pending 목록을 먼저 조회한 뒤 `XCLAIM`을 반복 호출하는 이중 단계가 필요하다. Redis 6.2+부터는 **`XAUTOCLAIM`** 이 이 과정을 한 명령으로 처리하며, 커서 기반으로 Pending 메시지를 스캔해 이전까지 자동화한다.
+>
+> ```bash
+> XAUTOCLAIM orders payment-processors worker-3 30000 0 COUNT 10
+> # min-idle-time 30000ms 이상인 Pending 메시지를 자동으로 찾아 worker-3에게 이전
+> # 마지막 `0`은 스캔 시작 ID(처음부터), COUNT는 1회 처리할 최대 개수
+> ```
 
 이 흐름을 정리하면:
 

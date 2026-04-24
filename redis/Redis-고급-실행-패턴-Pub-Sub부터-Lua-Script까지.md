@@ -77,10 +77,17 @@ PSUBSCRIBE order:*
 
 | ACID | Redis | 설명 |
 |------|-------|------|
-| **A**(Atomicity) | **부분적** | 모든 명령이 실행되거나 / 모든 명령이 실행되지 않거나 (But 롤백 없음!) |
+| **A**(Atomicity) | **부분적** | EXEC 이전 에러는 전체 취소, EXEC 이후 런타임 에러는 실패한 명령만 스킵 (롤백 없음) |
 | **C**(Consistency) | **X** | 런타임 에러 시 나머지 명령은 계속 실행됨 |
 | **I**(Isolation) | **O** | 트랜잭션 중 다른 클라이언트 명령이 끼어들지 않음 |
 | **D**(Durability) | **조건부** | 영속성 설정(RDB/AOF)에 따라 다름 |
+
+> **"부분적 Atomicity"의 실제 의미:** Redis는 에러 시점을 두 단계로 구분한다.
+>
+> 1. **EXEC 이전 에러**(문법 오류, 존재하지 않는 명령 등) → Redis가 큐잉 단계에서 거부하고, `EXEC` 호출 시 **전체 트랜잭션을 `EXECABORT`로 취소**한다. 아무 명령도 실행되지 않는다.
+> 2. **EXEC 이후 런타임 에러**(String 키에 `INCR` 같은 타입 불일치 등) → 실패한 명령만 에러 응답으로 보고되고, **나머지 명령은 정상적으로 계속 실행**된다. 아래의 `INCR user:123:name` 예시가 이 경우다.
+>
+> "롤백이 없다"는 말은 정확히 이 두 번째 경우를 가리킨다.
 
 ### 2.2 가장 위험한 특성: Rollback이 없다
 
@@ -114,7 +121,8 @@ DECRBY balance:alice 500
 INCRBY balance:bob 500
 EXEC
 # 누군가 WATCH 이후 balance:alice를 수정했으면 → nil (취소)
-# 아무도 수정하지 않았으면 → ["OK", "OK"] (성공)
+# 아무도 수정하지 않았으면 → [(integer) 500, (integer) 500] (성공)
+# ↑ DECRBY/INCRBY는 변경 후 정수 값을 반환한다 (OK 아님)
 ```
 
 Java의 `CAS(Compare-And-Swap)` 또는 JPA의 `@Version` 낙관적 잠금과 같은 원리다. 충돌이 발생하면 재시도한다.

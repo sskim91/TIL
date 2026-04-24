@@ -68,6 +68,8 @@ public void updateProduct(Long id, Product product) {
 
 **왜 쓰기 시 "갱신" 대신 "삭제"인가?** 캐시를 갱신하면 **Race Condition** 이 발생할 수 있다. 스레드 A가 DB를 쓰고 캐시를 갱신하기 직전에, 스레드 B가 DB를 쓰고 캐시를 먼저 갱신하면? 캐시에는 A의 오래된 데이터가 남는다. 삭제하면 다음 읽기에서 최신 데이터를 DB에서 다시 가져오므로 이 문제가 없다.
 
+> **그런데 "삭제"도 완벽하지 않다.** 더 미묘한 Race가 존재한다. Thread A가 Cache Miss를 만나 DB에서 **old 값**을 읽고 있는 동안, Thread B가 DB를 새 값으로 갱신하고 캐시를 `DEL`한다. 그 직후 Thread A가 자신이 읽었던 old 값을 캐시에 저장하면 — 캐시에 **stale data**가 남는다. Facebook memcached 논문([Nishtala et al., 2013](https://www.usenix.org/conference/nsdi13/technical-sessions/presentation/nishtala))에서도 이 패턴을 지적한다. 실무 완화 기법은 세 가지다. (1) **짧은 TTL 병행** — stale이 길어야 TTL까지만 존재. (2) **Double-Delete** — 쓰기 시 `DEL → DB UPDATE → sleep → DEL again`. (3) **버전 기반 CAS** — 캐시 값에 버전 번호를 포함하고 읽기 시 DB 버전과 비교.
+
 | 장점 | 단점 |
 |------|------|
 | 가장 단순하고 범용적 | Cache Miss 시 지연 발생 |
@@ -177,36 +179,53 @@ sequenceDiagram
     end
 ```
 
-### 3.2 방어 전략 1: Mutex Lock (SETNX)
+### 3.2 방어 전략 1: Mutex Lock (분산 락)
 
-**한 명만 DB를 조회** 하고, 나머지는 기다리게 하는 방식이다. Redis의 `SETNX`로 분산 락을 구현한다.
+**한 명만 DB를 조회** 하고, 나머지는 기다리게 하는 방식이다. Redis의 **`SET ... NX EX`** 원자 명령으로 분산 락을 구현한다. (과거 `SETNX` 명령은 Redis 2.6.12부터 deprecated 상태이며, 공식 문서는 `SET NX EX`로 락 획득과 TTL 설정을 한 번에 처리하는 것을 권장한다.)
 
 ```bash
 # 의사 코드
 GET product:hot
 → Cache Miss!
 
-# 락 획득 시도
-SET lock:product:hot "1" NX EX 5
-→ 성공하면: DB 조회 → 캐시 저장 → 락 해제
+# 락 획득 시도 (SET NX EX — 원자적으로 락 획득 + TTL 설정)
+SET lock:product:hot <random-token> NX EX 5
+→ 성공하면: DB 조회 → 캐시 저장 → 락 해제 (본인 토큰 일치 시에만)
 → 실패하면: 짧게 대기(100ms) 후 캐시 재조회 (다른 스레드가 채워놓았을 것)
 ```
 
 ```python
+import uuid
+
+# 안전한 락 해제 — 내 토큰일 때만 DEL (Lua로 compare-and-delete 원자화)
+UNLOCK_LUA = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+else
+    return 0
+end
+"""
+unlock_script = redis.register_script(UNLOCK_LUA)  # redis-py의 Lua 래퍼
+
 def get_with_mutex(key, ttl=300, lock_ttl=5):
     value = redis.get(key)
     if value is not None:
         return value
 
     lock_key = f"lock:{key}"
-    if redis.set(lock_key, "1", nx=True, ex=lock_ttl):
+    token = uuid.uuid4().hex  # 고유 토큰으로 "내 락"임을 증명
+    if redis.set(lock_key, token, nx=True, ex=lock_ttl):
         try:
             # 락 획득 성공 → DB 조회
             value = db.query(key)
             redis.setex(key, ttl, value)
             return value
         finally:
-            redis.delete(lock_key)
+            # 고정 값 "1" + 무조건 DEL은 위험하다:
+            # 작업이 TTL보다 길어져 락이 자동 만료된 뒤, 뒤늦게 해제하면
+            # 그 사이 다른 클라이언트가 새로 획득한 락을 잘못 지울 수 있다.
+            # 토큰 일치를 확인한 뒤에만 삭제한다.
+            unlock_script(keys=[lock_key], args=[token])
     else:
         # 락 획득 실패 → 대기 후 재시도
         time.sleep(0.1)
@@ -214,7 +233,7 @@ def get_with_mutex(key, ttl=300, lock_ttl=5):
 ```
 
 **장점:** 구현이 단순하고 효과 확실
-**단점:** 락을 기다리는 동안 응답 지연 발생, 락 소유자가 죽으면 TTL까지 대기
+**단점:** 락을 기다리는 동안 응답 지연 발생. 락 소유자가 죽으면 TTL까지 대기. 엄밀한 분산 락 보증(다중 노드 장애, clock drift 방어 등)이 필요하면 **Redlock** 알고리즘이나 **Redisson** 라이브러리를 사용한다.
 
 ### 3.3 방어 전략 2: 확률적 조기 만료 (Probabilistic Early Recomputation)
 

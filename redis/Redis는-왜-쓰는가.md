@@ -132,6 +132,8 @@ Redis는 이 모든 복잡성을 제거했다. 메모리 연산은 너무 빨라
 >
 > 단, 이 기능은 **기본적으로 비활성화** 되어 있다. `redis.conf`에서 `io-threads` 설정을 명시적으로 활성화해야 한다.
 
+다만 싱글스레드 설계에는 다른 쪽 비용도 있다. **CPU 코어가 아무리 많아도 Redis 한 인스턴스는 메인 스레드 하나만 쓴다.** 16코어 서버에서도 Redis 단일 인스턴스의 최대 처리량은 1코어 성능에 묶인다. 이를 넘어서려면 **같은 서버에 여러 Redis 인스턴스를 포트를 분리해 띄우거나**, **Redis Cluster로 샤딩**하여 각 샤드가 독립 프로세스로 동작하게 해야 한다. "싱글스레드라 빠르다"는 건 **단일 연산의 latency** 이야기이고, **전체 throughput**은 병렬 구성으로 풀어야 한다는 점을 기억해두자.
+
 ```mermaid
 sequenceDiagram
     participant C1 as Client 1
@@ -201,9 +203,10 @@ LIMIT 10;
 Redis에서는?
 
 ```bash
-ZREVRANGE leaderboard 0 9 WITHSCORES
+ZRANGE leaderboard 0 9 REV WITHSCORES
 # Sorted Set은 이미 정렬되어 있음
 # O(log n + m) - n은 전체 개수, m은 반환 개수
+# (Redis 6.2부터 ZREVRANGE는 deprecated, ZRANGE ... REV가 권장)
 ```
 
 ---
@@ -267,7 +270,7 @@ Redis는 완전한 ACID를 보장하지 않는다.
 
 | ACID | Redis 지원 여부 |
 |------|----------------|
-| **Atomicity** | 단일 명령 수준에서만 |
+| **Atomicity** | 단일 명령 + `MULTI`/`EXEC` + Lua 스크립트 단위로 원자 실행 가능 (단, RDBMS식 rollback은 없음) |
 | **Consistency** | 제한적 |
 | **Isolation** | 싱글스레드라 자연스럽게 보장 |
 | **Durability** | 설정에 따라 다름 (기본값은 미보장) |

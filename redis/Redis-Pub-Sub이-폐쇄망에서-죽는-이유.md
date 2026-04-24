@@ -38,7 +38,7 @@ sequenceDiagram
 
 ## 2. `socket_keepalive=True`의 함정
 
-redis-py에서 `socket_keepalive=True`를 설정하면 TCP keepalive가 활성화된다. 여기까지는 맞다. 그런데 **간격은 얼마인가?**
+redis-py의 `socket_keepalive`는 **기본값이 `False`** 라서, 명시적으로 `True`로 켜지 않으면 TCP keepalive가 아예 꺼져 있다. `True`로 설정하면 keepalive가 활성화된다. 여기까지는 맞다. 그런데 **간격은 얼마인가?**
 
 `socket_keepalive_options`를 명시하지 않으면 OS 기본값이 적용된다.
 
@@ -55,15 +55,19 @@ redis-py에서 `socket_keepalive=True`를 설정하면 TCP keepalive가 활성�
 
 | 설정 | 레벨 | 역할 | 값 |
 |---|---|---|---|
-| `socket_keepalive_options` | TCP | OS에게 "이 간격으로 keepalive 보내라" 지시 | `TCP_KEEPIDLE: 30` |
-| `health_check_interval` | Application | redis-py가 주기적으로 `PING` 명령 전송 | `120`초 |
-| `retry_on_timeout` | Application | timeout 발생 시 자동 재시도 | `True` |
+| `socket_keepalive_options` | TCP (커널) | OS에게 "이 간격으로 keepalive 보내라" 지시 | `TCP_KEEPIDLE: 30` |
+| `health_check_interval` | Application | redis-py가 명령 실행 시점에 `PING`으로 헬스 체크 | `120`초 |
+| `retry` + `retry_on_error` | Application | timeout 시 지수 백오프로 재시도 (redis-py 6.0+) | `Retry(ExponentialBackoff(), retries=3)`, `[TimeoutError]` |
 
-이 세 가지가 이중, 삼중으로 연결을 보호한다.
+**이 중 실질적인 방어선은 TCP keepalive다.** `health_check_interval`은 redis-py가 `parse_response()`에 진입하는 시점이나 `get_message(timeout=1.0)` 같은 non-blocking 폴링 루프에서만 PING을 트리거한다. Pub/Sub이 `listen()`으로 블로킹 상태에 들어가면 메시지가 올 때까지 소켓 읽기에 막혀 있어서, 120초가 지나도 주기적 PING이 저절로 나가지 않는다. 방화벽 idle timeout을 실질적으로 막는 건 **커널 레벨 TCP keepalive**이고, `health_check_interval`은 non-blocking 루프 구조에서 보조 방어선으로 동작한다. 두 계층은 역할이 다르다 — TCP keepalive는 **네트워크 경로(방화벽 세션)** 를 보존하고, PING은 **Redis 프로세스의 애플리케이션 가용성** 을 확인한다.
 
 ```python
 import platform
 import socket
+
+from redis.backoff import ExponentialBackoff
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from redis.retry import Retry
 
 _KEEPALIVE = {
     "socket_keepalive": True,
@@ -72,7 +76,9 @@ _KEEPALIVE = {
         if platform.system() == "Darwin"
         else {socket.TCP_KEEPIDLE: 30, socket.TCP_KEEPINTVL: 15}
     ),
-    "retry_on_timeout": True,
+    # redis-py 6.0+ 권장 방식. 기존 `retry_on_timeout=True`는 deprecated.
+    "retry": Retry(ExponentialBackoff(), retries=3),
+    "retry_on_error": [RedisTimeoutError],
     "health_check_interval": 120,
 }
 

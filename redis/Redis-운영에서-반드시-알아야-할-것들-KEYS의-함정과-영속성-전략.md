@@ -4,7 +4,7 @@
 
 ## 결론부터 말하면
 
-**`KEYS` 명령은 프로덕션에서 절대 사용하면 안 된다.** 전체 키를 순회하는 $O(N)$ 연산이 Redis의 싱글 스레드를 점유하여 서비스가 멈춘다. 대안은 **`SCAN`** 이다. 영속성은 **RDB(스냅샷)**, **AOF(명령 로그)**, **Hybrid(RDB + AOF)** 3가지 패턴이 있으며, Redis 7+ 기본값인 **Hybrid가 대부분의 실무 환경에 적합** 하다.
+**`KEYS` 명령은 프로덕션에서 절대 사용하면 안 된다.** 전체 키를 순회하는 $O(N)$ 연산이 Redis의 싱글 스레드를 점유하여 서비스가 멈춘다. 대안은 **`SCAN`** 이다. 영속성은 **RDB(스냅샷)**, **AOF(명령 로그)**, **Hybrid(RDB + AOF)** 3가지 패턴이 있다. Redis 7/8 기본 설정은 `appendonly no`라서 RDB만 동작하는 상태이지만, **`appendonly yes`로 AOF를 활성화하면 Redis 7+에서는 RDB preamble이 포함된 Hybrid AOF가 자동으로 사용**되며, 이 조합이 대부분의 실무 환경에 적합하다.
 
 | 주제 | 위험/문제 | 해결 |
 |------|---------|------|
@@ -164,6 +164,8 @@ flowchart LR
 | 빠른 복구 (파일 로드만 하면 됨) | fork() 시 메모리 순간 폭증 (CoW) |
 | 자식 프로세스가 처리 → 부모 성능 영향 최소 | 데이터셋이 클수록 fork 시간 증가 |
 
+> **수동 스냅샷이 필요하다면 `BGSAVE`, 절대 `SAVE` 금지.** `BGSAVE`는 fork() 기반으로 비동기 실행되어 서비스를 멈추지 않는다. 반면 `SAVE`는 **메인 스레드에서 동기 실행** 되므로 스냅샷이 끝날 때까지 모든 명령이 블로킹된다. 데이터셋이 수 GB를 넘으면 수 초~수십 초 장애로 이어질 수 있다. 긴급 백업, 배포 전 체크포인트, CLI에서 수동 저장이 필요할 때 항상 `BGSAVE`를 쓰고, `SAVE`는 단일 인스턴스 개발 환경에서만 사용한다. `LASTSAVE`로 마지막 스냅샷 유닉스 타임스탬프를 조회해 완료 여부를 확인할 수 있다.
+
 ### 2.3 패턴 2: AOF (Append Only File)
 
 AOF는 **모든 쓰기 명령을 로그 파일에 순서대로 기록** 하는 방식이다. `SET user:123 "Alice"`를 실행하면, 이 명령 자체가 `appendonly.aof` 파일에 추가된다.
@@ -207,47 +209,61 @@ auto-aof-rewrite-min-size 64mb    # 최소 64MB 이상일 때만 rewrite
 
 RDB는 복구가 빠르지만 데이터 유실이 있고, AOF는 데이터 유실이 적지만 복구가 느리다. **Hybrid 방식은 이 두 가지의 장점만 취한다.**
 
+**중요한 오해 포인트:** Redis의 영속성 기본 설정은 `appendonly no` 이다. 즉, Redis 7/8을 설치해도 **AOF는 기본적으로 꺼져 있고** RDB 스냅샷만 주기적으로 동작한다. Hybrid를 쓰려면 먼저 AOF를 켜야 한다. AOF를 켜면 Redis 7+에서는 `aof-use-rdb-preamble yes`가 기본값이라 자동으로 Hybrid 모드로 동작한다.
+
 ```nginx
-# redis.conf — Hybrid 설정 (Redis 4.0+ 지원, 7.0+ 기본 활성화)
-aof-use-rdb-preamble yes
+# redis.conf — Hybrid 활성화 (Redis 4.0+ 지원)
+appendonly yes              # AOF 활성화 (기본값은 no, 반드시 명시!)
+aof-use-rdb-preamble yes    # Redis 7+에서는 기본값이지만 명시해두면 설정 의도가 명확
 ```
 
-Hybrid는 AOF Rewrite 시 **파일 앞부분을 RDB 포맷으로, 뒷부분을 AOF 명령으로** 기록한다.
+Hybrid는 AOF Rewrite 시 **스냅샷 시점까지의 전체 데이터는 RDB 포맷으로, 이후 쓰기 명령은 AOF 포맷으로** 기록한다. 단, 저장 구조는 Redis 버전에 따라 다르다.
+
+| Redis 버전 | Hybrid 파일 구조 |
+|-----------|----------------|
+| 4.0 ~ 6.2 | 단일 `appendonly.aof` 파일 안에 RDB preamble + AOF tail이 이어붙음 |
+| **7.0+** | **Multi-Part AOF**: `appendonlydir/` 디렉토리에 `*.base.rdb`(스냅샷), `*.incr.aof`(증분 로그), `*.manifest`(메타데이터)로 분리 저장 |
+
+아래 다이어그램은 Redis 7+ Multi-Part AOF 기준이다.
 
 ```mermaid
 flowchart LR
-    subgraph AOF["Hybrid AOF File"]
-        RDB["RDB Preamble<br>(스냅샷 시점까지의<br>전체 데이터)"]
-        CMDS["AOF Commands<br>(스냅샷 이후의<br>쓰기 명령들)"]
-        RDB --> CMDS
+    subgraph AOF["appendonlydir/ (Multi-Part AOF)"]
+        BASE["*.base.rdb<br>(스냅샷 시점까지의<br>전체 데이터)"]
+        INCR["*.incr.aof<br>(스냅샷 이후의<br>쓰기 명령들)"]
+        MANIFEST["*.manifest<br>(파일 목록·세대 관리)"]
+        BASE --> INCR
     end
 
     subgraph Recovery["복구 과정"]
-        R1["1. RDB 부분 로드<br>(빠른 벌크 복구)"]
-        R2["2. AOF 명령 재실행<br>(최근 변경분 반영)"]
-        R1 --> R2
+        R1["1. manifest 읽고<br>파일 목록 파악"]
+        R2["2. base.rdb 로드<br>(빠른 벌크 복구)"]
+        R3["3. incr.aof 재생<br>(최근 변경분 반영)"]
+        R1 --> R2 --> R3
     end
 
     AOF --> Recovery
 
-    style RDB fill:#1565C0,color:#fff
-    style CMDS fill:#2E7D32,color:#fff
-    style R1 fill:#1565C0,color:#fff
-    style R2 fill:#2E7D32,color:#fff
+    style BASE fill:#1565C0,color:#fff
+    style INCR fill:#2E7D32,color:#fff
+    style MANIFEST fill:#E65100,color:#fff
+    style R1 fill:#E65100,color:#fff
+    style R2 fill:#1565C0,color:#fff
+    style R3 fill:#2E7D32,color:#fff
 ```
 
-**복구 시:** RDB 부분을 먼저 로드하여 대부분의 데이터를 빠르게 복원하고, 그 이후의 AOF 명령만 재실행하면 된다. **RDB의 빠른 복구 + AOF의 낮은 데이터 유실** 을 모두 얻는다.
+**복구 시:** manifest를 먼저 읽어 base.rdb와 incr.aof 파일 목록을 파악한 뒤, base.rdb로 대부분의 데이터를 빠르게 복원하고 그 이후의 incr.aof 명령들을 순서대로 재실행한다. **RDB의 빠른 복구 + AOF의 낮은 데이터 유실** 을 모두 얻으면서, 파일이 분리되어 있어 AOF Rewrite 중에도 기존 파일을 건드리지 않고 안전하게 세대를 교체할 수 있다.
 
 ### 2.5 어떤 영속성 전략을 선택할까?
 
 | 상황 | 권장 전략 | 이유 |
 |------|----------|------|
 | 순수 캐시 (유실 OK) | **RDB만** 또는 **영속성 OFF** | 복구 속도 중요, 데이터 유실 허용 |
-| 일반적인 실무 환경 | **Hybrid (기본값)** | 빠른 복구 + 낮은 유실 |
+| 일반적인 실무 환경 | **AOF 활성화 → 자동 Hybrid** | 빠른 복구 + 낮은 유실 |
 | 데이터 유실 절대 불가 | **AOF (always)** | 매 명령 디스크 기록 (성능 트레이드오프) |
 | 백업/재해 복구 | **RDB 스냅샷** + Hybrid | 별도 서버에 RDB 파일 주기적 복사 |
 
-> **실무 권장:** Redis 7+ 기본값인 **Hybrid를 그대로 사용** 하는 것이 대부분의 상황에서 최선이다. AOF `appendfsync everysec`로 최대 1초 유실을 허용하면서, RDB preamble로 빠른 복구를 보장한다. 여기에 RDB 스냅샷을 별도 서버에 주기적으로 백업하면 재해 복구까지 대비할 수 있다.
+> **실무 권장:** Redis 7+에서 `appendonly yes`로 AOF를 켜면 `aof-use-rdb-preamble yes`가 기본값으로 동작해 **Hybrid AOF 형식이 자동 적용** 된다. 이 조합이 대부분의 상황에서 최선이다. AOF `appendfsync everysec`로 최대 1초 유실을 허용하면서, RDB preamble로 빠른 복구를 보장한다. 여기에 RDB 스냅샷을 별도 서버에 주기적으로 백업하면 재해 복구까지 대비할 수 있다.
 
 ## 3. 정리
 

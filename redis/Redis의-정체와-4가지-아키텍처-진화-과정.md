@@ -171,7 +171,7 @@ flowchart TB
 
 **남아있는 문제:** Master가 죽으면 **누군가 수동으로** Replica 중 하나를 새 Master로 승격시켜야 한다. 새벽 3시에 장애가 나면? 운영자가 일어나서 수동으로 처리해야 한다. 이것이 **수동 Failover** 의 문제다.
 
-또한 비동기 복제이므로, Master에 쓴 데이터가 Replica에 아직 복제되지 않은 상태에서 Master가 죽으면 **데이터 유실** 이 발생할 수 있다.
+또한 비동기 복제이므로, Master에 쓴 데이터가 Replica에 아직 복제되지 않은 상태에서 Master가 죽으면 **데이터 유실** 이 발생할 수 있다. 같은 이유로 쓰기 직후 Replica에서 바로 읽으면 **아직 반영되지 않은 이전 값** 을 받을 수 있다(Read-after-Write 일관성 이슈). 강한 durability가 필요하면 Redis의 `WAIT numreplicas timeout` 명령으로 일정 수의 Replica가 쓰기를 받을 때까지 blocking할 수 있지만, 이는 완전한 동기 복제가 아니라 "best-effort 확인"에 가깝다 — timeout 내에 목표 개수를 못 채우면 실제 복제된 수를 반환하고 종료한다.
 
 ### 2.3 Sentinel — 자동으로 장애를 복구하자
 
@@ -215,7 +215,9 @@ flowchart TB
 3. **자동 장애복구(Automatic Failover):** Master 다운 시 Replica를 새 Master로 승격
 4. **설정 제공(Configuration Provider):** 클라이언트에게 현재 Master의 주소를 알려줌
 
-**왜 Sentinel이 3개(홀수)인가?** Sentinel은 Master가 정말 죽었는지 **과반수 투표(Quorum)** 로 결정한다. 네트워크 단절로 Sentinel 하나만 Master와 연결이 끊길 수도 있기 때문이다. 과반수가 "Master가 죽었다"고 동의해야 Failover가 실행된다. 이것이 **Split Brain** (뇌가 쪼개지는 것, 즉 두 개의 Master가 동시에 존재하는 상황) 을 방지하는 메커니즘이다.
+**왜 Sentinel이 3개(홀수)인가?** Sentinel의 장애 판정과 Failover 실행은 **2단계**로 나뉜다. 먼저 설정 파일 `sentinel monitor <name> <ip> <port> <quorum>` 에서 **명시하는 quorum 값** 이상의 Sentinel이 "Master가 죽었다"고 동의하면 Master를 **ODOWN(Objectively Down)** 으로 판정한다. 그 다음 실제 Failover 실행을 위해서는 Sentinel들 중 **`max(quorum, majority)` 이상** 의 승인이 별도로 필요하다 — 여기서 majority는 전체 Sentinel 수의 과반이고, quorum을 그보다 크게 설정하면 그 수가 승인 문턱이 된다. 이 2단계 덕분에 **잘못된 Failover(false positive)** 가능성을 크게 낮춘다. Sentinel을 3개(홀수)로 권장하는 이유는 네트워크 단절 시 한쪽이 항상 majority를 갖도록 보장하기 위함이다.
+
+> **단, Split Brain을 완전히 방지하지는 못한다.** Sentinel quorum은 Failover 권한을 조정할 뿐, 네트워크 파티션 중 **old master에 여전히 연결된 클라이언트는 계속 쓰기를 수행할 수 있다**. 이후 Replica가 새 Master로 승격되면 그 쓰기는 유실된다. 이 유실 창을 좁히려면 Master에 **`min-replicas-to-write N`** (최소 N개 Replica가 연결돼 있어야 쓰기 허용) + **`min-replicas-max-lag S`** (Replica lag이 S초 이하일 때만 쓰기 허용) 설정을 걸어 "복제 가능한 Replica가 부족하면 쓰기를 거부"하도록 한다. 이건 Raft/Paxos 같은 강한 합의가 아니라 **운영자가 수용 가능한 데이터 유실 구간을 수치로 제어**하는 방식이다.
 
 **남아있는 문제:** Sentinel은 **HA(고가용성)** 를 해결하지만, **수평 확장** 문제는 해결하지 못한다. 데이터는 여전히 하나의 Master에 모두 저장된다. Master의 메모리가 64GB라면, 그 이상의 데이터를 저장할 방법이 없다. 쓰기 트래픽도 Master 한 대가 모두 감당해야 한다.
 

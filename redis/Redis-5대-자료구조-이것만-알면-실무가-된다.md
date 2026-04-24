@@ -32,8 +32,9 @@ SET session:abc123 "user_data" EX 3600   # 1시간 후 자동 삭제
 # 또는
 SETEX session:abc123 3600 "user_data"    # 동일
 
-# 이미 있으면 저장하지 않음 (분산 락)
-SETNX lock:order:5678 "worker-1"         # 1 (성공) 또는 0 (이미 존재)
+# 이미 있으면 저장하지 않음 (분산 락의 기본)
+# 과거 SETNX 명령은 Redis 2.6.12부터 deprecated. SET ... NX로 원자 획득한다.
+SET lock:order:5678 "worker-1" NX         # OK (성공) 또는 nil (이미 존재)
 
 # 원자적 카운터
 INCR page:views:home         # 1, 2, 3, ... (원자적 증가)
@@ -239,16 +240,23 @@ Hash가 메모리 효율적인 진짜 이유는 **인코딩 방식** 에 있다.
 
 | 조건 | 인코딩 | 메모리 |
 |------|--------|--------|
-| 필드 ≤ 128개 **AND** 값 ≤ 64바이트 | **listpack** (컴팩트) | 매우 적음 |
+| 필드 ≤ 512개 **AND** 값 ≤ 64바이트 | **listpack** (컴팩트) | 매우 적음 |
 | 위 조건 초과 | **hashtable** (일반) | String과 비슷 |
 
-이 임계값은 `hash-max-listpack-entries`(기본 128)와 `hash-max-listpack-value`(기본 64)로 조정할 수 있다.
+이 임계값은 `hash-max-listpack-entries`(**기본 512**)와 `hash-max-listpack-value`(**기본 64**)로 조정할 수 있다. Redis 6.x 이전에서는 같은 역할을 하는 설정이 `hash-max-ziplist-entries`(기본 512), `hash-max-ziplist-value`(기본 64)이며, 이름만 다를 뿐 기본값은 동일하다.
 
 > Instagram은 이 원리를 활용해서 수억 개의 키를 해시 버킷으로 묶어 저장하여 **메모리를 75% 절감** 했다. 수백만 개의 개별 String 키 대신, 1,000개 단위로 Hash에 묶어 저장하는 패턴이다.
 
 ### 4.3 주의사항
 
-Hash의 개별 필드에는 **TTL을 설정할 수 없다.** TTL은 키 단위로만 가능하다. 특정 필드만 만료시키려면 애플리케이션 레벨에서 처리해야 한다.
+**Redis 7.4 이전**에는 Hash의 개별 필드에 TTL을 설정할 수 없었고, TTL은 키 단위로만 가능했다. **Redis 7.4부터는 `HEXPIRE`, `HPEXPIRE`, `HEXPIREAT`, `HTTL`, `HPERSIST` 같은 명령이 추가되어 Hash 필드 단위로 TTL을 직접 지정**할 수 있다. 7.4 미만 버전에서는 여전히 애플리케이션 레벨에서 만료 로직을 처리해야 한다.
+
+```bash
+# Redis 7.4+ 예시
+HSET session u:123 "data..."
+HEXPIRE session 3600 FIELDS 1 u:123   # u:123 필드만 1시간 TTL
+HTTL session FIELDS 1 u:123           # 남은 TTL(초) 조회
+```
 
 ## 5. Sorted Set — 실시간 랭킹의 끝판왕
 
@@ -285,18 +293,22 @@ ZADD leaderboard 1600 "alice"   # alice 점수 1500 → 1600
 # 점수 증감
 ZINCRBY leaderboard 100 "alice"  # alice 점수 1600 → 1700
 
-# 상위 N명 조회 (높은 순)
-ZREVRANGE leaderboard 0 2 WITHSCORES
+# 상위 N명 조회 (높은 순) — Redis 6.2+ 권장 API: ZRANGE ... REV
+ZRANGE leaderboard 0 2 REV WITHSCORES
 # 1) "bob"      2300
 # 2) "diana"    2100
 # 3) "charlie"  1800
 
-# 특정 멤버 순위 조회 (0-based)
+# 특정 멤버 순위 조회 (0-based, 높은 순)
 ZREVRANK leaderboard "charlie"   # 2 (3위)
 
-# 특정 점수 범위 조회
-ZRANGEBYSCORE leaderboard 1500 2000 WITHSCORES
+# 특정 점수 범위 조회 — Redis 6.2+ 권장 API: ZRANGE ... BYSCORE
+ZRANGE leaderboard 1500 2000 BYSCORE WITHSCORES
 # 점수 1500~2000 사이의 멤버들
+#
+# ※ ZREVRANGE, ZRANGEBYSCORE, ZREVRANGEBYSCORE, ZRANGEBYLEX 등은
+#   Redis 6.2부터 deprecated. 새 코드에서는 ZRANGE에 REV/BYSCORE/BYLEX
+#   옵션을 조합해 사용한다.
 ```
 
 ### 5.3 실무 패턴: 슬라이딩 윈도우 Rate Limiter
@@ -364,7 +376,7 @@ flowchart TB
 | 좋아요/태그/팔로우 | Set | `SADD`, `SISMEMBER` |
 | 공통 친구/관심사 | Set | `SINTER` |
 | 사용자 프로필 | Hash | `HSET`, `HGET` |
-| 리더보드/랭킹 | Sorted Set | `ZADD`, `ZREVRANGE` |
+| 리더보드/랭킹 | Sorted Set | `ZADD`, `ZRANGE ... REV` |
 | Rate Limiting | Sorted Set | `ZADD`, `ZREMRANGEBYSCORE` |
 
 ## 7. 정리
@@ -384,8 +396,8 @@ flowchart TB
    - `SINTER`/`SUNION`/`SDIFF`로 서버 사이드 집합 연산
 
 4. **Hash는 소규모 데이터에서 메모리 효율이 극대화된다**
-   - 128개 이하 필드 + 64바이트 이하 값 → listpack 인코딩
-   - 개별 필드에 TTL 불가 — 이 한계를 알고 설계해야 한다
+   - 512개 이하 필드 + 64바이트 이하 값 → listpack 인코딩 (`hash-max-listpack-entries`/`value` 기본값)
+   - Redis 7.4+에서는 `HEXPIRE`로 필드 단위 TTL 가능, 7.4 미만은 키 단위 TTL만 가능
 
 5. **Sorted Set은 "정렬이 필요한 유니크 데이터"의 끝판왕이다**
    - $O(\log n)$으로 삽입과 순위 조회가 모두 가능

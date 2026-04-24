@@ -87,10 +87,10 @@ Cluster의 노드들은 **Gossip 프로토콜** 로 서로의 상태를 교환�
 
 | 항목 | 설명 |
 |------|------|
-| Heartbeat 주기 | 매초 무작위로 몇 개 노드에 PING 전송 |
-| 장애 감지 | `cluster-node-timeout`(기본 15초) 내 응답 없으면 PFAIL |
-| 장애 확정 | 과반수 노드가 PFAIL에 동의하면 FAIL → Replica 자동 승격 |
-| 정보 교환 | 슬롯 배치, 노드 상태, config epoch |
+| Heartbeat 주기 | 매초 무작위로 몇 개 노드에 PING 전송, 수신 노드는 PONG으로 응답 |
+| 장애 감지 | `cluster-node-timeout`(기본 `15000`ms = 15초) 내 PONG 없으면 **PFAIL(주관적 실패)** 표시 |
+| 장애 확정 | 과반수 Master가 PFAIL에 동의하면 **FAIL(객관적 실패)** 전파 → Replica 자동 승격 |
+| 정보 교환 | 슬롯 배치, 노드 상태, config epoch 등이 PING/PONG 패킷에 piggyback되어 전파 |
 
 ## 2. Hash Slot Rebalancing — 슬롯을 재분배하라
 
