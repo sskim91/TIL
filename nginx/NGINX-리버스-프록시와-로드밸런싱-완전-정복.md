@@ -4,7 +4,7 @@ NGINX에 `proxy_pass`만 적으면 리버스 프록시가 동작한다. 하지�
 
 ## 결론부터 말하면
 
-NGINX 리버스 프록시는 **클라이언트와 백엔드 서버 사이에서 요청을 중계** 한다. 핵심은 NGINX가 기본적으로 upstream에 **HTTP/1.0** 을 사용한다는 것이다. 이 때문에 Keep-Alive, WebSocket, HTTP/2 등을 활용하려면 **명시적인 설정** 이 필요하다. 로드밸런싱은 `upstream` 블록에 서버를 나열하고 알고리즘을 선택하는 것으로 설정한다.
+NGINX 리버스 프록시는 **클라이언트와 백엔드 서버 사이에서 요청을 중계** 한다. 역사적으로 NGINX는 upstream에 **HTTP/1.0**을 기본으로 사용해서 Keep-Alive·WebSocket 등에 명시적 설정이 필요했다. **NGINX 1.29.7부터는 기본값이 HTTP/1.1로 바뀌고 upstream `keepalive`도 기본 활성화**되어 이 제약이 상당 부분 사라졌지만, 1.29.6 이하(배포판 stable 라인 다수)에서는 여전히 명시적 설정이 필수다. 로드밸런싱은 `upstream` 블록에 서버를 나열하고 알고리즘을 선택하는 것으로 구성한다.
 
 ```mermaid
 flowchart LR
@@ -31,7 +31,7 @@ flowchart LR
 
 | 기능 | 지시어 | 핵심 포인트 |
 |------|--------|-----------|
-| HTTP 리버스 프록시 | `proxy_pass` | 기본 HTTP/1.0, Keep-Alive 없음 |
+| HTTP 리버스 프록시 | `proxy_pass` | 1.29.6 이하: 기본 HTTP/1.0 + Keep-Alive 없음 / 1.29.7+: 기본 HTTP/1.1 + keepalive 활성화 |
 | WebSocket 프록시 | `proxy_set_header Upgrade` | hop-by-hop 헤더 명시 전달 필요 |
 | 로드밸런싱 | `upstream` + 알고리즘 | 5가지 알고리즘 선택 가능 |
 
@@ -112,22 +112,29 @@ location / {
 
 Spring Boot에서 `HttpServletRequest.getRemoteAddr()`로 클라이언트 IP를 가져올 때, 이 헤더가 없으면 항상 NGINX의 IP가 반환된다. `X-Forwarded-For` 헤더를 통해 원본 클라이언트 IP를 전달하는 것이 필수다.
 
-### 2.3 문제 2: HTTP/1.0으로 연결하면 Keep-Alive가 안 된다
+### 2.3 문제 2: 오래된 NGINX는 upstream에 HTTP/1.0으로 연결한다
 
-여기가 핵심이다. **NGINX는 기본적으로 upstream에 HTTP/1.0으로 연결한다.** HTTP/1.0에는 Keep-Alive가 없으므로, 매 요청마다 TCP 커넥션을 새로 맺고 끊는다. 이것은 심각한 성능 낭비다.
+이 항목은 NGINX 버전에 따라 동작이 크게 다르다.
+
+| 버전 | `proxy_http_version` 기본 | upstream `keepalive` |
+|------|--------------------------|---------------------|
+| **~1.29.6** | **1.0** (Keep-Alive 없음) | 명시적 `keepalive N` 필요 |
+| **1.29.7+** | **1.1** | upstream 블록의 `keepalive` 기본 활성화, `Connection` 프록시 헤더 기본 미전송 |
+
+1.29.7 이전 버전에서는(주요 배포판의 stable 패키지가 여전히 이 라인이라 실무에서 흔하게 마주친다) 매 upstream 요청마다 TCP 커넥션을 새로 맺고 끊는 심각한 성능 낭비가 발생한다. 그래서 다음 설정으로 명시적으로 활성화해야 한다.
 
 ```nginx
 location / {
     proxy_pass http://localhost:8080;
 
-    proxy_http_version 1.1;              # HTTP/1.1로 업그레이드
-    proxy_set_header Connection "";      # Keep-Alive 활성화
+    proxy_http_version 1.1;              # HTTP/1.1로 업그레이드 (1.29.7+에서는 기본값)
+    proxy_set_header Connection "";      # Connection: close 헤더가 백엔드로 새지 않도록 차단
 }
 ```
 
-`proxy_http_version 1.1`로 HTTP/1.1을 사용하고, `Connection` 헤더를 빈 문자열로 설정하면 Keep-Alive **통신이 가능해진다.** 빈 문자열로 설정하는 이유는, 클라이언트가 보낸 `Connection: close` 헤더가 그대로 백엔드로 전달되는 것을 방지하기 위해서다.
+`Connection ""` 설정의 의도는 클라이언트가 보낸 `Connection: close` 헤더가 그대로 백엔드로 전달되는 것을 방지하기 위해서다.
 
-하지만 이것만으로는 충분하지 않다. 실제로 NGINX가 백엔드와의 커넥션을 **재사용(Pooling)** 하려면, `upstream` 블록에 `keepalive` 지시어를 추가해야 한다.
+여기에 더해, NGINX가 백엔드와의 커넥션을 실제로 **재사용(Pooling)** 하려면 `upstream` 블록에 `keepalive` 지시어를 추가해야 한다(1.29.6 이하 기준).
 
 ```nginx
 upstream backend_api {
@@ -138,7 +145,9 @@ upstream backend_api {
 }
 ```
 
-`keepalive 32`는 각 Worker 프로세스가 **최대 32개의 유휴 커넥션을 풀에 유지** 한다는 의미다. 이 설정이 없으면 헤더를 아무리 올바르게 설정해도 커넥션이 재사용되지 않는다.
+`keepalive 32`는 각 Worker 프로세스가 **최대 32개의 유휴 커넥션을 풀에 유지**한다는 의미다.
+
+> **호환성 팁:** 위 명시적 설정은 1.29.7+에서도 그대로 정상 동작한다(기본값과 일치하거나 안전한 명시일 뿐). 새 프로젝트가 1.29.7+만 타겟한다면 위 설정을 생략해도 동일하게 작동한다.
 
 ### 2.4 문제 3: 응답이 느린 백엔드에 대한 타임아웃
 
@@ -370,7 +379,9 @@ upstream backend {
 
 > **주의:** IP Hash를 사용하면 로드밸런싱이 불균등해질 수 있다. 회사 네트워크처럼 같은 공인 IP를 사용하는 수백 명의 사용자가 모두 같은 서버로 몰리기 때문이다. 가능하면 세션을 Redis 같은 외부 저장소로 분리하고, Least Connections를 쓰는 것이 더 나은 선택이다.
 >
-> **2026년 업데이트:** NGINX 1.29.6(2026-03-10)부터 `sticky` 디렉티브가 오픈소스 버전에 추가되었다. 쿠키 기반 세션 어피니티를 제공하여, IP Hash의 "공인 IP 중복" 문제 없이 세션을 유지할 수 있다.
+> **버전별 sticky 가용성:**
+> - **~1.29.5 (그리고 그 이전의 LTS 라인)**: 쿠키 기반 `sticky` 디렉티브는 **NGINX Plus(상용) 전용**. 오픈소스에서 쿠키 기반 sticky가 필요하면 OpenResty(Lua)나 `nginx-sticky-module-ng` 같은 third-party 모듈을 별도 빌드해야 했다.
+> - **1.29.6+ (오픈소스에 편입)**: `upstream` 블록의 `sticky` 디렉티브가 오픈소스에도 추가되어 쿠키 기반 세션 어피니티를 기본 제공. `server` 디렉티브의 `route`/`drain` 파라미터도 함께 추가되어 수동 세션 라우팅·드레이닝이 가능해졌다. IP Hash의 "공인 IP 중복" 문제 없이 세션을 유지할 수 있다.
 
 **5. Generic Hash**
 
@@ -427,9 +438,10 @@ proxy_next_upstream_timeout 30s;    # 재시도 전체 타임아웃
 
 ### 핵심 포인트
 
-1. **NGINX는 upstream에 기본 HTTP/1.0을 사용한다**
-   - `proxy_http_version 1.1`과 `proxy_set_header Connection ""`로 Keep-Alive를 활성화해야 한다
-   - `Host`, `X-Real-IP`, `X-Forwarded-For` 헤더를 명시적으로 전달해야 백엔드가 클라이언트 정보를 알 수 있다
+1. **upstream HTTP 버전의 기본값은 NGINX 버전에 따라 다르다**
+   - **1.29.6 이하**: 기본 `proxy_http_version 1.0` + upstream keepalive 비활성 → `proxy_http_version 1.1` + `proxy_set_header Connection ""` + upstream 블록의 `keepalive N` 명시 필요
+   - **1.29.7+**: 기본 `proxy_http_version 1.1` + upstream keepalive 기본 활성화 → 추가 설정 없이도 Keep-Alive로 연결됨
+   - 버전과 무관하게 `Host`, `X-Real-IP`, `X-Forwarded-For` 헤더는 명시적으로 전달해야 백엔드가 클라이언트 정보를 알 수 있다
 
 2. **WebSocket 프록시는 hop-by-hop 헤더 문제를 해결해야 한다**
    - `Upgrade`와 `Connection` 헤더를 명시적으로 전달해야 Handshake가 성공한다

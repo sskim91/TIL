@@ -98,7 +98,7 @@ ssl_protocols TLSv1.2 TLSv1.3;
 # 세션 캐싱 — Handshake 결과를 재사용
 ssl_session_cache shared:SSL:10m;   # 10MB 공유 캐시 (약 4만 세션)
 ssl_session_timeout 1d;              # 세션 유효 시간 24시간
-ssl_session_tickets off;             # 보안을 위해 티켓 비활성화
+ssl_session_tickets off;             # 별도 ticket key rotation 없이 켜두면 PFS가 깨질 수 있어 비활성화
 
 # OCSP Stapling — 인증서 검증 속도 향상
 ssl_stapling on;
@@ -127,7 +127,7 @@ HTTP/2는 하나의 TCP 커넥션에서 **여러 요청/응답을 동시에 처�
 |------|---------|--------|
 | 요청 처리 | 1커넥션 = 1요청 | 1커넥션 = 다수 요청 (멀티플렉싱) |
 | 헤더 | 텍스트 (매번 전체 전송) | HPACK 압축 (중복 제거) |
-| 서버 푸시 | 불가 | 가능 (deprecated 추세) |
+| 서버 푸시 | 불가 | 사양상 가능하지만 **Chrome 106(2022.9)·Firefox 등 주요 브라우저에서 지원 중단** — 사실상 사용 불가 |
 | 필수 조건 | 없음 | **TLS 필수** (사실상) |
 
 ### 2.2 HTTP/2 설정
@@ -158,7 +158,7 @@ server {
 }
 ```
 
-`http2 on;`으로 분리된 이유는, HTTP/2를 **server 블록 단위가 아닌 개별 listen 소켓 단위** 로 더 세밀하게 제어할 수 있게 하기 위해서다. 또한 같은 포트에서 HTTP/1.1과 HTTP/2를 동시에 지원하는 것이 자연스러워진다.
+`http2 on;`으로 분리된 이유는, HTTP/2 활성화를 `listen` 옵션이 아닌 **`http`·`server` 컨텍스트의 독립 지시어**로 옮겨 listen 디렉티브를 단순화하기 위해서다(공식 문서: `ngx_http_v2_module`의 `http2` directive). 같은 포트에서 HTTP/1.1과 HTTP/2는 여전히 ALPN을 통해 동시에 처리된다.
 
 ## 3. 프록시 버퍼링과 캐싱
 

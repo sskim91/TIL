@@ -237,7 +237,11 @@ location /api {
 
 > 이 함정은 실무에서 정말 자주 발생한다. 보안 헤더를 http 레벨에 열심히 설정해놨는데, 특정 location에서 `add_header`를 하나 추가하는 순간 보안 헤더가 전부 날아가는 사고가 생긴다.
 
-> **2025년 업데이트:** NGINX 1.29.3(2025-10-28)부터 `add_header_inherit` 지시어가 추가되었다. `add_header_inherit merge;`로 설정하면 부모의 헤더와 자식의 헤더가 **합쳐지는(merge)** 방식으로 동작한다. 다만 이 기능은 mainline 버전에만 포함되어 있으므로, stable 버전을 사용하는 환경에서는 여전히 위의 "전체 교체" 동작에 주의해야 한다.
+> **버전별 대응 방법:**
+> - **~1.29.2 (그 이전 LTS 라인 다수)**: NGINX는 이 "전체 교체" 동작을 끄는 공식 옵션을 제공하지 않았다. 회피 방법은 두 가지다.
+>   1. **자식 블록에서 부모의 모든 헤더를 명시적으로 다시 선언** — 단순·확실하지만 중복이 많다.
+>   2. **공통 헤더를 snippet 파일로 분리하고, 헤더가 필요한 모든 location에 `include`로 주입** — 본문 4.2절의 모듈화 패턴(`snippets/security-headers.conf`)이 이 문제의 표준 해법이다.
+> - **1.29.3+**: `add_header_inherit`과 `add_trailer_inherit` 디렉티브가 새로 추가되어 부모 블록의 헤더 상속 동작을 직접 제어할 수 있다(공식 changelog: "Feature: the add_header_inherit and add_trailer_inherit directives"). 정확한 인자 값과 기본 동작은 `ngx_http_headers_module` 공식 문서에서 확인하는 것을 권장한다 — 신규 디렉티브라 행동 세부가 다듬어지는 단계일 수 있다.
 
 ## 4. Include를 활용한 모듈화
 

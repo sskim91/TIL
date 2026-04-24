@@ -325,7 +325,7 @@ location /old-api/ {
 
 1. **`root`는 경로를 "붙이고", `alias`는 경로를 "교체한다"**
    - URL 구조와 파일 시스템이 같으면 `root` (기본), 다르면 `alias`
-   - `alias`는 반드시 끝에 슬래시(`/`)를 붙여야 한다
+   - `alias` 경로의 끝 슬래시(`/`) 유무는 **`location` 경로와 일치**시켜야 한다 (둘 다 있거나 둘 다 없거나) — 불일치 시 `/datalogo.png` 같은 잘못된 경로로 404
 
 2. **Server Block은 `Host` 헤더로 도메인을 구분한다**
    - 매칭 우선순위: 정확한 이름 > 와일드카드 > 정규식 > default_server

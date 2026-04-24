@@ -49,7 +49,9 @@ flowchart LR
 
 NGINX는 **Master-Worker 구조** 로 동작한다. Master 프로세스는 설정 관리만 하고, 실제 클라이언트 요청은 Worker 프로세스가 이벤트 루프를 통해 처리한다. (자세한 구조는 [C10K 문제 - Apache와 NGINX가 선택한 서로 다른 길](C10K-문제-Apache와-NGINX가-선택한-서로-다른-길.md) 참고) 그렇다면 Worker를 몇 개 띄워야 할까?
 
-**정답은 CPU 코어 수와 동일하게 설정하는 것이다.** Worker 하나는 하나의 CPU 코어에 바인딩되어 동작하기 때문에, 코어 수보다 적으면 놀고 있는 코어가 생기고, 많으면 Context Switching 오버헤드가 발생한다.
+**정답은 CPU 코어 수와 동일하게 설정하는 것이다.** 코어 수보다 Worker가 적으면 놀고 있는 코어가 생기고, 많으면 같은 코어에 여러 Worker가 몰리며 Context Switching 오버헤드가 발생한다.
+
+> 단, 기본 상태에서 Worker는 자동으로 특정 코어에 고정되지 않는다. OS 스케줄러가 Worker를 어느 코어로든 옮길 수 있고, 1코어-1Worker 고정은 1.3절의 `worker_cpu_affinity`로 명시할 때 비로소 적용된다.
 
 ```nginx
 # 방법 1: 자동 감지 (권장)

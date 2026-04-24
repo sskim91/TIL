@@ -141,8 +141,8 @@ Apache Event MPM이 상당히 개선된 것은 사실이다. 하지만 핵심적
 공정하게 말하면, **Apache가 아직도 쓰이는 데는 분명한 이유가 있다.**
 
 - `.htaccess`로 디렉토리별 설정 가능 — 공유 호스팅 환경에서 필수
-- `mod_php`, `mod_rewrite` 등 풍부한 모듈 생태계
-- 동적 콘텐츠(PHP, Python CGI) 처리에서는 격차가 크지 않음
+- `mod_rewrite`, `mod_security` 등 풍부한 모듈 생태계 (단, `mod_php`는 PHP-FPM 보급 이후 사실상 폐기 흐름)
+- 동적 콘텐츠는 결국 백엔드(PHP-FPM, WSGI/ASGI 서버 등)가 처리하므로 웹 서버 자체의 처리 격차는 크지 않음
 - 설정이 더 직관적이라는 의견도 많음
 
 실무에서는 **NGINX를 리버스 프록시/정적 파일 서빙** 앞단에 두고, **뒤에 Apache나 Tomcat을 WAS로 배치** 하는 조합도 흔하다. "승자독식"이 아니라 "적재적소"인 셈이다.
@@ -207,7 +207,9 @@ Java 개발자에게 익숙한 비유로 설명하면, NGINX의 Worker는 **Nett
 
 ### 3.3 왜 이벤트 기반이 빠른가?
 
-핵심은 **"기다리지 않는다"** 는 것이다. Apache는 디스크에서 파일을 읽는 동안 프로세스가 블로킹된다. NGINX는 OS에게 "파일 읽기 요청"만 던져놓고, 다른 커넥션의 요청을 처리하러 간다. 파일 읽기가 완료되면 OS가 **이벤트로 알려주고**, 그때 다시 돌아와서 응답을 보낸다.
+핵심은 **"네트워크에서 기다리지 않는다"** 는 것이다. NGINX의 **네트워크 I/O**는 `epoll`(Linux)/`kqueue`(BSD·macOS)를 통한 이벤트 기반으로 처리된다. 한 커넥션이 데이터 수신·송신을 기다리는 동안 Worker는 그 자리를 비우고, 준비된 다른 커넥션의 이벤트를 즉시 처리한다.
+
+> 다만 **디스크 파일 I/O는 별개의 문제다.** Linux 기준 NGINX의 기본 파일 읽기는 여전히 blocking이며, 큰 파일이나 느린 디스크에서 Worker가 잠시 멈출 수 있다. 진짜 비동기 디스크 I/O가 필요하면 `aio threads` 또는 `aio on; directio` 같은 설정을 별도로 켜야 한다(공식 문서: `ngx_http_core_module#aio`).
 
 ```mermaid
 sequenceDiagram
@@ -217,17 +219,21 @@ sequenceDiagram
     participant K as Kernel (epoll)
 
     rect rgba(46, 125, 50, 0.3)
-        Note over W: 비동기 처리 - 대기 시간 없음
-        C1->>W: 요청 1 (index.html)
-        W->>K: 파일 읽기 요청 (비동기)
-        Note over W: 기다리지 않고 다음 요청 처리!
-        C2->>W: 요청 2 (style.css)
-        W->>K: 파일 읽기 요청 (비동기)
-        K-->>W: 이벤트: index.html 준비됨
-        W->>C1: 응답 1
-        K-->>W: 이벤트: style.css 준비됨
-        W->>C2: 응답 2
+        Note over W,K: 네트워크 I/O는 epoll 이벤트 기반 — Worker가 대기하지 않음
+        C1->>K: TCP 데이터 도착
+        K-->>W: epoll 이벤트: C1 readable
+        W->>W: 요청 1 처리·응답 송신 시도
+        Note over W: 송신 버퍼가 차면 즉시 다음 이벤트로 이동
+        C2->>K: TCP 데이터 도착
+        K-->>W: epoll 이벤트: C2 readable
+        W->>W: 요청 2 처리·응답 송신 시도
+        K-->>W: epoll 이벤트: C1 writable
+        W->>C1: 응답 1 송신 완료
+        K-->>W: epoll 이벤트: C2 writable
+        W->>C2: 응답 2 송신 완료
     end
+
+    Note over W,K: (디스크 파일 읽기는 별도 — aio threads 미사용 시 blocking)
 ```
 
 이 차이가 동시 접속 수가 늘어날수록 극적으로 벌어진다. Apache는 커넥션 수에 비례해서 리소스가 증가하지만, NGINX는 커넥션이 늘어나도 Worker 수는 그대로다. **리소스 사용량이 거의 일정하다.**
