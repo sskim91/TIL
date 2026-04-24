@@ -124,19 +124,25 @@ Host app-server
 ssh app-server  # 자동으로 bastion을 거쳐 접속
 ```
 
-### 3.3 SSH Agent Forwarding
+### 3.3 SSH Agent Forwarding (권장하지 않음)
 
-Private 키를 Bastion에 복사하지 않고도 내부 서버에 접속할 수 있다.
+과거에는 Private 키를 Bastion에 복사하는 대신 Agent Forwarding(`-A`)을 쓰는 방법이 널리 쓰였다.
 
 ```bash
 # 로컬에서 SSH Agent에 키 등록
 ssh-add ~/.ssh/private-key.pem
 
-# Agent Forwarding으로 접속
-ssh -A -J bastion ec2-user@10.0.1.100
+# Agent Forwarding으로 접속 (권장 X)
+ssh -A bastion
+# Bastion에서
+ssh ec2-user@10.0.1.100
 ```
 
-키가 Bastion 서버에 저장되지 않아 보안상 더 안전하다.
+**하지만 Agent Forwarding은 현재 보안 모범사례가 아니다.** Bastion에 키 파일을 두지 않는 것은 맞지만, Bastion이 침해되면 공격자는 `$SSH_AUTH_SOCK`에 접근해 **forwarded agent를 통해 사용자의 모든 키로 서명 요청을 보낼 수 있다**. 즉, 공격자가 내 키를 훔치지는 못해도 내 키로 어디든 로그인할 수 있게 된다.
+
+OpenSSH 매뉴얼도 `ssh_config`에서 `ForwardAgent`에 대해 "주의해서 사용하라(be used with caution)"고 경고하며, 신뢰할 수 없는 호스트에서 활성화하면 로컬 키가 공격자에게 노출된다고 명시한다.
+
+**→ 실무에서는 3.2절의 `ProxyJump`를 기본 선택지로 삼자.** ProxyJump는 로컬에서 최종 서버로 직접 인증하고, Bastion은 단순히 TCP 연결만 터널링하므로 Agent 소켓을 Bastion에 노출하지 않는다.
 
 ## 4. 클라우드별 Bastion Host 구성
 

@@ -218,15 +218,20 @@ Host internal
 
 ### 5.2 SSH Agent Forwarding과의 차이
 
-| 방식 | 설명 | 키 위치 |
-|------|------|---------|
-| **ProxyJump** | Bastion을 경유해서 접속 | 로컬에만 키 보관 |
-| **Agent Forwarding** | Bastion에서 로컬 키 사용 | 로컬에만 키 보관 (에이전트 전달) |
+| 방식 | 인증 주체 | Bastion 침해 시 영향 |
+|------|----------|----------------------|
+| **ProxyJump (`-J`)** | 로컬이 Internal 서버로 **직접 인증** (Bastion은 TCP 터널만 중계) | 키가 노출되지 않음. Bastion은 키에 접근 불가 |
+| **Agent Forwarding (`-A`)** | 로컬 Agent 소켓을 Bastion에 전달, Bastion이 그 소켓으로 **대신 서명 요청** | Bastion의 공격자가 `$SSH_AUTH_SOCK`을 이용해 내 키로 어디든 로그인 가능 |
 
-둘은 함께 사용할 수 있다:
+**핵심**: 키 파일은 두 방식 모두 로컬에만 있지만, Agent Forwarding은 **키의 사용 권한**이 Bastion으로 위임된다. OpenSSH `ssh_config(5)` 매뉴얼도 `ForwardAgent`에 대해 "신뢰할 수 없는 호스트에서 활성화하면 로컬 키가 공격자에게 노출될 수 있다"고 명시한다.
+
+**따라서 일반적인 Bastion → Target 접속에서는 ProxyJump만으로 충분하며, `-A`를 추가할 필요가 없다.** 최종 서버에서 또 다른 서버로 추가 SSH가 필요하고, 그 대상이 신뢰 가능할 때에 한해 제한적으로 Agent Forwarding을 고려하자.
 
 ```bash
-# ProxyJump + Agent Forwarding
+# 일반적인 경우 — 이것으로 충분
+ssh -J bastion internal-server
+
+# -A는 "internal-server에서 다시 또 다른 서버로 SSH"가 필요할 때만
 ssh -A -J bastion internal-server
 ```
 
