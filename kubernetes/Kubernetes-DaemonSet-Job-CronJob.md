@@ -94,17 +94,20 @@ spec:
         volumeMounts:
         - name: varlog
           mountPath: /var/log
-        - name: containers
-          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: pods-logs
+          mountPath: /var/log/pods      # CRI 런타임 중립적 경로
           readOnly: true
       volumes:
       - name: varlog
         hostPath:
           path: /var/log
-      - name: containers
+      - name: pods-logs
         hostPath:
-          path: /var/lib/docker/containers
+          path: /var/log/pods           # kubelet이 관리하는 표준 경로
 ```
+
+> **⚠️ 로그 경로 주의:** 과거 Docker runtime 시절에는 `/var/lib/docker/containers`를 마운트했지만, **Kubernetes 1.24에서 dockershim이 제거**된 이후 대부분의 클러스터는 containerd/CRI-O를 사용한다. 현대 환경에서는 kubelet이 표준화한 **`/var/log/pods/`** (실제 로그 위치) 또는 **`/var/log/containers/`** (pods로의 symlink)를 마운트하는 것이 CRI 런타임에 중립적이다. Fluent Bit·Filebeat 등 최신 로그 수집기의 기본 tail 경로도 이쪽이다.
 
 **핵심:** `replicas` 필드가 없다! 노드 수에 따라 자동 결정.
 
@@ -249,7 +252,7 @@ flowchart LR
     style LOG stroke:#FF9800,stroke-width:2px
 ```
 
-**Disk Pressure에서도 보호하려면:**
+**DiskPressure 노드에도 계속 스케줄링 받으려면:**
 
 ```yaml
 spec:
@@ -259,8 +262,15 @@ spec:
       tolerations:
       - key: node.kubernetes.io/disk-pressure
         operator: Exists
-        effect: NoExecute      # Disk pressure에서도 유지
+        effect: NoSchedule     # DiskPressure 상태 노드에도 신규 Pod 스케줄 허용
 ```
+
+> **⚠️ 주의:** Kubernetes의 노드 컨디션 기반 `node.kubernetes.io/disk-pressure` taint는 **`NoSchedule` 효과**로 추가된다 (`NoExecute`가 아님). DaemonSet 컨트롤러는 기본적으로 이 taint에 대한 `NoSchedule` toleration을 자동 주입하므로, 보통은 별도로 적을 필요가 없다. 위 예시는 어디까지나 "명시적으로 DiskPressure 노드에도 배포를 허용한다"는 의도를 드러낼 때 쓰는 형태다.
+>
+> **진짜 "eviction 보호"는 toleration이 아니라 다른 레이어에서 나온다:**
+> - **PriorityClass** (`system-node-critical` / `system-cluster-critical`): kubelet이 node-pressure eviction 시 낮은 priority Pod를 먼저 퇴거시킨다
+> - **적절한 `requests`/`limits`**: 디스크/메모리 사용량 기반 eviction ranking에 유리하게 작용
+> - **로컬 디스크 사용 관리**: 로그/임시파일이 노드 디스크를 잠식하지 않도록 볼륨 설계
 
 ### 1.8 EKS Fargate: DaemonSet이 안 된다!
 
@@ -321,22 +331,25 @@ Karpenter는 DaemonSet Pod를 위해 직접 노드를 프로비저닝하지 않�
 
 ```mermaid
 flowchart LR
-    subgraph "일반 Pod"
+    subgraph "일반 워크로드 Pod"
         P1[Pod 생성] --> SCH[default-scheduler]
         SCH -->|"Pending"| KP[Karpenter 감지]
         KP --> NODE[노드 프로비저닝]
     end
 
     subgraph "DaemonSet Pod"
-        DS[DaemonSet] --> DC[DaemonSet Controller]
-        DC -->|"직접 배치"| EXIST[기존 노드에 배치]
+        DS[DaemonSet Controller] -->|"nodeAffinity로<br/>대상 노드 지정"| DSP[DaemonSet Pod]
+        DSP --> SCH2[default-scheduler]
+        SCH2 -->|"해당 노드에 바인딩"| EXIST[기존 노드]
     end
 
     style KP stroke:#FF9800,stroke-width:2px
-    style DC stroke:#2196F3,stroke-width:2px
+    style DS stroke:#2196F3,stroke-width:2px
 ```
 
-DaemonSet Pod는 `default-scheduler`가 아닌 **DaemonSet Controller**가 직접 노드에 배치한다. Karpenter는 기본 스케줄러가 Pending 상태로 둔 Pod만 감지하므로, DaemonSet Pod는 프로비저닝을 유발하지 않는다.
+> **정확한 메커니즘 ([공식 문서](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/#how-daemon-pods-are-scheduled) 기준):** Kubernetes 1.12부터 DaemonSet Controller는 `spec.nodeName`을 직접 지정하지 않는다. 대신 Controller는 대상 노드를 지정하는 **nodeAffinity**(예: `metadata.name = <target-node>`)를 Pod에 추가하고, **default-scheduler가 그 노드로 바인딩한다**. 즉 스케줄링은 일반 워크로드 Pod와 같은 경로를 타지만, 스케줄러가 선택할 수 있는 노드가 단 하나로 좁혀져 있는 구조다.
+
+그러면 Karpenter는 왜 DaemonSet을 위해 노드를 프로비저닝하지 않는가? Karpenter는 **"워크로드 Pod 때문에 Pending이 발생했을 때"** 그 Pod를 수용할 노드를 만든다. DaemonSet Pod는 이미 존재하는 노드 중 하나를 `nodeAffinity`로 타깃팅하고 있어 단독으로 Pending이 나도 Karpenter가 "새 노드를 만들 이유"가 되지 못한다. 대신 Karpenter는 **일반 워크로드 Pod 때문에 새 노드를 만들 때 그 노드에 배포될 DaemonSet의 리소스 오버헤드까지 미리 계산**해서 노드 크기를 결정한다.
 
 **해결:** Priority Class로 기존 Pod를 eviction
 
@@ -450,31 +463,32 @@ Job에서는 `restartPolicy`가 **Never** 또는 **OnFailure**만 가능하다. 
 
 | 값 | 동작 |
 |----|----- |
-| `OnFailure` | **(권장)** 컨테이너 실패 시 **같은 Pod에서 재시작** 시도. 재시작 백오프 한도 초과 또는 노드 장애 시 새 Pod 생성 |
+| `OnFailure` | 컨테이너 실패 시 **같은 Pod에서 kubelet이 재시작** 시도. Pod 자체가 실패하거나 노드 장애 시 Job 컨트롤러가 새 Pod 생성 |
 | `Never` | 컨테이너 실패 시 재시작 없이 **즉시 Pod 실패** 처리. Job 컨트롤러가 `backoffLimit`에 따라 새 Pod 생성 |
 
 ```mermaid
 flowchart TB
     subgraph "OnFailure - 두 단계 재시도"
-        OF1[컨테이너 실패] --> OF2["1️⃣ Kubelet이<br>같은 Pod에서 재시작<br>(backoffLimit 소모 안함)"]
+        OF1[컨테이너 실패] --> OF2["1️⃣ Kubelet이<br>같은 Pod에서 재시작<br>(컨테이너 재시작 횟수도<br>backoffLimit에 포함!)"]
         OF2 -->|"계속 실패"| OF3["2️⃣ Pod 실패 처리"]
-        OF3 --> OF4["Job 컨트롤러가<br>새 Pod 생성<br>(backoffLimit 소모)"]
+        OF3 --> OF4["Job 컨트롤러가<br>새 Pod 생성<br>(실패 Pod 수도 backoffLimit 소모)"]
     end
 
     subgraph "Never - 바로 Pod 재생성"
         NV1[컨테이너 실패] --> NV2["즉시 Pod 실패 처리"]
-        NV2 --> NV3["Job 컨트롤러가<br>새 Pod 생성<br>(backoffLimit 소모)"]
+        NV2 --> NV3["Job 컨트롤러가<br>새 Pod 생성<br>(실패 Pod 수가 backoffLimit 소모)"]
     end
 ```
 
-**OnFailure의 두 가지 재시도 수준:**
+> **⚠️ `backoffLimit` 계산 범위 (공식 문서):** [Job의 Pod backoff failure policy 문서](https://kubernetes.io/docs/concepts/workloads/controllers/job/#pod-backoff-failure-policy)에 따르면 `backoffLimit`은 **두 가지 모두를 합산**해서 추적한다:
+> - **실패한 Pod 수** (`.status.failed`)
+> - **Running/Pending Pod 내부의 컨테이너 재시작 횟수** (`restartPolicy: OnFailure`일 때도 포함)
+>
+> 즉 `OnFailure`라고 해서 kubelet의 컨테이너 재시작이 "공짜"가 아니다. 실패 Pod 수가 `backoffLimit`에 도달하거나, 아직 죽지 않은 Pod 안에서 컨테이너가 `backoffLimit`만큼 재시작되어도 Job 전체가 `BackoffLimitExceeded`로 실패한다.
 
-| 수준 | 담당 | backoffLimit |
-|------|------|--------------|
-| **컨테이너 재시작** | Kubelet | 소모 안 함 |
-| **Pod 재생성** | Job 컨트롤러 | 소모함 |
-
-> **핵심:** `OnFailure`에서 Kubelet의 컨테이너 재시작은 `backoffLimit`을 소모하지 않는다. Pod 자체가 실패하거나 노드 장애 시에만 Job 컨트롤러가 새 Pod를 만들며 이때 `backoffLimit`이 소모된다.
+**실무 가이드:**
+- 일반적인 배치 작업 → `OnFailure` (새 Pod를 띄우지 않아 리소스 효율적)
+- 디버깅이 필요한 작업 → `Never` (실패 Pod가 보존되어 로그/이벤트 분석 용이)
 
 **실무 가이드:**
 - 일반적인 배치 작업 → `OnFailure` (리소스 효율적)
@@ -822,11 +836,16 @@ flowchart TB
     end
 ```
 
-**⚠️ Forbid 주의:** 스킵된 실행은 **영구적으로 누락**된다. 나중에 따라잡기(catch-up)하지 않는다.
+**⚠️ Forbid의 정확한 동작 ([공식 문서](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#concurrency-policy) 기준):**
+- Forbid로 인해 건너뛴 실행은 **즉시 사라지지 않고 "missed schedule"로 기록**된다
+- 이전 Job이 끝난 뒤, 건너뛴 스케줄 시각이 `startingDeadlineSeconds` 범위 안이라면 **뒤늦게 Job이 생성될 수 있다**
+- 반대로 `startingDeadlineSeconds`가 짧거나 설정되지 않았고 누락된 스케줄이 100회를 넘으면 **영구 누락**된다 (3.7절 참고)
+
+즉 "무조건 영구 누락"이 아니라 "deadline 설정에 따라 catch-up이 일어날 수도, 누락될 수도 있다"가 정확하다. 장기 Job이 많다면 catch-up 폭주를 막기 위해 `startingDeadlineSeconds`를 명시적으로 작게 잡는 것이 실무적으로 안전하다.
 
 **Forbid 사용 시 모니터링:**
 
-Job 실행 시간이 스케줄 간격보다 길면 작업이 "조용히" 중단될 수 있다.
+Job 실행 시간이 스케줄 간격보다 길면 작업이 "조용히" 중단되거나 뒤늦게 몰려 실행될 수 있다.
 
 ```bash
 # 마지막 스케줄 시간 확인
@@ -851,8 +870,8 @@ spec:
 
 | 상황 | 동작 |
 |------|------|
-| **Forbid로 스킵** | 이전 Job이 아직 실행 중 → **영구 누락** |
-| **startingDeadlineSeconds 초과** | 컨트롤러 장애로 늦음 → **영구 누락** |
+| **Forbid로 스킵 (이전 Job 실행 중)** | missed schedule로 기록. 이전 Job 종료 시점이 `startingDeadlineSeconds` 범위 안이면 **뒤늦게 catch-up 실행**, 범위를 벗어났거나 누락 100회 초과면 영구 누락 |
+| **startingDeadlineSeconds 초과** | 컨트롤러 장애 등으로 늦어진 후 deadline을 넘김 → **영구 누락** |
 | **startingDeadlineSeconds 이내** | 컨트롤러 복구 후 **따라잡기 실행** |
 
 ```mermaid
@@ -1157,14 +1176,24 @@ AKS에서 노드 풀을 업그레이드하면 노드가 순차적으로 교체�
 
 **Autopilot 모드:**
 
-GKE Autopilot에서는 DaemonSet 사용에 제한이 있다. Google이 관리하는 DaemonSet만 허용된다.
+GKE Autopilot에서도 **사용자 정의 DaemonSet 자체는 배포 가능**하지만, Autopilot의 보안 정책이 **노드 권한이 필요한 동작**을 강하게 제한하기 때문에 기존 DaemonSet을 그대로 옮기려 하면 거부되는 경우가 많다. 대표적으로 제한되는 속성:
+
+- `privileged: true` 컨테이너
+- `hostNetwork`, `hostPID`, `hostIPC`
+- `hostPath` 볼륨 (로그/모니터링 에이전트에서 자주 쓰는 `/var/log`, `/var/lib/...`)
+- 일부 `capabilities` 및 루트 파일시스템 쓰기
 
 | 모드 | DaemonSet |
 |------|-----------|
-| **Standard** | 자유롭게 사용 가능 |
-| **Autopilot** | Google 관리형만 허용 (사용자 정의 불가) |
+| **Standard** | 자유롭게 사용 가능 (hostPath, hostNetwork 등 포함) |
+| **Autopilot** | 사용자 정의 배포는 가능하지만 **고권한 동작은 제한**. 일부 파트너/관리형 에이전트는 allowlist로 예외 허용 |
 
-Autopilot에서 로그/모니터링이 필요하면 **Sidecar 패턴** 또는 Google Cloud의 관리형 서비스를 사용하라.
+Autopilot에서 로그/모니터링이 필요하면 세 가지 방향을 고려한다:
+1. 노드 권한 없이 동작 가능하도록 DaemonSet 스펙 재작성 (예: `/var/log` 대신 Pod 표준 stdout)
+2. **Sidecar 패턴**으로 Pod마다 로그 수집 컨테이너 배치
+3. **Google Cloud의 관리형 서비스** (Cloud Logging Agent, GKE 관리 DaemonSet, Cloud Operations 등) 활용
+
+> 자세한 제약은 [GKE Autopilot 보안 정책](https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-security) 문서를 참조하라.
 
 **노드 업그레이드 전략:**
 

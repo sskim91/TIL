@@ -80,12 +80,14 @@ Service는 이 모든 문제를 해결한다:
 ```mermaid
 flowchart LR
     Client[클라이언트] -->|"my-svc:80"| SVC[Service<br>my-svc<br>10.96.0.10]
-    SVC -->|"라운드 로빈"| P1[Pod 1]
+    SVC -->|"kube-proxy 분산"| P1[Pod 1]
     SVC --> P2[Pod 2]
     SVC --> P3[Pod 3]
 
     style SVC stroke:#2196F3,stroke-width:3px
 ```
+
+> **분산 알고리즘 주의:** Service의 트래픽 분산 방식은 kube-proxy 모드에 따라 다르다. **iptables 모드(기본)**는 백엔드를 **무작위(random)**로 선택하고, **IPVS 모드**는 스케줄러 설정에 따라 `rr`(round-robin), `lc`(least connection) 등 다양한 알고리즘을 지원한다. "라운드 로빈"은 일반화된 표현일 뿐 기본 동작이 아니다.
 
 클라이언트는 `my-svc`라는 이름만 알면 된다. Pod가 몇 개인지, IP가 뭔지 몰라도 된다.
 
@@ -209,7 +211,7 @@ my-svc-abc12     IPv4          8080    10.1.1.5,10.1.1.6,10.1.1.7   5m
 
 | 비교 | Endpoints | EndpointSlice |
 |------|-----------|---------------|
-| **확장성** | 최대 1,000개 Pod | 슬라이스당 100개, 무제한 확장 |
+| **확장성** | 단일 객체에 모두 포함 (권장 상한 ~1,000개, etcd 객체 크기/kube-proxy 성능 한계) | 슬라이스당 기본 100개(최대 1,000개 설정 가능), 여러 슬라이스로 자동 분할 |
 | **업데이트 범위** | 전체 목록 전송 | 변경된 슬라이스만 전송 |
 | **토폴로지 정보** | 없음 | Zone, Node 정보 포함 |
 | **Dual-stack** | 별도 관리 | IPv4/IPv6 자동 분리 |
@@ -736,7 +738,7 @@ spec:
 
 ### 11.1 특정 클라이언트를 같은 Pod로
 
-기본적으로 Service는 라운드 로빈으로 요청을 분산한다. **Session Affinity** 를 설정하면 같은 클라이언트의 요청을 동일한 Pod로 보낸다.
+기본적으로 Service는 **kube-proxy 모드에 따라** 백엔드 Pod를 선택한다(iptables는 random, IPVS는 스케줄러 설정). 이 때 같은 클라이언트의 연속된 요청이 서로 다른 Pod로 갈 수 있다. **Session Affinity** 를 설정하면 같은 클라이언트의 요청을 동일한 Pod로 고정해서 보낸다.
 
 ```yaml
 apiVersion: v1
@@ -758,7 +760,7 @@ spec:
 
 | 설정 | 동작 |
 |------|------|
-| **None** (기본) | 라운드 로빈 |
+| **None** (기본) | sticky 없이 kube-proxy 모드에 따라 분산 (iptables: random, IPVS: 스케줄러 설정) |
 | **ClientIP** | 같은 IP의 요청은 같은 Pod로 |
 
 ### 11.2 언제 사용하나?

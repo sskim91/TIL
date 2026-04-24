@@ -49,7 +49,7 @@ web-svc:     LoadBalancer → 52.10.1.2
 admin-svc:   LoadBalancer → 52.10.1.3
 ```
 
-AWS ALB 기준 월 $20~30 × 서비스 개수 = 비용 폭발!
+AWS 기준 `Service(type: LoadBalancer)`는 기본적으로 L4 로드밸런서(NLB 또는 CLB)를 프로비저닝한다. NLB만 해도 시간당 요금 + LCU × 서비스 개수로 비용이 폭발한다. (ALB는 L7 로드밸런서로, Ingress 리소스 + AWS Load Balancer Controller를 통해 생성되는 별개의 경로다.)
 
 **문제 2: URL 경로 기반 라우팅이 안 된다**
 
@@ -607,6 +607,13 @@ flowchart LR
 
 클라우드 환경에서는 각 클라우드의 **네이티브 로드밸런서** 와 통합된 Ingress Controller를 사용한다.
 
+> **⚠️ IngressClass 지정 방식 주의:** Kubernetes **1.18부터** 일반 Ingress 리소스는 `kubernetes.io/ingress.class` **annotation이 deprecated**되었고 `spec.ingressClassName` **필드**가 표준이다. **단, 클라우드별 Controller마다 규칙이 다르므로 공식 문서를 따라야 한다:**
+> - **AWS Load Balancer Controller**: `ingressClassName: alb` (표준 방식) 사용
+> - **Azure AGIC**: `ingressClassName` 또는 legacy annotation 모두 지원
+> - **GKE Ingress(GCE)**: 공식 문서가 여전히 [`kubernetes.io/ingress.class: "gce"` / `"gce-internal"` annotation 방식을 사용](https://cloud.google.com/kubernetes-engine/docs/how-to/internal-load-balance-ingress)하며, 특히 internal Ingress는 annotation으로만 지정 가능
+>
+> 즉 "일반 k8s Ingress는 `ingressClassName` 권장, GKE는 예외"로 기억하라.
+
 ### 9.1 AWS: ALB Ingress Controller (AWS Load Balancer Controller)
 
 AWS에서는 **AWS Load Balancer Controller** 가 Ingress 리소스를 **Application Load Balancer(ALB)** 로 프로비저닝한다.
@@ -676,16 +683,18 @@ metadata:
 
 GKE에서는 **GCE Ingress Controller** 가 기본 제공되며, **Network Endpoint Group(NEG)** 을 통해 Pod에 직접 트래픽을 전달한다.
 
+**External GKE Ingress (외부 공개용):**
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: my-ingress
   annotations:
-    # Internal Load Balancer
-    kubernetes.io/ingress.class: "gce-internal"    # 또는 "gce" (외부)
+    # External GKE Ingress (기본값)
+    kubernetes.io/ingress.class: "gce"
 
-    # Static IP 사용
+    # Global Static IP (외부 LB용)
     kubernetes.io/ingress.global-static-ip-name: "my-static-ip"
 
     # Google Managed Certificate
@@ -703,6 +712,35 @@ spec:
             port:
               number: 80
 ```
+
+**Internal GKE Ingress (VPC 내부 전용):**
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-internal-ingress
+  annotations:
+    # Internal Load Balancer
+    kubernetes.io/ingress.class: "gce-internal"
+
+    # Regional Static IP (internal LB는 regional 사용, global이 아님!)
+    kubernetes.io/ingress.regional-static-ip-name: "my-regional-static-ip"
+spec:
+  rules:
+  - host: internal-api.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-svc
+            port:
+              number: 80
+```
+
+> **⚠️ Static IP 종류 주의:** External GKE Ingress는 **Global Static IP** (`global-static-ip-name`), Internal GKE Ingress는 **Regional Static IP** (`regional-static-ip-name`)를 사용한다. 섞어 쓰면 프로비저닝이 실패한다.
 
 **NEG (Container-Native Load Balancing) 설정:**
 

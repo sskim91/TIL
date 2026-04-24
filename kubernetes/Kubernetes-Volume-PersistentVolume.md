@@ -1,6 +1,6 @@
 # Kubernetes Volume과 Persistent Storage
 
-Docker에서 `-v` 옵션 없이 MySQL 컨테이너를 실행하면 어떻게 될까? 컨테이너가 재시작되는 순간, 모든 데이터가 사라진다.
+Docker에서 `-v` 옵션 없이 MySQL 컨테이너를 실행하면 어떻게 될까? 컨테이너를 삭제하고 재생성하는 순간, 모든 데이터가 사라진다. Kubernetes의 Pod도 마찬가지다 — Pod가 재스케줄링되거나 재생성되면 컨테이너의 writable layer가 새로 만들어지면서 이전 데이터는 모두 유실된다.
 
 ## 결론부터 말하면
 
@@ -78,7 +78,7 @@ flowchart TB
 
 ### 1.1 컨테이너의 휘발성 문제
 
-컨테이너는 **불변(Immutable)** 하게 설계되었다. 컨테이너가 재시작되면 이미지 상태로 초기화된다. 이것은 재현 가능한 배포를 위해 의도된 설계지만, 데이터베이스처럼 상태를 유지해야 하는 애플리케이션에는 치명적이다.
+컨테이너는 **불변(Immutable)** 하게 설계되었다. 컨테이너 이미지 자체는 불변이고, 각 컨테이너 인스턴스에는 writable layer가 붙는다. 이 writable layer는 컨테이너가 **삭제될 때** 함께 사라진다. 재현 가능한 배포를 위한 의도된 설계지만, 데이터베이스처럼 상태를 유지해야 하는 애플리케이션에는 치명적이다.
 
 ```bash
 # MySQL 컨테이너 실행 (볼륨 없음)
@@ -87,14 +87,16 @@ docker run -d --name mysql mysql:8.0
 # 데이터 추가
 docker exec mysql mysql -e "CREATE DATABASE myapp;"
 
-# 컨테이너 재시작
-docker restart mysql
+# ⚠️ 주의: `docker restart`만으로는 writable layer가 유지되므로 데이터는 남는다.
+# writable layer는 컨테이너가 '삭제'될 때 함께 사라진다.
+docker rm -f mysql                       # 컨테이너 삭제 → writable layer 파기
+docker run -d --name mysql mysql:8.0     # 새 컨테이너 → 빈 상태
 
 # 데이터 확인 - 사라졌다!
 docker exec mysql mysql -e "SHOW DATABASES;"
 ```
 
-Kubernetes에서도 마찬가지다. Pod가 재시작되면 컨테이너의 파일시스템은 초기화된다.
+**Kubernetes에서도 동일하다.** Pod 내부에서 컨테이너만 재시작(RestartPolicy에 의한 자동 복구)되는 경우에는 writable layer가 유지되지만, **Pod가 재생성/재스케줄링되면** 새 컨테이너로 출발하므로 이전 데이터는 모두 유실된다. 즉 "컨테이너 재시작"이 아니라 "Pod 재생성"이 진짜 데이터 손실 트리거다.
 
 ### 1.2 Pod 내 컨테이너 간 데이터 공유
 
@@ -483,13 +485,20 @@ StorageClass는 **스토리지의 "등급"** 을 정의한다. 개발자는 성�
 ```bash
 kubectl get storageclass
 
-# 출력 예시
+# 출력 예시 (업그레이드된 구형 EKS 클러스터)
 NAME            PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE
-gp2 (default)   kubernetes.io/aws-ebs   Delete          WaitForFirstConsumer
-gp3             ebs.csi.aws.com         Delete          WaitForFirstConsumer
+gp2 (default)   kubernetes.io/aws-ebs   Delete          WaitForFirstConsumer   # ⚠️ in-tree 드라이버 (아래 타임라인 참고)
+gp3             ebs.csi.aws.com         Delete          WaitForFirstConsumer   # ✅ 현대 CSI 드라이버
 ```
 
 `(default)` 표시가 있는 클래스는 PVC에서 `storageClassName`을 생략하면 자동으로 사용된다.
+
+> **`awsElasticBlockStore` in-tree 드라이버 타임라인 ([공식 문서](https://kubernetes.io/docs/concepts/storage/volumes/#awselasticblockstore) 기준):**
+> - **v1.19**: `awsElasticBlockStore` in-tree 플러그인 **deprecated**
+> - **v1.23**: AWS EBS **CSI Migration이 기본 활성화** (기존 in-tree API로 들어온 요청을 kubelet이 자동으로 CSI 드라이버로 리다이렉트)
+> - **v1.27**: in-tree 플러그인 **제거(removed)**
+>
+> 따라서 `gp2` StorageClass가 `kubernetes.io/aws-ebs`로 표시되어도, v1.23+ 클러스터는 실제로는 CSI 드라이버(`ebs.csi.aws.com`)가 요청을 처리한다. 신규 워크로드는 `gp3` + CSI를 직접 지정하는 것이 권장된다.
 
 ### 5.3 volumeBindingMode - 언제 바인딩할 것인가?
 
@@ -1002,17 +1011,18 @@ GKE는 설정이 간단하다. 대부분 기본 설정으로 충분하다.
 
 | 항목 | 값 |
 |------|-----|
-| 기본 StorageClass | `managed-csi` (Premium SSD) |
+| 기본 StorageClass | `managed-csi` (Standard SSD LRS) |
 | CSI 드라이버 | **기본 설치됨** |
 | 파일 스토리지 | Azure Files (RWX 필요 시) |
 
-**StorageClass 옵션:**
+**StorageClass 옵션 ([AKS 공식 문서](https://learn.microsoft.com/en-us/azure/aks/create-volume-azure-disk) 기준):**
 
 | StorageClass | 스토리지 유형 | 사용 사례 |
 |--------------|---------------|-----------|
-| `managed-csi` | Premium SSD | 고성능 워크로드 |
-| `managed-csi-premium` | Premium SSD v2 | 최고 성능 |
-| `azurefile-csi` | Azure Files | RWX 필요 시 |
+| `managed-csi` | Standard SSD LRS | 일반 워크로드 (기본값) |
+| `managed-csi-premium` | Premium SSD LRS | 고성능 데이터베이스 |
+| `azurefile-csi` | Azure Files (Standard) | RWX 필요 시 |
+| `azurefile-csi-premium` | Azure Files (Premium) | RWX + 고IOPS 필요 시 |
 
 ### 10.4 클라우드 공통 권장사항
 

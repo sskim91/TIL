@@ -513,7 +513,16 @@ flowchart TB
 | **VolumeClaimTemplates 변경 불가** | 기존 StatefulSet의 PVC 템플릿 수정 불가, 새로 생성해야 함 |
 | **애플리케이션 레벨 클러스터링 미지원** | Primary/Replica 설정은 별도로 해야 함 |
 
-> **⚠️ 노드 장애 시 다운타임:** StatefulSet Pod는 `ReadWriteOnce` PV를 사용하므로, 노드가 죽으면 Kubernetes가 해당 노드를 **NotReady로 판정할 때까지** (기본 5분) 새 노드에서 Pod가 시작되지 않는다. 이 시간 동안 해당 Pod는 다운 상태다.
+> **⚠️ 노드 장애 시 다운타임:** StatefulSet Pod는 `ReadWriteOnce` PV를 사용하므로, 노드 장애 시 새 노드에서 Pod가 시작되기까지 시간이 걸린다. eviction 지연은 두 단계로 구성된다:
+> - **Node NotReady 판정:** `node-monitor-grace-period`(기본 **40초**) 동안 Kubelet 상태 갱신이 없으면 Node Controller가 Node를 NotReady로 마킹
+> - **Pod eviction 트리거:** NotReady Node에 `node.kubernetes.io/unreachable:NoExecute` taint가 추가되고, Pod의 기본 `tolerationSeconds`(**300초 = 5분**) 이후 Pod가 evict 대상이 됨
+>
+> 하지만 **eviction이 트리거된다고 해서 자동으로 대체 Pod가 생기는 것은 아니다.** StatefulSet은 Split-Brain 방지를 위해 기존 Pod 객체가 API 서버에서 **완전히 삭제**되어야만 동일 ordinal의 새 Pod를 생성한다. Unreachable Node의 Pod는 `Terminating`/`Unknown` 상태에 머물며 자동 삭제되지 않으므로, 복구하려면 다음 중 하나가 필요하다:
+> - 노드가 복구되어 Kubelet이 정상적으로 Pod를 종료
+> - Node 객체를 `kubectl delete node <name>`으로 삭제
+> - `kubectl delete pod <name> --force --grace-period=0`으로 강제 삭제 ([공식 문서](https://kubernetes.io/docs/tasks/run-application/force-delete-stateful-set-pod/))
+>
+> 결과적으로 toleration이 만료된 5분 40초 뒤에도 **운영자의 개입이 없으면 Pod는 계속 Terminating 상태로 남는다.** 이 값들은 controller-manager 플래그와 Pod의 tolerations 설정으로 조정 가능하다.
 
 ---
 
@@ -839,8 +848,8 @@ sequenceDiagram
 ```
 
 **Deployment와의 차이:**
-- **Deployment:** 노드 장애 시 즉시 다른 노드에 새 Pod 생성
-- **StatefulSet:** 기존 Pod가 **확실히 종료되었다는 확인** 없이는 새 Pod를 생성하지 않음
+- **Deployment:** 노드 장애 시에도 기본 toleration(`tolerationSeconds: 300`)에 따라 **eviction 지연 후(기본 5분)** 다른 노드에 새 Pod가 생성된다. 단, Pod 정체성이 교체 가능하므로 eviction만 발생하면 즉시 대체 Pod가 Ready될 수 있다
+- **StatefulSet:** eviction이 발생해도 기존 Pod가 **확실히 종료되었다는 확인**(Pod 오브젝트 완전 삭제) 없이는 동일 ordinal의 새 Pod를 생성하지 않음. Split-Brain 방지 때문에 더 보수적으로 동작
 
 **해결책:** 노드가 완전히 죽은 것을 확인한 후 강제 삭제
 

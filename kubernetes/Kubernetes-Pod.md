@@ -164,10 +164,12 @@ stateDiagram-v2
 | Phase | 의미 | 실무에서 자주 보는 상황 |
 |-------|------|----------------------|
 | **Pending** | 스케줄링 대기 또는 이미지 다운로드 중 | 리소스 부족, ImagePullBackOff |
-| **Running** | 최소 하나의 컨테이너가 실행 중 | 정상 상태 |
-| **Succeeded** | 모든 컨테이너가 성공 종료 | Job/CronJob 완료 |
-| **Failed** | 최소 하나의 컨테이너가 실패 종료 | OOMKilled, 앱 에러 |
+| **Running** | Pod가 노드에 바인딩되고 최소 하나의 컨테이너가 실행 중/시작 중/재시작 중 | 정상 상태, 그리고 **`CrashLoopBackOff`도 여기에 해당** |
+| **Succeeded** | 모든 컨테이너가 exit 0으로 정상 종료, 재시작 안 됨 | Job/CronJob 완료 |
+| **Failed** | **모든 컨테이너가 종료**되었고 **최소 하나는 실패(non-zero exit 또는 시스템 종료)**했으며 더 이상 재시작되지 않는 상태 | `restartPolicy: Never`/`OnFailure`에서 최종 실패 |
 | **Unknown** | 노드와 통신 불가 | 노드 장애, 네트워크 문제 |
+
+> **⚠️ CrashLoopBackOff ≠ Failed Phase:** `restartPolicy: Always`(Deployment의 기본값)인 Pod는 컨테이너가 계속 충돌해도 Phase가 `Failed`가 되지 **않는다.** 재시작이 끝나지 않았기 때문이다. 이 경우 Pod Phase는 `Running`이지만 컨테이너 상태가 `Waiting(reason: CrashLoopBackOff)`으로 표시된다. `Failed` Phase는 주로 `restartPolicy: Never`/`OnFailure` (Job이나 수동 생성 Pod)에서 관찰된다.
 
 **Pending 상태가 오래 지속되는 이유:**
 
@@ -258,17 +260,24 @@ sequenceDiagram
     participant P as Pod
     participant C as Container
 
-    K->>P: Pod 삭제 요청
-    P->>C: SIGTERM 전송
-    Note over C: preStop hook 실행<br>(있는 경우)
-    Note over C: 애플리케이션 정리 작업<br>- 진행 중인 요청 완료<br>- DB 연결 종료<br>- 파일 저장
+    K->>P: Pod 삭제 요청 (Terminating 상태 진입)
+    Note over K,P: terminationGracePeriodSeconds 카운트다운 시작<br>(Pod 삭제 요청 시점부터, preStop 실행 시간 포함)
 
-    rect rgb(255, 235, 238)
-        Note over K,C: terminationGracePeriodSeconds<br>(기본 30초)
+    rect rgb(255, 248, 225)
+        Note over P,C: 1. preStop hook 실행 (있는 경우)<br>hook 완료까지 대기 (blocking)
     end
 
-    K->>C: SIGKILL 강제 종료<br>(타임아웃 시)
+    P->>C: 2. SIGTERM 전송 (preStop 완료 후)
+    Note over C: 3. 애플리케이션 정리 작업<br>- 진행 중인 요청 완료<br>- DB 연결 종료<br>- 파일 저장
+
+    rect rgb(255, 235, 238)
+        Note over K,C: terminationGracePeriodSeconds 종료<br>(기본 30초, preStop + SIGTERM 처리 시간 합산)
+    end
+
+    K->>C: 4. SIGKILL 강제 종료 (유예 시간 초과 시)
 ```
+
+> **정확한 순서:** Pod 삭제가 요청되면 kubelet은 (1) `preStop` hook을 먼저 실행하고 hook이 완료될 때까지 대기한다. (2) hook이 끝나면 컨테이너에 **SIGTERM**을 전송한다. (3) 애플리케이션은 남은 시간 동안 graceful shutdown을 수행한다. (4) `terminationGracePeriodSeconds` 총 시간이 초과되면 **SIGKILL**이 전송된다. preStop hook이 grace period를 넘기면 SIGTERM 없이 바로 SIGKILL이 갈 수 있으니 hook을 너무 길게 잡지 말 것.
 
 **terminationGracePeriodSeconds:**
 
@@ -303,34 +312,36 @@ spec:
 
 **왜 sleep 15가 필요한가?**
 
-Pod 삭제 시 두 가지 일이 **동시에** 발생한다:
-1. Service의 Endpoints에서 Pod IP 제거 (비동기)
-2. Pod에 SIGTERM 전송
+Pod 삭제가 시작되면 다음 두 흐름이 **병렬로** 진행된다:
+1. **Endpoints/EndpointSlice 갱신** — Service에서 Pod IP 제거 (비동기, 각 노드의 kube-proxy에 전파되기까지 지연)
+2. **컨테이너 종료 절차** — kubelet이 **preStop hook 실행 → 완료 대기 → SIGTERM 전송 → graceful period 종료 시 SIGKILL**
 
-문제는 Endpoints 업데이트가 모든 노드에 전파되기 전에 SIGTERM이 먼저 도착할 수 있다는 것이다. 이 경우 트래픽이 아직 오고 있는데 앱이 종료되어 **502 에러**가 발생한다.
+즉 SIGTERM은 preStop 완료 후에 오지만, Endpoints 전파와는 **경쟁**한다. preStop이 짧거나 없으면 Endpoints 갱신보다 SIGTERM이 먼저 앱에 도착할 수 있고, 트래픽이 아직 오는 중에 앱이 종료되어 **502 에러**가 발생한다.
 
-`sleep 15`로 15초를 버텨주면 Endpoints 업데이트가 전파될 시간을 확보한다.
+`preStop`에서 `sleep 15`를 걸어주면 kubelet이 SIGTERM을 보내기 전에 15초를 지연시키므로, 그동안 Endpoints 업데이트가 모든 노드의 kube-proxy/LB로 전파될 시간을 확보한다.
 
 ```mermaid
 sequenceDiagram
     participant LB as LoadBalancer
     participant EP as Endpoints
+    participant K as Kubelet
     participant P as Pod
 
     Note over LB,P: Pod 삭제 시작
 
-    par 동시 발생
-        EP->>EP: Pod IP 제거 중...
-        P->>P: SIGTERM 수신
+    par 병렬 진행
+        EP->>EP: Pod IP 제거 전파 (비동기)
+    and
+        K->>P: preStop hook 실행 (sleep 15)
+        Note over K,P: 15초 동안 SIGTERM 보류
     end
 
-    Note over P: preStop: sleep 15
-
     rect rgb(232, 245, 233)
-        Note over LB,P: 15초 동안 Endpoints 전파 완료
+        Note over LB,P: 이 15초 동안 Endpoints 갱신이<br/>모든 kube-proxy/LB에 전파 완료
     end
 
     LB--xP: 트래픽 중단됨
+    K->>P: preStop 완료 후 SIGTERM 전송
     P->>P: 앱 정리 후 종료
 ```
 
@@ -533,9 +544,15 @@ spec:
 | **Secrets Agent** | 시크릿 주입 | Vault Agent, AWS Secrets Manager |
 | **Monitoring** | 메트릭 수집 | Prometheus exporter |
 
-### 5.2 Native Sidecar (K8s 1.29+)
+### 5.2 Native Sidecar (K8s 1.29+ Beta, 1.33+ Stable)
 
-**Kubernetes 1.29부터 Native Sidecar가 정식 지원(Stable)** 된다. 기존 sidecar의 문제점을 해결한다.
+Native Sidecar는 기존 sidecar 패턴의 문제점을 해결하기 위해 추가된 Kubernetes 네이티브 기능이다. [공식 문서](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/) 기준 릴리스 타임라인은 다음과 같다:
+
+- **v1.28**: Alpha 도입 (`SidecarContainers` feature gate 수동 활성화 필요)
+- **v1.29**: **Beta로 승격, 기본 활성화** (대부분의 클러스터에서 별도 설정 없이 사용 가능)
+- **v1.33**: **Stable(GA)**, 기본 활성화. `SidecarContainers` feature gate는 GA 상태로 유지됨 (feature gate 자체가 완전히 사라진 것은 아님)
+
+즉 2026년 4월 현재 시점 기준으로는 대부분의 클러스터(v1.29 이상)에서 바로 쓸 수 있고, v1.33+ 클러스터에서는 공식 GA 기능이다.
 
 **기존 방식의 문제:**
 

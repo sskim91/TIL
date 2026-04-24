@@ -361,7 +361,10 @@ readinessProbe:
 **gRPC 서버 측 구현 예시 (Go):**
 
 ```go
-import "google.golang.org/grpc/health/grpc_health_v1"
+import (
+    "google.golang.org/grpc/health"           // health.NewServer() 제공
+    "google.golang.org/grpc/health/grpc_health_v1"
+)
 
 // 헬스 서버 등록
 healthServer := health.NewServer()
@@ -393,17 +396,19 @@ spec:
     readinessProbe:
       httpGet:
         path: /ready
-        port: http         # 숫자 대신 이름 사용
+        port: http         # ✅ HTTP Probe는 named port 사용 가능
 
     livenessProbe:
       grpc:
-        port: grpc         # gRPC 포트도 이름으로
+        port: 50051        # ⚠️ gRPC Probe는 named port 미지원, 반드시 숫자로 지정
 ```
 
 **Named Port의 장점:**
 - 포트 번호가 바뀌어도 Probe 설정을 수정할 필요 없음
 - 설정의 의도가 명확해짐 (`8080`보다 `http`가 이해하기 쉬움)
 - 여러 컨테이너가 같은 역할의 포트를 가질 때 일관된 이름 사용 가능
+
+> **⚠️ Probe 방식별 Named Port 지원:** `httpGet`과 `tcpSocket` Probe는 named port를 지원하지만, **`grpc` Probe는 숫자 포트만 허용**한다. ([공식 문서](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)) gRPC에서도 일관성을 유지하고 싶다면 Helm 템플릿이나 Kustomize patch로 포트 번호를 한 곳에서 관리하는 방식이 대안이다.
 
 ---
 
@@ -445,7 +450,7 @@ sequenceDiagram
 | `successThreshold` | 1 | 성공 판정 기준 (Liveness/Startup은 반드시 1) |
 | `failureThreshold` | 3 | 실패 판정 기준 |
 
-> **참고:** `startupProbe`가 정의된 경우, Liveness/Readiness Probe는 `startupProbe` 성공 시점부터 `initialDelaySeconds`를 계산한다.
+> **참고 — startupProbe와 initialDelaySeconds의 상호작용:** `startupProbe`가 정의되어 있으면 **Liveness/Readiness Probe는 `startupProbe`가 성공할 때까지 실행 자체가 보류**되며, [공식 문서](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/#configuration-fields) 기준으로 **startupProbe 성공 시점부터 각 Probe의 `initialDelaySeconds`가 카운트**된다. 즉 startupProbe 성공 후에 Liveness의 `initialDelaySeconds: 30`을 설정하면 추가로 30초를 더 기다린다. 이 때문에 startupProbe를 쓸 때는 Liveness/Readiness의 `initialDelaySeconds`를 굳이 크게 잡을 필요가 없고, `0`으로 두는 것이 관용적이다.
 
 ### 6.1 Probe별 terminationGracePeriodSeconds (Kubernetes 1.28+ Stable)
 
@@ -917,19 +922,26 @@ sequenceDiagram
     participant P as Pod
     participant App as Application
 
-    K->>S: 엔드포인트에서 Pod 제거
-    K->>P: SIGTERM 전송
-    P->>App: preStop hook 실행
+    par 동시 진행
+        K->>S: 엔드포인트에서 Pod 제거
+    and
+        K->>P: preStop hook 먼저 실행
+        P->>P: preStop 완료 대기
+        K->>P: SIGTERM 전송
+        P->>App: TERM 신호 전달
+    end
 
     Note over S: 트래픽 전송 중단<br>(하지만 진행 중인 요청은 계속)
 
     App->>App: 진행 중인 요청 처리
     App->>App: 연결 종료
 
-    Note over K: terminationGracePeriodSeconds 대기
+    Note over K: terminationGracePeriodSeconds 카운트다운<br>(preStop 실행 시간도 여기에 포함)
 
     K->>P: SIGKILL (강제 종료)
 ```
+
+> **정확한 순서 (공식 문서 기준):** Pod 종료 요청이 들어오면 kubelet은 (1) Service 엔드포인트 제거와 (2) 컨테이너 종료 절차를 **병렬로** 진행한다. 컨테이너 종료 절차는 **`preStop` hook 실행 → hook 완료 대기 → SIGTERM 전송 → `terminationGracePeriodSeconds` 만큼 대기 → SIGKILL** 순서다. 즉 SIGTERM이 먼저 가는 것이 아니라 `preStop`이 먼저 끝나야 SIGTERM이 전달된다.
 
 **문제:** 엔드포인트에서 제거되는 시점과 SIGTERM 전송 시점 사이에 **약간의 지연**이 있다. 이 사이에 새 요청이 들어올 수 있다.
 

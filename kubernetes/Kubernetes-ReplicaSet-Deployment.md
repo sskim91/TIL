@@ -909,9 +909,22 @@ spec:
 기존에 쌓인 ReplicaSet을 정리하려면:
 
 ```bash
-# replicas: 0인 ReplicaSet 삭제 (주의: 롤백 불가능해짐)
-kubectl delete rs -l app=my-app --field-selector=spec.replicas=0
+# ⚠️ --field-selector는 spec.replicas를 지원하지 않는다
+# (kubectl: "spec.replicas" is not a known field selector 에러)
+# 대신 jq 또는 jsonpath로 필터링해야 한다
+
+# jq를 이용한 방법 (권장)
+kubectl get rs -l app=my-app -o json \
+  | jq -r '.items[] | select(.spec.replicas == 0) | .metadata.name' \
+  | xargs -r kubectl delete rs
+
+# jsonpath를 이용한 방법 (jq 없이)
+kubectl get rs -l app=my-app \
+  -o jsonpath='{range .items[?(@.spec.replicas==0)]}{.metadata.name}{"\n"}{end}' \
+  | xargs -r kubectl delete rs
 ```
+
+> **주의:** 수동으로 오래된 ReplicaSet을 삭제하면 해당 리비전으로의 **롤백이 불가능**해진다. 근본 해결은 `revisionHistoryLimit`을 적절히 설정하는 것이다.
 
 ### 11.4 배포 중 트래픽이 실패한다
 

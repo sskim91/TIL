@@ -598,8 +598,9 @@ spec:
 롤백할 때 어떤 변경인지 알 수 있도록 기록을 남겨라.
 
 ```bash
-# 방법 1: --record 플래그 (deprecated)
+# 방법 1: --record 플래그 (Kubernetes 1.23부터 deprecated, 향후 제거 예정)
 kubectl set image deployment/my-app app=my-app:2.0 --record
+# ⚠️ 실행 시 "Flag --record has been deprecated" 경고가 출력된다
 
 # 방법 2: annotation 직접 설정 (권장)
 kubectl annotate deployment/my-app kubernetes.io/change-cause="Update to v2.0"
@@ -627,9 +628,9 @@ kubectl rollout history deployment/my-app
 
 ## 6. 배포와 PodDisruptionBudget (PDB)
 
-### 6.1 PDB가 배포에 미치는 영향
+### 6.1 PDB의 실제 적용 범위
 
-**PDB는 Rolling Update 속도를 제한할 수 있다.**
+**중요: PDB는 Deployment의 Rolling Update 자체를 제한하지 않는다.** 공식 문서([Disruptions](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/))는 PDB가 **voluntary eviction** (Node Drain, 오토스케일러의 노드 축소, API 기반 Eviction)에만 적용된다고 명시한다. Deployment/StatefulSet 컨트롤러가 수행하는 rolling upgrade는 PDB에 의해 블록되지 않는다.
 
 ```yaml
 apiVersion: policy/v1
@@ -637,35 +638,42 @@ kind: PodDisruptionBudget
 metadata:
   name: my-app-pdb
 spec:
-  minAvailable: 2          # 최소 2개는 항상 실행
+  minAvailable: 2          # eviction 시 최소 2개는 유지
   selector:
     matchLabels:
       app: my-app
 ```
 
-**문제 상황:**
+**PDB가 영향을 주는 것 vs 주지 않는 것:**
+
+| 상황 | PDB 적용 여부 |
+|------|---------------|
+| `kubectl drain <node>` (노드 업그레이드) | ✅ 적용 (eviction API 사용) |
+| Cluster Autoscaler의 노드 축소 | ✅ 적용 |
+| Pod를 직접 `kubectl delete` | ❌ 미적용 |
+| **Deployment rollout (이미지 업데이트 등)** | ❌ **미적용** |
+| 노드 장애로 Pod가 죽는 경우 (involuntary) | ❌ 미적용 |
+
+### 6.2 rollout 가용성은 maxUnavailable/maxSurge/readiness로 제어
+
+Deployment rollout 중 최소 가용 Pod 수를 보장하려면 **PDB가 아니라** 다음 세 가지 설정으로 조정한다:
+
+- `strategy.rollingUpdate.maxUnavailable`: rollout 중 허용되는 unavailable Pod 수
+- `strategy.rollingUpdate.maxSurge`: 정원 대비 추가 생성 가능한 Pod 수
+- `readinessProbe` + `minReadySeconds`: 새 Pod가 실제 트래픽을 받을 준비가 되었는지 검증
 
 ```yaml
-# Deployment: replicas: 3, maxUnavailable: 1
-# PDB: minAvailable: 2
+# rollout 중 최소 2개 가용 보장 (replicas: 3)
+spec:
+  replicas: 3
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1    # rollout 중 3 - 1 = 2개 유지
+      maxSurge: 1
+  minReadySeconds: 30      # Ready 후 30초 관찰
 ```
 
-- Deployment는 1개까지 줄일 수 있다고 설정
-- 하지만 PDB가 최소 2개 유지를 요구
-- → **배포가 블록**될 수 있음
-
-### 6.2 PDB와 배포 설정 조율
-
-| replicas | PDB minAvailable | maxUnavailable | 결과 |
-|----------|------------------|----------------|------|
-| 3 | 2 | 1 | ✅ 정상 |
-| 3 | 2 | 2 | ⚠️ 배포 느림 (1개씩만 교체) |
-| 3 | 3 | 1 | ❌ **배포 블록** |
-
-**권장:**
-```
-maxUnavailable ≤ replicas - minAvailable
-```
+> **혼동 포인트:** PDB의 `minAvailable: 3`로 replicas와 같은 값을 설정하면 **rollout은 진행되지만 Node Drain은 영원히 블록**된다. rollout 동작을 제어하려는 목적으로 PDB를 사용하지 말 것.
 
 ### 6.3 Node Drain과 배포
 
