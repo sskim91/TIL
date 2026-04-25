@@ -11,15 +11,27 @@
 
 - 총 TIL 개수: **170개**
 
-- 카테고리 수: **27개**
+- 카테고리 수: **30개**
 
 ## 📚 카테고리
 
+### agent
+
+- [AI Agent 워크플로 패턴 - 프롬프트 체이닝](agent/AI-Agent-워크플로-패턴-프롬프트-체이닝.md)
+
+- [AI Agent와 Agentic AI](agent/AI-Agent와-Agentic-AI.md)
+
+- [LangChain Agent 생성 및 사용법](agent/LangChain-Agent-생성-및-사용법.md)
+
+- [LLM Agent란 무엇인가](agent/LLM-Agent란-무엇인가.md)
+
+- [효과적인 AI Agent 구축하기 - Anthropic 가이드](agent/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
+
+- [효과적인 에이전트 구축하기](agent/효과적인-에이전트-구축하기.md)
+
+
+
 ### ai
-
-- [AI Agent 워크플로 패턴 - 프롬프트 체이닝](ai/AI-Agent-워크플로-패턴-프롬프트-체이닝.md)
-
-- [AI Agent와 Agentic AI](ai/AI-Agent와-Agentic-AI.md)
 
 - [AI 네이티브 엔지니어링 팀 구축 가이드](ai/AI-네이티브-엔지니어링-팀-구축-가이드.md)
 
@@ -27,33 +39,9 @@
 
 - [Dense Vector 검색은 왜 거리가 아니라 각도로 유사도를 잴까?](ai/Dense-Vector-검색은-왜-거리가-아니라-각도로-유사도를-잴까.md)
 
-- [FastMCP 3.0 - 프로덕션 레디 MCP 서버 구축의 새로운 패러다임](ai/FastMCP-3.0-프로덕션-레디-MCP-서버-구축의-새로운-패러다임.md)
-
 - [GGUF와 양자화 - 서민도 로컬에서 LLM을 돌릴 수 있는 이유](ai/GGUF와-양자화-서민도-로컬에서-LLM을-돌릴-수-있는-이유.md)
 
 - [Google Antigravity: 에이전트 우선 개발 환경](ai/Google-Antigravity-에이전트-우선-개발-환경.md)
-
-- [JSON-RPC와 MCP의 관계](ai/JSON-RPC와-MCP의-관계.md)
-
-- [LangChain Agent 생성 및 사용법](ai/LangChain-Agent-생성-및-사용법.md)
-
-- [LangGraph - LLM 애플리케이션을 위한 상태 머신](ai/LangGraph-LLM-애플리케이션을-위한-상태-머신.md)
-
-- [LangGraph Durable Execution - 실패해도 이어서 실행하기](ai/LangGraph-Durable-Execution-실패해도-이어서-실행하기.md)
-
-- [LangGraph Interrupts - 사람의 승인이 필요할 때](ai/LangGraph-Interrupts-사람의-승인이-필요할-때.md)
-
-- [LangGraph Memory - 기억을 관리하는 두 가지 방법](ai/LangGraph-Memory-기억을-관리하는-두-가지-방법.md)
-
-- [LangGraph Persistence - 상태를 영속화하는 방법](ai/LangGraph-Persistence-상태를-영속화하는-방법.md)
-
-- [LangGraph Streaming - 실시간으로 결과 받기](ai/LangGraph-Streaming-실시간으로-결과-받기.md)
-
-- [LangGraph Subgraph - 그래프 안의 그래프](ai/LangGraph-Subgraph-그래프-안의-그래프.md)
-
-- [LangGraph Time Travel - 과거로 돌아가 다시 실행하기](ai/LangGraph-Time-Travel-과거로-돌아가-다시-실행하기.md)
-
-- [LLM Agent란 무엇인가](ai/LLM-Agent란-무엇인가.md)
 
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
@@ -62,10 +50,6 @@
 - [llms.txt - AI 시대의 robots.txt](ai/llms.txt-AI-시대의-robots.txt.md)
 
 - [LLM의 Mixture of Experts - 적은 연산으로 거대한 모델을 돌리는 비결](ai/LLM의-Mixture-of-Experts-적은-연산으로-거대한-모델을-돌리는-비결.md)
-
-- [MCP (Model Context Protocol) 이해하기](ai/MCP-Model-Context-Protocol-이해하기.md)
-
-- [MCP의 STDIO Transport 이해하기](ai/MCP의-STDIO-Transport-이해하기.md)
 
 - [ML 모델 서빙이란 무엇인가](ai/ML-모델-서빙이란-무엇인가.md)
 
@@ -88,10 +72,6 @@
 - [컴퓨터에게 단어의 의미를 가르치는 법](ai/컴퓨터에게-단어의-의미를-가르치는-법.md)
 
 - [프로덕션 LLM 서빙에서 FP32를 아무도 안 쓰는 이유](ai/프로덕션-LLM-서빙에서-FP32를-아무도-안-쓰는-이유.md)
-
-- [효과적인 AI Agent 구축하기 - Anthropic 가이드](ai/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
-
-- [효과적인 에이전트 구축하기](ai/효과적인-에이전트-구축하기.md)
 
 
 
@@ -266,6 +246,38 @@
 - [Kubernetes StatefulSet](kubernetes/Kubernetes-StatefulSet.md)
 
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
+
+
+
+### langgraph
+
+- [LangGraph - LLM 애플리케이션을 위한 상태 머신](langgraph/LangGraph-LLM-애플리케이션을-위한-상태-머신.md)
+
+- [LangGraph Durable Execution - 실패해도 이어서 실행하기](langgraph/LangGraph-Durable-Execution-실패해도-이어서-실행하기.md)
+
+- [LangGraph Interrupts - 사람의 승인이 필요할 때](langgraph/LangGraph-Interrupts-사람의-승인이-필요할-때.md)
+
+- [LangGraph Memory - 기억을 관리하는 두 가지 방법](langgraph/LangGraph-Memory-기억을-관리하는-두-가지-방법.md)
+
+- [LangGraph Persistence - 상태를 영속화하는 방법](langgraph/LangGraph-Persistence-상태를-영속화하는-방법.md)
+
+- [LangGraph Streaming - 실시간으로 결과 받기](langgraph/LangGraph-Streaming-실시간으로-결과-받기.md)
+
+- [LangGraph Subgraph - 그래프 안의 그래프](langgraph/LangGraph-Subgraph-그래프-안의-그래프.md)
+
+- [LangGraph Time Travel - 과거로 돌아가 다시 실행하기](langgraph/LangGraph-Time-Travel-과거로-돌아가-다시-실행하기.md)
+
+
+
+### mcp
+
+- [FastMCP 3.0 - 프로덕션 레디 MCP 서버 구축의 새로운 패러다임](mcp/FastMCP-3.0-프로덕션-레디-MCP-서버-구축의-새로운-패러다임.md)
+
+- [JSON-RPC와 MCP의 관계](mcp/JSON-RPC와-MCP의-관계.md)
+
+- [MCP (Model Context Protocol) 이해하기](mcp/MCP-Model-Context-Protocol-이해하기.md)
+
+- [MCP의 STDIO Transport 이해하기](mcp/MCP의-STDIO-Transport-이해하기.md)
 
 
 
