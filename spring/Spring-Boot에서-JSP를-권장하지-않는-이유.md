@@ -244,9 +244,9 @@ public class CustomErrorController implements ErrorController {
 </html>
 ```
 
-❌ **작동하지 않음**: Spring Boot의 기본 Whitelabel Error Page가 대신 표시됨
+⚠️ **제한적으로만 작동**: WAR 패키징 + Tomcat/Jetty + JSP ViewResolver가 정상 구성된 경우라면 위 컨트롤러는 `error/404.jsp`로 포워딩할 수 있다. 그러나 실행 가능한 JAR이거나 ViewResolver 설정이 빠져 있으면 Whitelabel Error Page가 대신 표시된다.
 
-**이유**: JSP는 Spring Boot의 에러 페이지 오버라이드 메커니즘과 통합되지 않음
+**핵심 제약**: JSP 파일을 단순히 `WEB-INF/jsp/error/`에 배치한다고 해서 Spring Boot가 기본 에러 뷰를 자동으로 대체해 주지는 않는다. 명시적 `ErrorController` 구현 또는 `error.html` 같은 템플릿 엔진 기반 매핑이 필요하다(공식 문서). 결국 1.2 절에서 본 "JAR 내부 리소스에 대한 물리적 경로 접근 제약"이 에러 페이지에도 그대로 적용된다.
 
 ## 6. Spring Boot 철학과의 충돌
 
@@ -267,12 +267,13 @@ $ mvn clean package
 $ java -jar target/myapp.jar
 # 즉시 실행, 어디서나 동일하게 작동
 
-# ❌ Spring Boot + JSP (비권장)
+# ⚠️ Spring Boot + JSP (실행 가능한 WAR — Tomcat/Jetty 한정)
 $ mvn clean package
-$ java -jar target/myapp.war  # 작동 안 함
-$ # 또는
-$ unzip target/myapp.war -d /var/tomcat/webapps/myapp/
-$ /var/tomcat/bin/startup.sh  # Tomcat 별도 설치 및 설정 필요
+$ java -jar target/myapp.war  # OK: 임베디드 Tomcat/Jetty + WAR는 실행 가능
+$ # 또는 외부 서블릿 컨테이너에 WAR 배포
+$ cp target/myapp.war /var/tomcat/webapps/
+$ /var/tomcat/bin/startup.sh
+# 단, Undertow는 JSP 미지원. 실행 가능한 JAR 패키징은 JSP 불가.
 ```
 
 ### 6.3 Docker 컨테이너 배포
@@ -460,9 +461,10 @@ public class Application extends SpringBootServletInitializer {
 ```
 
 **제약사항**:
-- 외부 Tomcat에 배포해야 함
-- `java -jar`로 실행 불가
-- Docker 이미지가 무거워짐
+- WAR 패키징 강제 (실행 가능한 JAR 불가)
+- Tomcat/Jetty 한정 — Undertow는 JSP 미지원
+- 외부 서블릿 컨테이너 배포 또는 `java -jar app.war`로 실행 가능한 WAR 둘 다 선택할 수 있지만, 어느 쪽이든 컨테이너 의존이 남는다
+- Docker 이미지가 무거워짐 (Tomcat-embed-jasper 포함)
 
 #### 옵션 2: 점진적으로 Thymeleaf로 마이그레이션 (권장)
 
@@ -675,12 +677,19 @@ Phase 3: JAR 패키징 전환
         <artifactId>tomcat-embed-jasper</artifactId>
         <scope>provided</scope>
     </dependency>
+    <!-- Spring Boot 3.x+ (Jakarta EE 9+) -->
     <dependency>
-        <groupId>javax.servlet</groupId>
-        <artifactId>jstl</artifactId>
+        <groupId>jakarta.servlet.jsp.jstl</groupId>
+        <artifactId>jakarta.servlet.jsp.jstl-api</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.glassfish.web</groupId>
+        <artifactId>jakarta.servlet.jsp.jstl</artifactId>
     </dependency>
 </dependencies>
 ```
+
+> **주의**: Spring Boot 2.x까지는 `javax.servlet:jstl`을 썼지만, 3.x부터는 Jakarta EE 9+ 네임스페이스 변경에 따라 `jakarta.*` 좌표를 써야 한다. 옛 좌표를 그대로 쓰면 클래스 충돌이나 `ClassNotFoundException`이 발생한다.
 
 ```yaml
 # application.yml

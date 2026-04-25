@@ -180,9 +180,11 @@ QuestionHandler handler = questions -> {
 <dependency>
     <groupId>org.springaicommunity</groupId>
     <artifactId>spring-ai-agent-utils</artifactId>
-    <version>0.3.0</version>
+    <version>0.7.0</version>
 </dependency>
 ```
+
+> **Note:** Spring AI `2.0.0-M4` 이상이 필요하다 (2026-04 기준 `spring-ai-agent-utils 0.7.0`과 호환). 최신 버전은 [GitHub releases](https://github.com/spring-ai-community/spring-ai-agent-utils/releases)에서 확인하라.
 
 ### 3.2 에이전트 구성
 
@@ -368,10 +370,34 @@ sequenceDiagram
 
 검증 실패 시 `InvalidUserAnswerException`이 설명 메시지와 함께 발생한다. 이 예외는 사용자 입력 오류를 나타내며, AI 에이전트가 아닌 사용자에게 표시되어야 한다.
 
-Spring AI가 이 예외를 처리하도록 구성:
+Spring AI는 도구 예외 처리를 boolean 속성으로 제어한다(기본값 `false` — 예외가 메시지로 변환되어 LLM에게 전달됨):
 
 ```properties
-spring.ai.tools.throw-exception-on-error=org.springaicommunity.agent.tools.AskUserQuestionTool$InvalidUserAnswerException
+# true: 예외를 호출자에게 전파, false(기본): 메시지로 변환 후 LLM에 반환
+spring.ai.tools.throw-exception-on-error=true
+```
+
+기본 `DefaultToolExecutionExceptionProcessor`는 다음 규칙을 적용한다: `RuntimeException`은 LLM에 전달되는 메시지로 변환되고, checked exception과 `Error`는 항상 호출자에게 재던져진다. `alwaysThrow=true`로 만들면 모든 도구 오류가 호출자에게 전파된다:
+
+```java
+@Bean
+ToolExecutionExceptionProcessor toolExecutionExceptionProcessor() {
+    return new DefaultToolExecutionExceptionProcessor(true); // 모든 도구 오류 재던지기
+}
+```
+
+특정 예외 타입(예: `InvalidUserAnswerException`)만 호출자에게 전파하고 싶다면, 직접 `ToolExecutionExceptionProcessor`를 구현해 예외 타입을 분기하면 된다:
+
+```java
+@Bean
+ToolExecutionExceptionProcessor toolExecutionExceptionProcessor() {
+    return ex -> {
+        if (ex.getCause() instanceof InvalidUserAnswerException) {
+            throw ex; // 사용자 입력 오류는 호출자가 처리
+        }
+        return ex.getMessage(); // 그 외는 LLM에 메시지로 전달
+    };
+}
 ```
 
 답변 키가 질문 텍스트와 일치하지 않으면 경고가 로깅되지만 실행은 계속된다.

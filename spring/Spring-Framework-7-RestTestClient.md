@@ -200,7 +200,7 @@ class UserControllerIntegrationTest {
     private RestTestClient client;
 
     @BeforeEach
-    void setUp(ApplicationContext context) {
+    void setUp(WebApplicationContext context) {
         client = RestTestClient.bindToApplicationContext(context).build();
     }
 
@@ -526,7 +526,7 @@ RestTestClient는 AssertJ 스타일의 검증도 지원한다. `RestTestClientRe
 
 ```java
 import static org.assertj.core.api.Assertions.assertThat;
-import org.springframework.test.web.client.RestTestClientResponse;
+import org.springframework.test.web.servlet.client.assertj.RestTestClientResponse;
 
 @Test
 void getUser() {
@@ -804,13 +804,15 @@ graph LR
 
 ## 8. TestRestTemplate에서 마이그레이션
 
-Spring Boot 4.0에서 TestRestTemplate은 deprecated 처리될 예정이다. RestTestClient로의 마이그레이션을 권장한다.
+> **현재 상태(2026-04 기준)**: TestRestTemplate의 공식 deprecation은 아직 확정되지 않았다. Spring Boot 이슈 [#46632](https://github.com/spring-projects/spring-boot/issues/46632)는 4.x 마일스톤에 배정되어 있으나 `pending-design-work` 라벨이 붙은 **검토 중인 제안**이다. 따라서 아래 "Deprecated"·"제거" 일정은 현 시점에서는 확정 로드맵이 아닌 가능성 시나리오로 읽어야 한다.
+
+Spring 팀은 TestRestTemplate 대신 RestTestClient 사용을 권장하고 있으며, 신규 코드는 RestTestClient로 작성하고 기존 코드는 마이그레이션을 검토해 두는 것이 합리적이다.
 
 | 버전 | TestRestTemplate 상태 | 권장 대안 |
 |------|----------------------|-----------|
 | Spring Boot 3.x | 사용 가능 | RestTestClient (선택적) |
-| Spring Boot 4.0 | **Deprecated** | RestTestClient |
-| Spring Boot 5.0 (예정) | 제거 예정 | RestTestClient |
+| Spring Boot 4.0 | 사용 가능 (deprecation 미확정·논의 중) | RestTestClient (권장) |
+| Spring Boot 4.x 이후 | deprecated 가능성 있음 | RestTestClient |
 
 ### 마이그레이션이 간단한 이유
 

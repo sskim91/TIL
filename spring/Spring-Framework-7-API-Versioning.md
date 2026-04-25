@@ -318,7 +318,7 @@ curl -H "X-API-Version: 3" http://localhost:8080/api/orders/123
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
-        configurer.useRequestParameter("api-version")
+        configurer.useQueryParam("api-version")
                 .addSupportedVersions("1", "2");
     }
 }
@@ -345,7 +345,9 @@ curl http://localhost:8080/api/orders/123?api-version=2
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
-        configurer.useUriPath(0)  // 0번째 경로 세그먼트가 버전
+        // path segment 인덱스는 컨텍스트 경로 이후의 0-base 세그먼트 위치.
+        // 컨트롤러 매핑에도 동일한 위치에 URI 변수를 선언해 두 패턴이 일치해야 한다.
+        configurer.usePathSegment(0)
                 .addSupportedVersions("1", "2");
     }
 }
@@ -353,7 +355,7 @@ public class WebConfig implements WebMvcConfigurer {
 
 ```java
 @RestController
-@RequestMapping("/api/orders")
+@RequestMapping("/{version}/api/orders")  // 버전 세그먼트를 매핑에 포함
 public class OrderController {
 
     @GetMapping(path = "/{id}", version = "1")
@@ -385,7 +387,8 @@ curl http://localhost:8080/2/api/orders/123  # v2
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
-        configurer.useMediaTypeParameter("v")  // Accept/Content-Type의 v 파라미터
+        // useMediaTypeParameter는 (MediaType compatibleMediaType, String paramName) 두 인자를 받는다.
+        configurer.useMediaTypeParameter(MediaType.APPLICATION_JSON, "v")
                 .addSupportedVersions("1", "2");
     }
 }
@@ -430,7 +433,7 @@ public class UserController {
 **동작:**
 - `X-API-Version: 1` → `getUserV1()` 호출
 - `X-API-Version: 2` → `getUserV2()` 호출
-- `X-API-Version: 3` → **404 Not Found** (매칭 없음)
+- `X-API-Version: 3` → **400 Bad Request**. 지원 버전(`addSupportedVersions`)에 등록되지 않은 값이면 `InvalidApiVersionException`이, 지원 버전이지만 매핑된 메서드의 `version` 조건과 맞지 않으면 `NotAcceptableApiVersionException`이 발생한다. 둘 다 4xx 응답이며 404로 떨어지지 않는다.
 
 ### 5.2 베이스라인 버전 (Baseline Version) - `+` 사용
 
@@ -526,14 +529,14 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
         configurer.useRequestHeader("X-API-Version")
-                .parser(new CustomVersionParser())  // 커스텀 파서
+                .setVersionParser(new CustomVersionParser())  // 커스텀 파서
                 .addSupportedVersions("v1", "v2", "latest");
     }
 }
 
 public class CustomVersionParser implements ApiVersionParser<String> {
     @Override
-    public String parse(String version) {
+    public String parseVersion(String version) {
         // "v1" → "1", "latest" → "999" 등 변환
         if ("latest".equals(version)) {
             return "999";
@@ -553,7 +556,7 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
         configurer.useRequestHeader("X-API-Version")
-                .required(true)  // 기본값
+                .setVersionRequired(true)  // 기본값
                 .addSupportedVersions("1", "2");
     }
 }
@@ -570,14 +573,15 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
         configurer.useRequestHeader("X-API-Version")
-                .required(false)  // 선택적
+                .setVersionRequired(false)         // 헤더 없는 요청도 허용 → 가장 최신 버전이 적용됨
                 .addSupportedVersions("1", "2", "3");
     }
 }
 ```
 
 **동작:**
-- `X-API-Version` 헤더 없으면 → **가장 최신 버전 사용** (예: "3")
+- `X-API-Version` 헤더 없으면 → 가장 최신 버전 사용 (예: `"3"`)
+- 특정 기본 버전을 고정하고 싶다면 `setDefaultVersion("1")`처럼 명시적으로 지정. 운영 환경에서 메이저 변경이 있는 최신 버전이 기존 클라이언트의 기본값이 되어 사고가 나는 것을 막으려면 이 옵션을 적극 활용하는 편이 안전하다.
 
 ```java
 @RestController
@@ -615,10 +619,18 @@ public class OrderController {
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
+        // 버전별 deprecation 정보는 StandardApiVersionDeprecationHandler에 채운 뒤
+        // setDeprecationHandler(...)로 등록한다 — configurer에 deprecateVersion(...)은 없다.
+        StandardApiVersionDeprecationHandler deprecation = new StandardApiVersionDeprecationHandler();
+        deprecation.configureVersion("1")
+                .setDeprecationDate(ZonedDateTime.of(2025, 12, 31, 0, 0, 0, 0, ZoneOffset.UTC))
+                .setSunsetDate(ZonedDateTime.of(2025, 12, 31, 0, 0, 0, 0, ZoneOffset.UTC));
+        deprecation.configureVersion("2")
+                .setDeprecationDate(ZonedDateTime.of(2026, 6, 30, 0, 0, 0, 0, ZoneOffset.UTC));
+
         configurer.useRequestHeader("X-API-Version")
                 .addSupportedVersions("1", "2", "3")
-                .deprecateVersion("1", LocalDate.of(2025, 12, 31))  // v1은 2025-12-31에 종료
-                .deprecateVersion("2", LocalDate.of(2026, 6, 30));   // v2는 2026-06-30에 종료
+                .setDeprecationHandler(deprecation);
     }
 }
 ```
@@ -627,8 +639,8 @@ public class WebConfig implements WebMvcConfigurer {
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json
-Deprecation: true
-Sunset: Sun, 31 Dec 2025 00:00:00 GMT
+Deprecation: @1767139200
+Sunset: Wed, 31 Dec 2025 00:00:00 GMT
 Link: <https://api.example.com/docs/migration>; rel="deprecation"
 
 {
@@ -637,12 +649,14 @@ Link: <https://api.example.com/docs/migration>; rel="deprecation"
 }
 ```
 
+`Deprecation` 헤더 값은 RFC 9745에 정의된 Structured Field Date 형식이다. Spring의 `setDeprecationDate(...)`로 지정한 날짜가 Unix epoch 초로 직렬화되어 `@<seconds>` 형태로 표기된다(`true` 같은 boolean 값이 아님).
+
 ### 8.2 Deprecation 헤더 의미
 
 | 헤더 | 의미 | 예시 |
 |------|------|------|
-| `Deprecation` | 이 API는 deprecated 상태 | `Deprecation: true` |
-| `Sunset` | 이 API가 종료되는 날짜 | `Sunset: Sun, 31 Dec 2025 00:00:00 GMT` |
+| `Deprecation` | 이 API는 deprecated 상태 | `Deprecation: @1767139200` |
+| `Sunset` | 이 API가 종료되는 날짜 | `Sunset: Wed, 31 Dec 2025 00:00:00 GMT` |
 | `Link` | 마이그레이션 문서 링크 | `Link: <https://docs.example.com/v2>; rel="deprecation"` |
 
 ### 8.3 클라이언트 대응
@@ -688,35 +702,41 @@ public class ApiVersionConfig implements WebMvcConfigurer {
             // 지원 버전
             .addSupportedVersions("1.0", "1.1", "2.0", "2.1")
 
-            // 버전 필수 여부 (false = 선택적, 최신 버전 사용)
-            .required(false)
+            // 버전 필수 여부 (false = 선택적, setDefaultVersion으로 안전한 기본값 지정 권장)
+            .setVersionRequired(false)
+            .setDefaultVersion("2.1")
 
-            // Deprecation 설정
-            .deprecateVersion("1.0", LocalDate.of(2025, 6, 30))
-            .deprecateVersion("1.1", LocalDate.of(2025, 12, 31))
-
-            // 커스텀 Deprecation 핸들러
-            .deprecationHandler(new CustomDeprecationHandler());
+            // 커스텀 Deprecation 핸들러 — 버전별 deprecation/sunset은 핸들러 내부에서 구성
+            .setDeprecationHandler(new CustomDeprecationHandler());
     }
 
     static class CustomDeprecationHandler implements ApiVersionDeprecationHandler {
         @Override
-        public void handleDeprecation(
+        public void handleVersion(
+            Comparable<?> version,
+            Object handler,
             HttpServletRequest request,
-            HttpServletResponse response,
-            String version,
-            LocalDate sunsetDate
+            HttpServletResponse response
         ) {
-            // RFC 9745, RFC 8594 헤더 추가
-            response.addHeader("Deprecation", "true");
-            response.addHeader("Sunset", sunsetDate.toString());
-            response.addHeader("Link",
-                "<https://docs.example.com/api/migration>; rel=\"deprecation\"");
+            String v = version.toString();
+            if ("1.0".equals(v) || "1.1".equals(v)) {
+                // RFC 9745, RFC 8594 헤더 추가
+                // RFC 9745: Deprecation 값은 Structured Field Date(@epoch-seconds)이며 boolean이 아님
+                long deprecationEpoch = "1.0".equals(v)
+                        ? Instant.parse("2025-06-30T00:00:00Z").getEpochSecond()
+                        : Instant.parse("2025-12-31T00:00:00Z").getEpochSecond();
+                response.addHeader("Deprecation", "@" + deprecationEpoch);
+                response.addHeader("Sunset",
+                        "1.0".equals(v) ? "Mon, 30 Jun 2025 00:00:00 GMT"
+                                        : "Wed, 31 Dec 2025 00:00:00 GMT");
+                response.addHeader("Link",
+                    "<https://docs.example.com/api/migration>; rel=\"deprecation\"");
 
-            // 추가 커스텀 헤더
-            response.addHeader("X-Deprecated-Version", version);
-            response.addHeader("X-Migration-Guide",
-                "https://docs.example.com/api/v" + version + "/migration");
+                // 추가 커스텀 헤더
+                response.addHeader("X-Deprecated-Version", v);
+                response.addHeader("X-Migration-Guide",
+                    "https://docs.example.com/api/v" + v + "/migration");
+            }
         }
     }
 }
@@ -774,7 +794,7 @@ public class UserController {
     // POST 예시
     @PostMapping(version = "1.0")
     public UserV1 createUserV1(@RequestBody CreateUserRequestV1 request) {
-        User user = userService.create(request.getName());
+        User user = userService.create(request.name());
         return new UserV1(user.getId(), user.getName());
     }
 
@@ -864,7 +884,7 @@ class UserControllerTest {
         mockMvc.perform(get("/api/users/1")
                 .header("X-API-Version", "1.0"))
             .andExpect(status().isOk())
-            .andExpect(header().string("Deprecation", "true"))
+            .andExpect(header().string("Deprecation", startsWith("@")))  // RFC 9745: @<epoch-seconds>
             .andExpect(header().exists("Sunset"))
             .andExpect(header().exists("Link"));
     }
@@ -878,14 +898,11 @@ class UserControllerTest {
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
+        // 헤더와 쿼리 파라미터 모두를 지원하려면 두 resolver 메서드를 차례로 호출하면 된다.
+        // ApiVersionConfigurer에는 .or() 메서드가 없으니 체이닝하지 말고 각각 등록한다.
         configurer
-            // 1순위: 헤더
             .useRequestHeader("X-API-Version")
-
-            // 2순위: 쿼리 파라미터 (헤더 없을 때)
-            .or()
-            .useRequestParameter("version")
-
+            .useQueryParam("version")
             .addSupportedVersions("1", "2", "3");
     }
 }
@@ -959,10 +976,10 @@ public class OrderController {
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
+        // ApiVersionConfigurer에 .or()는 없다 — resolver를 차례로 호출해 모두 등록한다.
         configurer
             .useRequestHeader("X-API-Version")  // 새 방식
-            .or()
-            .useUriPath(1)  // 기존 /api/v1/... 방식도 지원
+            .usePathSegment(1)                  // 기존 /api/v1/... 방식도 지원
             .addSupportedVersions("1", "2");
     }
 }
@@ -998,8 +1015,8 @@ public class OrderController {
 ```http
 # 기존 경로 응답에 Deprecation 헤더 추가
 HTTP/1.1 200 OK
-Deprecation: true
-Sunset: Sun, 31 Dec 2025 00:00:00 GMT
+Deprecation: @1767139200
+Sunset: Wed, 31 Dec 2025 00:00:00 GMT
 Link: <https://docs.example.com/api/migration>; rel="deprecation"
 X-Migration-Message: Please use X-API-Version header instead of URI versioning
 
@@ -1110,7 +1127,10 @@ public class OrderServiceImpl implements OrderService {
 
 4. **Deprecation 정보 명시**
    ```java
-   configurer.deprecateVersion("1.0", LocalDate.of(2025, 12, 31))
+   StandardApiVersionDeprecationHandler handler = new StandardApiVersionDeprecationHandler();
+   handler.configureVersion("1.0")
+          .setSunsetDate(ZonedDateTime.of(2025, 12, 31, 0, 0, 0, 0, ZoneOffset.UTC));
+   configurer.setDeprecationHandler(handler);
    ```
 
 5. **마이그레이션 문서 제공**

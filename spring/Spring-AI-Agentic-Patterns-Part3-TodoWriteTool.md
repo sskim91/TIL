@@ -51,7 +51,7 @@ flowchart LR
 
 LLM은 계획을 업데이트해야 할 때마다 도구를 호출한다. 초기 작업 생성, 진행 상황 표시, 새로 발견된 작업 추가 등.
 
-도구는 todo 항목 목록을 받으며, 각각 **id**, **content**(수행해야 할 작업), **status**를 포함한다. 각 todo 항목은 간단한 생명주기를 따른다:
+도구는 todo 항목 목록을 받으며, 각 항목은 record `Todos.TodoItem(String content, Status status, String activeForm)`로 정의된다. 즉 **content**(수행해야 할 작업), **status**(상태), **activeForm**(실행 중 표시할 진행형 문구)의 3개 필드를 가진다. 각 todo 항목은 간단한 생명주기를 따른다:
 
 ```mermaid
 stateDiagram-v2
@@ -102,11 +102,11 @@ Progress: 2/4 tasks completed (50%)
 <dependency>
     <groupId>org.springaicommunity</groupId>
     <artifactId>spring-ai-agent-utils</artifactId>
-    <version>0.4.0</version>
+    <version>0.7.0</version>
 </dependency>
 ```
 
-ℹ️ **Note:** Spring AI 버전 `2.0.0-SNAPSHOT` 또는 `2.0.0-M2`(릴리스 시)가 필요하다.
+ℹ️ **Note:** Spring AI `2.0.0-M4` 이상이 필요하다 (2026-04 기준 `spring-ai-agent-utils 0.7.0` 호환). 최신 호환 버전은 [GitHub README](https://github.com/spring-ai-community/spring-ai-agent-utils#requirements)에서 확인하라.
 
 ### 3.2 에이전트 구성
 
@@ -139,14 +139,14 @@ String response = chatClient.prompt()
 
 ```java
 public class TodoUpdateEvent extends ApplicationEvent {
-    private final List<Todo> todos;
+    private final List<Todos.TodoItem> todos;
 
-    public TodoUpdateEvent(Object source, List<Todo> todos) {
+    public TodoUpdateEvent(Object source, List<Todos.TodoItem> todos) {
         super(source);
         this.todos = todos;
     }
 
-    public List<Todo> getTodos() {
+    public List<Todos.TodoItem> getTodos() {
         return todos;
     }
 }

@@ -163,7 +163,13 @@ public class AppConfig {
 }
 ```
 
-`@Service`, `@Repository` 같은 어노테이션은 사실 모두 `@Component`의 별칭이다. 기능적으로는 동일하지만, 코드를 읽는 사람에게 "이 클래스는 비즈니스 로직을 담당해", "이 클래스는 데이터베이스 접근을 담당해"라는 의도를 전달할 수 있다.
+`@Service`, `@Repository`, `@Controller`는 모두 `@Component`를 메타 애노테이션으로 가진 stereotype이다. Bean 등록이라는 핵심 동작은 같지만 **모두 동일한 별칭은 아니다**:
+
+- `@Service` — 시맨틱 표시만. 동작은 `@Component`와 동일.
+- `@Repository` — `PersistenceExceptionTranslationPostProcessor`가 인식해서 JPA/JDBC 벤더별 예외를 Spring의 `DataAccessException`으로 **자동 변환**해 준다. 이 부가 기능은 `@Component`에는 없다.
+- `@Controller` — Spring MVC의 `RequestMappingHandlerMapping`이 이 어노테이션이 붙은 빈만 핸들러로 스캔한다. `@Component`만 붙이면 `@RequestMapping`이 라우팅되지 않는다.
+
+따라서 stereotype은 의도 전달뿐 아니라 부가 동작을 활성화하는 트리거이기도 하다.
 
 외부 라이브러리의 경우 우리가 소스코드를 수정할 수 없으니, `@Bean` 어노테이션을 붙인 메서드를 만들어서 직접 등록해준다.
 
@@ -288,7 +294,7 @@ void 주문_생성_성공() {
 }
 ```
 
-셋째, 순환 참조를 컴파일 타임에 잡아낸다. A가 B를 필요로 하고, B가 A를 필요로 하는 상황이라면 애플리케이션 시작 시점에 바로 에러가 난다.
+셋째, 순환 참조를 애플리케이션 시작 시점(컨테이너 초기화 단계)에서 즉시 감지한다. A가 B를 필요로 하고, B가 A를 필요로 하는 상황이라면 Spring이 Bean을 만들 수가 없으므로 부팅이 실패한다. 필드/Setter 주입과 달리 자바 컴파일 단계가 아니라 컨테이너의 의존성 해결 단계에서 잡히는 점에 유의하라.
 
 #### Setter 주입 (선택적 의존성)
 
@@ -600,7 +606,7 @@ public class ServiceB {
 }
 ```
 
-닭이 먼저냐 달걀이 먼저냐의 문제다. Spring은 이 상황을 해결할 수 없고, 애플리케이션 시작 시 에러가 난다. (생성자 주입을 사용했기 때문에 빠르게 실패한다. 필드 주입이었다면 런타임에 터졌을 것이다.)
+닭이 먼저냐 달걀이 먼저냐의 문제다. 생성자 주입의 순환 참조는 Bean을 생성하려면 상대 Bean이 이미 완성돼 있어야 하므로 컨테이너가 해결할 수 없고, 애플리케이션 시작 시 `BeanCurrentlyInCreationException`으로 즉시 실패한다. 반면 Setter/필드 주입은 부분적으로 초기화된 Bean을 임시로 주고받는 방식으로 컨테이너가 해소할 수 있어 동작은 하지만, 실제 사용 시점에 미초기화 상태로 호출되면 NPE가 나는 등 잠재적 위험이 남는다(Spring은 권장하지 않는다).
 
 해결책은 설계를 다시 생각해보는 것이다. 정말 서로가 서로를 필요로 하는가? 대부분의 경우 공통 로직을 별도의 서비스로 분리하거나, 이벤트 기반으로 바꾸면 해결된다.
 
@@ -650,7 +656,8 @@ timeline
     2013 : Spring 4.0 - Java 8 지원
     2017 : Spring 5.0 - WebFlux (Reactive)
     2022 : Spring 6.0 - Java 17+, Jakarta EE
-    2025 : Spring 7.0 - Virtual Threads
+    2023 : Spring 6.1 - Virtual Threads 지원
+    2025 : Spring 7.0 - Java 25, API Versioning, RestTestClient
 ```
 
 하지만 IoC와 DI는 그대로다. 왜일까?

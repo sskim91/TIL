@@ -170,13 +170,13 @@ Spring AI 프로젝트에 Agent Skills를 추가할 준비가 되었는가?
 <dependency>
     <groupId>org.springaicommunity</groupId>
     <artifactId>spring-ai-agent-utils</artifactId>
-    <version>0.4.1</version>
+    <version>0.7.0</version>
 </dependency>
 ```
 
 > **Note:** 최신 안정 릴리스는 [GitHub releases 페이지](https://github.com/spring-ai-community/spring-ai-agent-utils/releases)에서 확인하라.
 
-> **Note:** Spring-AI 버전 `2.0.0-SNAPSHOT` 또는 `2.0.0-M2`(릴리스 시)가 필요하다.
+> **Note:** Spring AI `2.0.0-M4` 이상이 필요하다 (2026-04 기준 `spring-ai-agent-utils 0.7.0`과 호환).
 
 ### 5.2 에이전트 구성
 

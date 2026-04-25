@@ -76,9 +76,9 @@ Spring Boot 4.0의 기반 기술이 전면 업그레이드되었다. 2.7 시절�
 
 | 요구사항 | Spring Boot 2.7 | Spring Boot 3.0 | Spring Boot 4.0 |
 |----------|----------------|----------------|----------------|
-| Java | 8+ | 17+ | **17+** (최신 LTS 권장) |
+| Java | 8+ | 17+ | **17+** (Java 21 또는 Java 25 LTS 권장, 2026-04 기준) |
 | Kotlin | 1.6+ | 1.7+ | **2.2+** |
-| GraalVM | - | 22.3+ | **25+** |
+| GraalVM (`native-image`) | - | 22.3+ | **25+** |
 | Jakarta EE | Java EE 8 | Jakarta EE 9+ | **Jakarta EE 11** |
 | Servlet | 3.1+ | 5.0+ | **6.1** |
 | Spring Framework | 5.x | 6.x | **7.x** |
@@ -357,7 +357,7 @@ map.from(source::method).always().to(destination::method);
 // → source.method()가 null이면 destination.method(null) 호출
 ```
 
-기존에 `alwaysApplyingNotNull()` 메서드를 사용하고 있었다면, 이 메서드가 삭제되었으므로 `always()`로 전환해야 한다. Spring Boot 자체가 이 API를 어떻게 적용했는지 [커밋 `239f384ac0`](https://github.com/spring-projects/spring-boot/commit/239f384ac0893d151b89f204886874c6adb00001)을 참고할 수 있다.
+기존에 `alwaysApplyingWhenNonNull()` 메서드를 사용하고 있었다면, 이 메서드가 삭제되었으므로 `always()`로 전환해야 한다. Spring Boot 자체가 이 API를 어떻게 적용했는지 [커밋 `239f384ac0`](https://github.com/spring-projects/spring-boot/commit/239f384ac0893d151b89f204886874c6adb00001)을 참고할 수 있다.
 
 ### 4.5 DevTools Live Reload 기본 비활성화
 
@@ -656,9 +656,9 @@ Spring Framework에 retry 기능이 내장됨에 따라, **Spring Retry에 대�
 
 ## 10. 테스트 기능 업그레이드 — 세 번째로 큰 변화
 
-### 10.1 @MockBean / @SpyBean Deprecated
+### 10.1 @MockBean / @SpyBean 제거
 
-Spring Boot의 `@MockBean`과 `@SpyBean`이 deprecated되었다. 대신 Spring Framework에서 제공하는 `@MockitoBean`과 `@MockitoSpyBean`을 사용해야 한다.
+Spring Boot의 `@MockBean`과 `@SpyBean`은 3.4에서 deprecated된 뒤 **4.0에서 완전히 제거되었다.** 따라서 4.0에서는 단순한 컴파일 경고가 아니라 컴파일 에러가 발생하므로, Spring Framework의 `@MockitoBean`/`@MockitoSpyBean`으로 반드시 전환해야 한다.
 
 ```java
 // Before (3.x)
@@ -689,7 +689,7 @@ public class TestConfig {
 }
 ```
 
-하지만 `@MockitoBean`은 **테스트 클래스의 필드에서만 사용할 수 있고, `@Configuration` 클래스에서는 사용할 수 없다.** 대신 두 가지 대안이 있다:
+하지만 `@MockitoBean`은 **테스트 클래스에서만 사용할 수 있다(필드 레벨과 클래스 레벨 모두 가능, `@Repeatable`). `@Configuration` 클래스의 필드에는 사용할 수 없다.** 대신 두 가지 대안이 있다:
 
 **대안 1: 테스트 클래스에 직접 선언**
 
@@ -720,7 +720,7 @@ class ApplicationTests {
 }
 ```
 
-임시로 deprecation 경고를 무시하려면 `@SuppressWarnings("removal")`을 사용할 수 있지만, 결국에는 `@MockBean`/`@SpyBean` 지원이 완전히 제거될 예정이다.
+참고로 Spring Boot 3.4·3.5에서는 `@MockBean`/`@SpyBean`이 `@Deprecated(forRemoval = true)`로 표시되어 `@SuppressWarnings("removal")`로 경고를 임시 억제할 수 있었지만, 4.0 시점에는 클래스 자체가 사라졌으므로 그런 회피책이 통하지 않는다. 4.0으로 올리기 전에 반드시 `@MockitoBean`/`@MockitoSpyBean`으로 모두 교체해야 한다.
 
 ### 10.2 MockitoTestExecutionListener 제거
 

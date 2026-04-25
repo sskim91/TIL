@@ -391,6 +391,8 @@ Kafka라면 메시지가 브로커에 남아있어서 재처리가 가능하다.
 
 > **Spring Retry로 재시도는 가능하다:** `@Retryable`을 함께 사용하면 일시적 장애에 대한 재시도 로직을 간단히 추가할 수 있다. 단, 서버가 죽으면 재시도 상태도 함께 사라진다.
 >
+> 사전 준비: `org.springframework.retry:spring-retry` 의존성 추가 + 설정 클래스에 `@EnableRetry` 부착(없으면 어노테이션이 무시됨).
+>
 > ```java
 > @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 1000))
 > @EventListener
@@ -398,6 +400,8 @@ Kafka라면 메시지가 브로커에 남아있어서 재처리가 가능하다.
 >     externalApiCall();  // 실패 시 최대 3번 재시도
 > }
 > ```
+>
+> 재시도는 **같은 스레드에서 동기적으로** 일어난다. `@Async`와 함께 쓰면 비동기 디스패치 후의 작업자 스레드 내에서 재시도가 수행된다.
 
 ### 7.3 분산 환경 미지원
 

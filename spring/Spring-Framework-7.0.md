@@ -15,7 +15,7 @@ ObjectMapper mapper = JsonMapper.builder().build();  // tools.jackson 패키지
 @Service
 @EnableResilientMethods
 public class UserService {
-    @Retryable(maxAttempts = 3)
+    @Retryable(maxRetries = 2)
     @ConcurrencyLimit(10)
     public User getUser(Long id) {
         return userRepository.findById(id);
@@ -214,7 +214,7 @@ public class JacksonConfig {
 ```
 
 **⚠️ 주의:**
-- Jackson 2.x 지원은 **Spring 7.1에서 제거** 예정
+- Spring 7.1에서 Jackson 2.x 자동 감지가 비활성화되고, **Spring 7.2에서 지원이 완전히 제거** 될 예정
 - Annotation 패키지(`@JsonProperty` 등)는 `com.fasterxml.jackson` 유지
 
 **📚 자세한 내용:**
@@ -233,25 +233,30 @@ Jackson 3.0의 모든 변경사항, 마이그레이션 가이드는 [Jackson 3.0
 </dependency>
 ```
 
-**이후 (Spring 7.0):**
 ```java
-// spring-core에 통합됨
+// 옛 spring-retry 라이브러리의 어노테이션
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.retry.annotation.EnableRetry;
+```
+
+**이후 (Spring 7.0):** `spring-context` 모듈에 새 `@Retryable`/`@ConcurrencyLimit`/`@EnableResilientMethods`가 들어왔다. 패키지가 다르니 임포트를 반드시 새 패키지로 바꿔야 하며, 별도 `spring-retry` 의존성은 더 이상 필요 없다.
+
+```java
+// Spring Framework 7의 내장 회복력 어노테이션
+import org.springframework.resilience.annotation.Retryable;
+import org.springframework.resilience.annotation.ConcurrencyLimit;
+import org.springframework.resilience.annotation.EnableResilientMethods;
 
 @Configuration
-@EnableResilientMethods  // 새로운 활성화 방식
+@EnableResilientMethods  // @Retryable + @ConcurrencyLimit 활성화
 public class AppConfig {
 }
 
 @Service
 public class PaymentService {
 
-    // 재시도 기능
-    @Retryable(
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 1000, multiplier = 2)
-    )
+    // 재시도: maxRetries는 "추가 재시도 횟수"(첫 호출 제외). delay/multiplier/maxDelay는 분 단위가 아니라 ms 단위로 주는 식.
+    @Retryable(maxRetries = 2, delay = 1000, multiplier = 2.0, maxDelay = 10000)
     public PaymentResult processPayment(Order order) {
         return paymentGateway.charge(order);
     }
@@ -267,28 +272,24 @@ public class PaymentService {
 **실전 활용:**
 ```java
 @Service
-@EnableResilientMethods
 public class ExternalApiService {
 
+    // 특정 예외만 재시도 대상으로 지정하려면 includes 속성 사용
     @Retryable(
-        retryFor = {ConnectException.class, TimeoutException.class},
-        maxAttempts = 5,
-        backoff = @Backoff(
-            delay = 1000,      // 1초 시작
-            multiplier = 2,     // 2배씩 증가
-            maxDelay = 10000    // 최대 10초
-        )
+        includes = {ConnectException.class, TimeoutException.class},
+        maxRetries = 4,
+        delay = 1000,
+        multiplier = 2.0,
+        maxDelay = 10000
     )
     public ApiResponse callExternalApi(Request request) {
-        return restTemplate.postForObject(apiUrl, request, ApiResponse.class);
-    }
-
-    @Recover  // 모든 재시도 실패 시
-    public ApiResponse recover(Exception e, Request request) {
-        log.error("All retries failed for request: {}", request, e);
-        return ApiResponse.failed("Service temporarily unavailable");
+        return restClient.post().uri(apiUrl).body(request).retrieve().body(ApiResponse.class);
     }
 }
+
+// Note: Spring 7 내장 @Retryable에는 spring-retry의 @Recover에 해당하는 메서드 단위 폴백이 없다.
+// 모든 재시도가 소진되어 RetryException이 던져지면, 호출 측에서 try/catch로 대체 응답을 만들거나
+// RetryListener를 등록하여 횡단 처리해야 한다.
 ```
 
 ### 2) API 버전 관리 (First-class Support)
@@ -333,15 +334,17 @@ curl http://localhost:8080/api/users/1?version=2
 curl -H "API-Version: 3" http://localhost:8080/api/users/1
 ```
 
-**설정:**
+**설정:** `@GetMapping(version = "...")` 매핑이 실제로 동작하려면 Spring 7의 전용 API 버전 설정 메서드를 사용해야 한다. `ContentNegotiationConfigurer`의 `parameterName(...)`은 콘텐츠 협상용이지 버전 리졸버가 아니다.
+
 ```java
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
     @Override
-    public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
+    public void configureApiVersioning(ApiVersionConfigurer configurer) {
         configurer
-            .parameterName("version")  // 쿼리 파라미터명
-            .defaultContentType(MediaType.APPLICATION_JSON);
+            .useQueryParam("version")          // ?version=1 형태로 받기
+            .useRequestHeader("API-Version")   // 또는 헤더 기반
+            .setDefaultVersion("1");
     }
 }
 ```
@@ -408,23 +411,24 @@ public class NotificationService {
     }
 }
 
-// 신규 (JmsClient)
+// 신규 (JmsClient — Spring 7의 destination(...) 기반 fluent API)
 @Service
 public class NotificationService {
     @Autowired
     private JmsClient jmsClient;
 
     public void sendNotification(Notification notification) {
-        jmsClient.send("notifications")
-            .payload(notification)
-            .header("priority", "high")
-            .execute();
+        // 헤더는 두 번째 인자 Map으로 전달
+        jmsClient.destination("notifications")
+            .send(notification, Map.of("priority", "high"));
     }
 
     public Notification receiveNotification() {
-        return jmsClient.receive("notifications")
-            .timeout(Duration.ofSeconds(5))
-            .execute(Notification.class);
+        // withReceiveTimeout은 밀리초 단위 long
+        return jmsClient.destination("notifications")
+            .withReceiveTimeout(5_000L)
+            .receive(Notification.class)
+            .orElse(null);
     }
 }
 ```
@@ -445,9 +449,9 @@ public class UserRepository {
             ORDER BY created_at DESC
             """)
             .param("since", since)
-            .fetchSize(100)              // 새로운 옵션
-            .maxRows(1000)               // 새로운 옵션
-            .queryTimeout(Duration.ofSeconds(30))  // 새로운 옵션
+            .withFetchSize(100)          // 새로운 옵션
+            .withMaxRows(1000)           // 새로운 옵션
+            .withQueryTimeout(30)        // 새로운 옵션 — 초 단위 int
             .query(User.class)
             .list();
     }
@@ -470,7 +474,6 @@ class UserControllerTest {
     @BeforeEach
     void setUp() {
         restClient = RestTestClient.bindToApplicationContext(context)
-            .configureClient()
             .baseUrl("http://localhost:8080")
             .build();
     }
@@ -573,7 +576,7 @@ public class OldController {
 public class NewController {
     @GetMapping("/data")
     public ResponseEntity<String> getData() {
-        HttpHeaders headers = HttpHeaders.create();
+        HttpHeaders headers = new HttpHeaders();
         // 대소문자 무시 특성 내장
         headers.add("X-Custom", "value1");
         headers.add("X-Custom", "value2");
@@ -627,15 +630,21 @@ public class UserService {
 ### 프록시 설정 개선
 
 ```java
-// Spring 7.0에서 CGLIB이 기본
+// Spring Framework의 기본 프록시 정책은 여전히 "인터페이스가 있으면 JDK 동적 프록시, 없으면 CGLIB"이다.
+// CGLIB을 강제하려면 @EnableTransactionManagement(proxyTargetClass = true)처럼 명시해야 한다.
+// (Spring Boot에서는 자동 설정이 CGLIB을 기본으로 켜는 경우가 있으니, 프레임워크 기본값과 구분해서 이해해야 한다.)
 @Configuration
-@EnableTransactionManagement  // CGLIB 프록시 기본
+@EnableTransactionManagement
 public class AppConfig {
 }
 
-// 개별 클래스별 프록시 방식 지정
+// Spring 7의 새 @Proxyable 어노테이션으로 클래스 단위 프록시 정책을 선언한다.
+// 속성은 ProxyType 열거형(INTERFACES / TARGET_CLASS)을 받는다 — proxyTargetClass 같은 boolean 속성은 없다.
+import org.springframework.context.annotation.Proxyable;
+import org.springframework.context.annotation.ProxyType;
+
 @Service
-@Proxyable(proxyTargetClass = false)  // JDK 동적 프록시 사용
+@Proxyable(ProxyType.INTERFACES)  // JDK 동적 프록시 사용
 public class UserService implements UserOperations {
     @Transactional
     public User getUser(Long id) {
@@ -644,7 +653,7 @@ public class UserService implements UserOperations {
 }
 
 @Service
-@Proxyable(proxyTargetClass = true)  // CGLIB 프록시 강제
+@Proxyable(ProxyType.TARGET_CLASS)  // CGLIB 프록시 강제
 public class OrderService {  // 인터페이스 없음
     @Transactional
     public Order createOrder(OrderRequest request) {
@@ -655,48 +664,47 @@ public class OrderService {  // 인터페이스 없음
 
 ## 6. GraalVM 네이티브 이미지 개선
 
-### Glob 패턴 지원
+### 리소스/리플렉션 힌트 — `RuntimeHintsRegistrar` 기반
+
+Spring Framework 7의 네이티브 힌트는 옛 Spring Native(`@NativeHint`/`@TypeHint`/`@ResourceHint`) 어노테이션이 아니라 `org.springframework.aot.hint` 패키지의 프로그래밍 API와 `@RegisterReflection`/`@RegisterReflectionForBinding` 어노테이션으로 작성한다. 7.0에서는 리소스 패턴이 글롭(glob) 표기까지 지원하도록 개선되었다.
+
+**프로그래밍 방식 — `RuntimeHintsRegistrar`:**
 
 ```java
-// Spring 6.x (정규표현식)
-@NativeHint(
-    resources = @ResourceHint(
-        patterns = ".*\\.properties",  // 정규식
-        isPattern = true
-    )
-)
-public class AppConfig {
-}
+import org.springframework.aot.hint.RuntimeHints;
+import org.springframework.aot.hint.RuntimeHintsRegistrar;
+import org.springframework.aot.hint.MemberCategory;
 
-// Spring 7.0 (Glob 패턴 - 더 직관적)
-@NativeHint(
-    resources = @ResourceHint(
-        patterns = "**/*.properties"  // Glob 패턴
-    )
-)
-public class AppConfig {
+public class AppHints implements RuntimeHintsRegistrar {
+
+    @Override
+    public void registerHints(RuntimeHints hints, ClassLoader classLoader) {
+        // 클래스패스 리소스 — Spring 7부터 glob 패턴 지원
+        hints.resources().registerPattern("**/*.properties");
+        hints.resources().registerPattern("config/*.yml");
+
+        // 리플렉션 힌트
+        hints.reflection().registerType(com.example.model.User.class,
+                MemberCategory.INVOKE_DECLARED_CONSTRUCTORS,
+                MemberCategory.DECLARED_FIELDS);
+    }
 }
 ```
 
-**Glob 패턴 예제:**
+`RuntimeHintsRegistrar` 구현체는 `META-INF/spring/aot.factories`에 등록하거나, `@ImportRuntimeHints(AppHints.class)`로 설정 클래스에서 가져온다.
+
+**어노테이션 방식 — `@RegisterReflectionForBinding`:**
+
 ```java
-@RegisterReflectionForBinding({
-    // 특정 디렉토리의 모든 클래스
-    @TypeHint(types = "com.example.model.*"),
+import org.springframework.aot.hint.annotation.RegisterReflectionForBinding;
 
-    // 재귀적으로 모든 하위 패키지
-    @TypeHint(types = "com.example.service.**"),
-
-    // 특정 파일 패턴
-    @ResourceHint(patterns = {
-        "/static/**/*.js",
-        "/templates/**/*.html",
-        "/config/*.yml"
-    })
-})
+@Configuration
+@RegisterReflectionForBinding({UserDto.class, OrderDto.class})  // 직렬화 대상 DTO들
 public class NativeConfig {
 }
 ```
+
+힌트 작성에 정규식이 아닌 글롭 패턴이 적용되는 영역은 주로 `ResourceHints#registerPattern(...)`이다. 옛 `@NativeHint`/`@TypeHint`는 더 이상 사용하지 않는다.
 
 ## 7. 실무 마이그레이션 가이드
 
@@ -850,7 +858,7 @@ public class UserService {
     @Autowired
     private UserRepository repository;
 
-    // Spring Retry는 별도 라이브러리
+    // Spring Retry는 별도 라이브러리 (속성명: maxAttempts — 총 시도 횟수)
     @Retryable(maxAttempts = 3)
     public User create(UserRequest request) {
         return repository.save(new User(request));
@@ -898,21 +906,22 @@ public class UserController {
 }
 
 // UserService.java
-import org.springframework.retry.annotation.Retryable;
-import org.springframework.retry.annotation.EnableResilientMethods;
+import org.springframework.resilience.annotation.Retryable;
+import org.springframework.resilience.annotation.ConcurrencyLimit;
+import org.springframework.resilience.annotation.EnableResilientMethods;
+
+@Configuration
+@EnableResilientMethods  // 회복력 기능 활성화 (@Configuration 클래스에 부착)
+class ResilienceConfig {}
 
 @Service
-@EnableResilientMethods  // 회복력 기능 활성화
 public class UserService {
 
     @Autowired
     private UserRepository repository;
 
-    // 내장 Retry 기능
-    @Retryable(
-        maxAttempts = 3,
-        backoff = @Backoff(delay = 1000)
-    )
+    // 내장 Retry 기능 (Spring 7 속성 체계: maxRetries / delay / multiplier / maxDelay)
+    @Retryable(maxRetries = 2, delay = 1000, multiplier = 2.0)
     @ConcurrencyLimit(10)  // 동시성 제한
     public User create(UserRequest request) {
         return repository.save(new User(request));

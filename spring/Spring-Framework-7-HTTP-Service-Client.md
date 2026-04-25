@@ -763,7 +763,9 @@ public class ReactiveUserService {
 @SpringBootTest
 class UserServiceTest {
 
-    @MockBean
+    // Spring Boot 4.0(Spring Framework 7 동반)에서 @MockBean은 제거됐다.
+    // @MockitoBean을 사용한다 — import org.springframework.test.context.bean.override.mockito.MockitoBean;
+    @MockitoBean
     private UserClient userClient;  // Mock으로 대체
 
     @Autowired
@@ -1213,9 +1215,9 @@ public class HttpConfigSpring7 {
    }
    ```
 
-5. **테스트 작성**
+5. **테스트 작성** — Spring Boot 4.0에서는 `@MockBean`이 제거됐으므로 `@MockitoBean`을 사용한다.
    ```java
-   @MockBean
+   @MockitoBean
    private UserClient userClient;
 
    @Test
