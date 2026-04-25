@@ -167,7 +167,9 @@ sequenceDiagram
     F-->>C: 200 OK
 ```
 
-물론 FastAPI에서도 세션을 쓸 수 있다. `starlette.middleware.sessions.SessionMiddleware`를 추가하면 쿠키 기반 세션을 사용할 수 있다. 하지만 이건 Tomcat의 서버 메모리 세션과는 다르다. 세션 데이터가 **쿠키 자체에 암호화되어 저장** 되기 때문에, 서버는 여전히 Stateless를 유지한다.
+물론 FastAPI에서도 세션을 쓸 수 있다. `starlette.middleware.sessions.SessionMiddleware`를 추가하면 쿠키 기반 세션을 사용할 수 있다. 하지만 이건 Tomcat의 서버 메모리 세션과는 다르다. 세션 데이터가 **쿠키 자체에 저장** 되기 때문에, 서버는 여전히 Stateless를 유지한다.
+
+> **주의**: Starlette `SessionMiddleware`는 `itsdangerous`로 **서명(sign)** 만 하고 **암호화는 하지 않는다**. 쿠키 값은 `base64(json) + 서명` 형태라서, 클라이언트가 base64 디코딩하면 세션 내용을 그대로 읽을 수 있다 (위변조는 서명으로 차단되지만, 노출은 막지 못한다). 비밀번호·결제 정보 같은 민감한 데이터를 절대 세션에 담지 말고, 암호화가 필요하면 서버 측 세션 스토어(Redis 등)를 따로 두거나 `jose`/`fernet` 같은 라이브러리로 직접 암호화해야 한다.
 
 한 가지 주의할 점이 있다. Stateless JWT에는 **즉각적인 로그아웃이 어렵다** 는 트레이드오프가 있다. Tomcat은 `session.invalidate()`를 호출하는 순간 해당 세션이 서버에서 사라지므로 즉시 차단이 가능하다. 하지만 JWT는 클라이언트가 토큰을 갖고 있는 한 서버가 강제로 만료시킬 방법이 없다. 그래서 실무에서는 Access Token의 유효기간을 짧게(15분~1시간) 설정하고 Refresh Token을 조합하거나, Redis에 Blacklist를 두어 특정 토큰을 즉시 무효화하는 패턴을 함께 사용한다.
 

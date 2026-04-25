@@ -310,32 +310,48 @@ public OrderResult createOrder(OrderRequest request) {
 - 하나라도 실패하면 전체 실패
 - 알림 서비스가 느리면 주문 응답도 느려짐
 
+> **숨은 함정: `@Transactional` + 외부 HTTP 호출**
+>
+> 위 코드는 더 깊은 문제를 안고 있다. `@Transactional` 메서드 안에서 `paymentClient.process()` 같은 외부 HTTP 호출을 하면:
+>
+> 1. **DB 커넥션 풀 고갈** — Spring의 `@Transactional`은 메서드 진입 시 DB 커넥션을 잡고 메서드 종료까지 보유한다. 외부 호출이 500ms 걸리면 그 시간만큼 커넥션이 잠긴 채 대기한다. 동시 요청이 풀 크기(보통 10~30)를 넘기면 후속 요청이 모두 커넥션 대기로 멈춘다.
+> 2. **분산 트랜잭션의 비현실성** — 결제 API 호출은 성공했는데 그 직후 DB commit이 실패하면? 외부 결제는 이미 일어났으니 자동 롤백이 안 된다. 반대로 DB commit은 성공했는데 응답 직전 네트워크가 끊기면 클라이언트는 실패로 알지만 결제는 됐다. JTA/XA 같은 2-Phase Commit으로 여러 리소스를 묶는 분산 트랜잭션이 기술적으로 가능하긴 하지만, 마이크로서비스에서는 강한 결합·운영 복잡도·외부 SaaS 미지원 등으로 거의 쓰지 않는다. 실무에서는 분산 트랜잭션 대신 **Saga**/**Outbox** 같은 결과적 일관성 패턴으로 대체하는 게 표준이다.
+>
+> 해결: 외부 호출은 트랜잭션 **밖** 에서 수행하고, 일관성이 필요한 경우 **Saga 패턴**(보상 트랜잭션)이나 **Outbox Pattern**(DB와 메시지 발행을 같은 로컬 트랜잭션으로 묶기)을 도입한다.
+
 ### 비동기 구현 (이벤트 기반)
 
+> **주의**: 마이크로서비스 간 비동기 메시징에는 반드시 **외부 메시지 브로커**(Kafka, RabbitMQ, AWS SNS/SQS 등)가 필요하다. Spring의 `ApplicationEventPublisher`/`@EventListener`는 **단일 JVM 메모리 내 이벤트 버스**라서 별도 프로세스의 서비스로 전달되지 않는다 (게다가 기본 multicaster는 호출 스레드에서 **동기** 실행이라 비동기 처리도 아니다). 아래는 Kafka 기반 예시다.
+
 ```java
-// 1. 주문 생성 (즉시 응답)
-public OrderResult createOrder(OrderRequest request) {
-    Order order = orderRepository.save(new Order(request));
-    eventPublisher.publish(new OrderCreatedEvent(order));
-    return new OrderResult(order.getId(), "PROCESSING");
+// Order Service: 주문 생성 (즉시 응답)
+@RestController
+public class OrderController {
+    @Autowired private KafkaTemplate<String, OrderCreatedEvent> kafkaTemplate;
+
+    @PostMapping("/orders")
+    public OrderResult createOrder(@RequestBody OrderRequest request) {
+        Order order = orderRepository.save(new Order(request));
+        kafkaTemplate.send("order-events", new OrderCreatedEvent(order));
+        return new OrderResult(order.getId(), "PROCESSING");
+    }
 }
 
-// 2. 각 서비스가 이벤트 구독
-@EventListener
+// Inventory Service (별도 프로세스): order-events 구독
+@KafkaListener(topics = "order-events", groupId = "inventory-service")
 public void onOrderCreated(OrderCreatedEvent event) {
-    // 재고 확인 후 이벤트 발행
     inventoryService.reserve(event.getItems());
-    eventPublisher.publish(new InventoryReservedEvent(event.getOrderId()));
+    kafkaTemplate.send("inventory-events", new InventoryReservedEvent(event.getOrderId()));
 }
 
-@EventListener
+// Payment Service (별도 프로세스): inventory-events 구독
+@KafkaListener(topics = "inventory-events", groupId = "payment-service")
 public void onInventoryReserved(InventoryReservedEvent event) {
-    // 결제 처리 후 이벤트 발행
     paymentService.process(event.getOrderId());
-    eventPublisher.publish(new PaymentCompletedEvent(event.getOrderId()));
+    kafkaTemplate.send("payment-events", new PaymentCompletedEvent(event.getOrderId()));
 }
 
-// ... 계속
+// ... Notification Service 등 계속
 ```
 
 **장점:**
