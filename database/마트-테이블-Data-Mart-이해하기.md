@@ -402,7 +402,18 @@ WHERE risk_score < 0 OR risk_score > 100;
 
 - **마트**: 복잡한 집계가 필요하고, 실시간성이 덜 중요할 때
 - **View**: 단순 조인이고, 항상 최신 데이터가 필요할 때
-- **Materialized View**: 마트와 View의 중간 (일부 DBMS 지원)
+- **Materialized View**: 마트와 View의 중간 — 정의된 쿼리 결과를 물리 저장하고 REFRESH 명령으로 갱신
+
+> **Materialized View는 DBMS별로 지원 양상이 다르다.**
+>
+> | DBMS | 지원 여부 | 비고 |
+> |------|-----------|------|
+> | **PostgreSQL** | ✅ `CREATE MATERIALIZED VIEW` + `REFRESH MATERIALIZED VIEW` | `REFRESH ... CONCURRENTLY` 옵션으로 락 최소화 가능 |
+> | **Oracle** | ✅ 가장 풍부 | `FAST REFRESH`, `ON COMMIT`, `ON DEMAND` 등 다양한 갱신 모드 |
+> | **SQL Server** | ✅ `Indexed View`라는 이름 | `WITH SCHEMABINDING` + `UNIQUE CLUSTERED INDEX` 필요 |
+> | **MySQL** | ❌ **8.0 기준에도 미지원** | 일반 테이블로 직접 구현 (= 이 글의 마트 패턴) |
+>
+> 즉 MySQL을 쓰면 자동화된 Materialized View가 없어서, **이 글에서 다루는 "마트 테이블 + ETL/배치 갱신" 패턴이 사실상 표준 대안**이 된다.
 
 ---
 

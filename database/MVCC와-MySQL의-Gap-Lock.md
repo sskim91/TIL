@@ -172,9 +172,11 @@ VACUUM FULL users;
 
 #### Transaction ID Wraparound 문제
 
-PostgreSQL은 32비트 트랜잭션 ID를 사용한다. 약 40억 개의 ID가 있지만, 초당 1000 트랜잭션이면 약 50일 만에 소진된다.
+PostgreSQL은 32비트 트랜잭션 ID를 사용한다. ID 공간 자체는 약 40억 개지만, **past/future를 modular 비교로 판별하기 위해 실질 한계는 2^31 ≈ 약 20억**이다. 모든 테이블은 이 임계치를 넘기 전에 VACUUM으로 오래된 튜플을 freezing해야 한다.
 
-이를 방지하기 위해 VACUUM은 오래된 튜플을 **Freezing** 한다:
+초당 1000 트랜잭션이면 약 **23일** 만에 이 한계에 도달한다 (2^31 / 86,400 ≈ 24.86일). 그래서 운영 관점에서는 40억이 아니라 20억 트랜잭션이 anti-wraparound 관리의 실질 기준이며, 이보다 먼저 자동/수동 VACUUM이 돌아가야 한다.
+
+이를 위해 VACUUM은 오래된 튜플을 **Freezing** 한다:
 
 ```mermaid
 flowchart LR
@@ -403,6 +405,27 @@ TX1:         🔷(6)
 TX2:              🔷(8)
               (둘 다 OK!)
 ```
+
+#### ⚠️ 중요한 예외: Unique Index 동등 조회는 Gap Lock 면제
+
+MySQL 공식 문서가 명시한 핵심 예외다.
+
+> *"Gap locking is not needed for statements that lock rows using a unique index to search for a unique row."*
+> — [MySQL 8.0 Reference: InnoDB Locking](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html#innodb-gap-locks)
+
+**즉, PK나 UNIQUE 인덱스로 단일 행을 `=`로 잠그면 Gap Lock 없이 Record Lock만 걸린다.** REPEATABLE READ에서도 마찬가지다.
+
+| 쿼리 | 인덱스 종류 | 매칭 결과 | Lock 종류 |
+|------|-------------|-----------|-----------|
+| `WHERE id = 10 FOR UPDATE` | PK / UNIQUE | 1건 매치 | **Record Lock만** (Gap Lock 면제) |
+| `WHERE id = 999 FOR UPDATE` | PK / UNIQUE | 0건 매치 | **Gap Lock** (다음 값 사이 간격) — Phantom 방지 |
+| `WHERE id BETWEEN 10 AND 20 FOR UPDATE` | PK | 범위 | **Next-Key Lock** |
+| `WHERE status = 'A' FOR UPDATE` | 비-Unique 인덱스 | N건 | **Next-Key Lock** |
+| `WHERE col = ? FOR UPDATE` | 인덱스 없음 | 풀스캔 | **모든 행에 Next-Key Lock** |
+
+**왜 면제되는가?** Unique 인덱스의 동등 조회는 결과 행이 항상 0개 또는 1개로 확정된다. 다른 트랜잭션이 같은 키로 INSERT를 시도하면 어차피 unique constraint에서 막히므로, Phantom이 발생할 수 있는 "범위"가 없어 Gap Lock이 불필요하다.
+
+**실무적 의미:** 일반적인 OLTP 패턴 `SELECT ... WHERE id = ? FOR UPDATE` (PK 단일 행 잠금)는 Gap Lock 데드락 위험에서 자유롭다. 4장에서 다루는 Gap Lock Deadlock 시나리오는 **id가 존재하지 않는 값**이거나 **범위 조건**이거나 **비-Unique 인덱스**일 때 주로 발생한다.
 
 ---
 

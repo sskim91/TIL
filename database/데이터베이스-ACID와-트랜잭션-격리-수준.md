@@ -253,7 +253,17 @@ SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 |:----------:|:-------------------:|:------------:|
 | ✅ 방지 | ✅ 방지 | ⚠️ 발생 (표준) |
 
-**중요:** MySQL과 PostgreSQL은 REPEATABLE READ에서 **Phantom Read도 방지** 한다. SQL 표준보다 더 엄격하게 구현한 것이다.
+**중요:** MySQL과 PostgreSQL은 REPEATABLE READ에서 **Phantom Read도 방지** 한다. 단, **두 DB의 방지 메커니즘은 서로 다르고, MySQL은 같은 격리 수준 안에서도 SELECT 종류에 따라 동작이 갈린다.**
+
+| DB | 일반 SELECT (Consistent Read) | Locking SELECT (`FOR UPDATE` / `LOCK IN SHARE MODE`) |
+|----|-------------------------------|------------------------------------------------------|
+| **MySQL InnoDB** | MVCC 스냅샷으로 phantom 방지 (다른 트랜잭션의 INSERT는 막지 않음, 안 보일 뿐) | **Next-Key Lock**(Record Lock + Gap Lock)으로 INSERT 자체를 차단 |
+| **PostgreSQL** | Snapshot Isolation으로 phantom 방지 (단일 메커니즘, locking read도 같은 스냅샷 사용) | 동일하게 SI 기반이지만, write-write 충돌 시 `could not serialize access` 에러로 **한쪽 트랜잭션이 강제 롤백** → 애플리케이션이 재시도 로직 필요 |
+
+이 차이는 실무에서 다음과 같이 드러난다.
+
+- MySQL에서 `SELECT ... FOR UPDATE` 범위 잠금이 의도치 않게 다른 세션의 INSERT까지 블로킹하는 현상은 Gap Lock 때문이다.
+- PostgreSQL에서 같은 트랜잭션을 동시에 두 번 실행하면 한쪽이 `40001` SQLSTATE로 떨어지는데, 이건 버그가 아니라 SI의 정상 동작이다.
 
 ### 3.4 SERIALIZABLE: 완벽한 격리
 
