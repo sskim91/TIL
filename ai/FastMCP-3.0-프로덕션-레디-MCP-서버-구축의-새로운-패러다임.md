@@ -89,23 +89,34 @@ flowchart TB
 
 ```python
 from fastmcp import FastMCP
-from fastmcp.providers import FileSystemProvider
+from fastmcp.server.providers import FileSystemProvider  # ⚠️ FastMCP 3 공식 경로: fastmcp.server.providers
 
 mcp = FastMCP("My Server")
 mcp.add_provider(FileSystemProvider("./tools"))  # tools 디렉토리 스캔
 ```
+
+> **import 경로 일러두기** — 본 문서의 일부 짧은 예시는 가독성을 위해 `fastmcp.providers`/`fastmcp.auth`/`fastmcp.middleware` 같은 약식 경로로 표기되어 있을 수 있다. **FastMCP 3 공식 경로는 `fastmcp.server.providers`, `fastmcp.server.providers.openapi`, `fastmcp.server.auth`, `fastmcp.server.middleware`** 이므로, 실제 코드를 작성할 때는 이 정식 경로를 사용해야 한다 ([공식 문서](https://gofastmcp.com/servers/providers/filesystem) 참고).
 
 ### 2.3 OpenAPIProvider - API를 MCP 도구로 변환
 
 기존 REST API가 있다면? OpenAPI 스펙만 있으면 MCP 도구로 변환할 수 있다:
 
 ```python
-from fastmcp.providers import OpenAPIProvider
+import httpx
+from fastmcp.server.providers.openapi import OpenAPIProvider  # ✅ FastMCP 3 공식 경로
 
-# OpenAPI 스펙에서 도구 자동 생성
-provider = OpenAPIProvider("https://api.example.com/openapi.json")
+# 1) OpenAPI 스펙을 먼저 로드 (URL이든 dict든)
+spec = httpx.get("https://api.example.com/openapi.json").json()
+
+# 2) 실제 API를 호출할 httpx.AsyncClient를 따로 준비
+client = httpx.AsyncClient(base_url="https://api.example.com")
+
+# 3) provider에 spec과 client를 함께 넘긴다
+provider = OpenAPIProvider(openapi_spec=spec, client=client)
 mcp.add_provider(provider)
 ```
+
+> URL 문자열만 넘기는 short form은 공식 API에 없다. *스펙 로딩*과 *런타임 호출 client*는 분리해서 명시적으로 주입하는 것이 FastMCP 3의 표준 패턴이다 ([공식 OpenAPI 통합 가이드](https://gofastmcp.com/integrations/openapi) 참고).
 
 ---
 
@@ -173,11 +184,16 @@ provider.add_transform(ToolTransform({
 
 ```python
 from fastmcp import FastMCP
-from fastmcp.auth import require_auth, require_scopes
+from fastmcp.server.auth import require_scopes, restrict_tag
+from fastmcp.server.auth import AuthContext  # ✅ FastMCP 3 공식 import 경로
 
 mcp = FastMCP("Secure Server")
 
-@mcp.tool(auth=require_auth)  # 유효한 토큰 필요
+# 단순 인증 여부 검사는 빌트인 헬퍼가 아니라 커스텀 auth check로 표현한다 — `require_auth`라는 이름의 함수는 공식 API에 없다.
+def authenticated_only(ctx: AuthContext) -> bool:
+    return ctx.token is not None
+
+@mcp.tool(auth=authenticated_only)  # 유효한 토큰만 허용
 def public_tool():
     pass
 
@@ -190,16 +206,18 @@ def admin_tool():
 
 | 체크 | 설명 |
 |------|------|
-| `require_auth` | 유효한 토큰이 있으면 통과 |
-| `require_scopes("scope1", "scope2")` | 특정 OAuth 스코프 필요 |
-| `restrict_tag("admin", scopes=["admin:*"])` | 태그별 스코프 요구사항 |
+| `require_scopes("scope1", "scope2")` | 특정 OAuth 스코프 필요 (FastMCP 3 공식 빌트인) |
+| `restrict_tag("admin", scopes=["admin:*"])` | 태그별 스코프 요구사항 (FastMCP 3 공식 빌트인) |
+| 커스텀 함수 (예: `lambda ctx: ctx.token is not None`) | "유효 토큰만 통과" 같은 단순 인증 검사는 직접 정의 — `require_auth`는 공식 API에 없으므로 사용 X |
 
 ### 4.3 서버 전체 인증
 
 ```python
-from fastmcp.middleware import AuthMiddleware
+from fastmcp.server.middleware import AuthMiddleware
+from fastmcp.server.auth import require_scopes
 
-mcp.add_middleware(AuthMiddleware(required_scopes=["api:access"]))
+# AuthMiddleware는 required_scopes 인자가 아니라 auth= 인자로 check를 받는다.
+mcp.add_middleware(AuthMiddleware(auth=require_scopes("api:access")))
 ```
 
 > **주의**: STDIO 트랜스포트는 OAuth 개념이 없어 모든 인증 체크를 우회한다. 이는 로컬 개발 환경(Claude Desktop, Cursor 등)에서는 편리하지만, **프로덕션 환경에서는 반드시 HTTP/SSE 트랜스포트와 함께 AuthMiddleware를 사용해야 한다.**
@@ -249,12 +267,15 @@ async def stateful_tool(ctx: Context):
 
 ### 분산 배포 지원
 
-pykeyvalue 라이브러리로 Redis 등 외부 스토리지 사용 가능:
+pykeyvalue 라이브러리로 Redis 등 외부 스토리지 사용 가능 (공식 경로·인자명 기준):
 
 ```python
-from pykeyvalue import RedisStore
+from key_value.aio.stores.redis import RedisStore
 
-mcp = FastMCP("Distributed Server", state_store=RedisStore())
+mcp = FastMCP(
+    "Distributed Server",
+    session_state_store=RedisStore(...),  # ⚠️ FastMCP 3 공식 인자명은 session_state_store
+)
 ```
 
 ---
@@ -284,15 +305,38 @@ FastMCP는 영향받는 세션에 자동으로 변경 알림을 전송한다.
 
 ### 8.1 OpenTelemetry 트레이싱
 
-네이티브 계측(instrumentation)으로 도구 호출, 리소스 읽기, 프롬프트 렌더링을 추적:
+FastMCP 3은 도구 호출·리소스 읽기·프롬프트 렌더링에 대한 OpenTelemetry 계측을 **기본 활성화**된 상태로 제공한다. 즉 `enable_tracing=True` 같은 코드 옵션을 켜는 게 아니라, **OpenTelemetry SDK/환경 변수/CLI 계측**을 설정하기만 하면 FastMCP가 자동으로 span을 내보낸다.
+
+```bash
+# 가장 간단한 경로 — opentelemetry-instrument로 자동 계측
+pip install opentelemetry-distro opentelemetry-exporter-otlp
+opentelemetry-bootstrap --action=install
+opentelemetry-instrument \
+    --traces_exporter otlp \
+    --service_name my-fastmcp-server \
+    fastmcp run server.py
+```
 
 ```python
-mcp = FastMCP("Traced Server", enable_tracing=True)
+# 또는 코드에서 SDK 직접 설정
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry import trace
+
+provider = TracerProvider()
+provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
+trace.set_tracer_provider(provider)
+
+# 별도 옵션 없이 평소처럼 사용 — FastMCP가 자동으로 span을 채워준다
+mcp = FastMCP("Traced Server")
 ```
+
+자세한 내용은 [공식 Telemetry 문서](https://gofastmcp.com/servers/telemetry) 참고.
 
 ### 8.2 백그라운드 태스크 (SEP-1686)
 
-MCP에는 장기 실행 백그라운드 태스크를 위한 스펙 확장(SEP-1686: Standard Extension Proposal)이 있다. FastMCP는 Docket 통합으로 이를 구현한다—SQLite 또는 Postgres가 지원하는 영속 태스크 큐와 수평 워커 스케일링을 제공한다:
+MCP에는 장기 실행 백그라운드 태스크를 위한 스펙 확장(SEP-1686: Standard Extension Proposal)이 있다. FastMCP는 Docket 통합으로 이를 구현한다 — 기본은 in-memory(`memory://`) 백엔드이며, **프로덕션 영속성과 수평 워커 확장은 Redis 또는 Valkey 백엔드(`redis://host:port/db`)로 구성**한다:
 
 ```python
 from fastmcp.server.tasks import TaskConfig
@@ -378,24 +422,33 @@ def sync_tool():  # async가 아니어도 OK
 
 ### 9.4 Lifespan 조합
 
-`|` 연산자로 모듈화된 setup/teardown:
+`|` 연산자로 모듈화된 setup/teardown — 단, **`|` 합성은 FastMCP의 `@lifespan` 데코레이터(`fastmcp.server.lifespan.lifespan`)로 만든 composable lifespan에만 적용**된다는 점에 주의해야 한다. 기존 `@asynccontextmanager` 함수를 그대로 합치려면 `ContextManagerLifespan(...)`으로 감싸야 한다.
 
 ```python
-@asynccontextmanager
-async def db_lifespan():
+from fastmcp import FastMCP
+from fastmcp.server.lifespan import lifespan  # ✅ FastMCP의 composable lifespan 데코레이터
+
+@lifespan
+async def db_lifespan(server):
     db = await connect_db()
-    yield {"db": db}
-    await db.close()
+    try:
+        yield {"db": db}
+    finally:
+        await db.close()
 
-@asynccontextmanager
-async def cache_lifespan():
+@lifespan
+async def cache_lifespan(server):
     cache = await connect_cache()
-    yield {"cache": cache}
-    await cache.close()
+    try:
+        yield {"cache": cache}
+    finally:
+        await cache.close()
 
-# 순차 진입, 역순 종료
+# 순차 진입, 역순 종료 (LIFO)
 mcp = FastMCP("Combined", lifespan=db_lifespan | cache_lifespan)
 ```
+
+> 만약 이미 `@asynccontextmanager`로 작성된 lifespan이 있다면, `from fastmcp.server.lifespan import ContextManagerLifespan` 후 `ContextManagerLifespan(my_async_cm) | other_lifespan` 형태로 감싸야 `|` 합성이 가능하다.
 
 ### 9.5 트랜스포트 감지
 
@@ -804,11 +857,16 @@ FastMCP 3은 tools, resources, prompts에 대한 컴포넌트별 인가를 제�
 
 ```python
 from fastmcp import FastMCP
-from fastmcp.server.auth import require_auth, require_scopes
+from fastmcp.server.auth import require_scopes
+from fastmcp.server.auth import AuthContext  # ✅ FastMCP 3 공식 import 경로
 
 mcp = FastMCP()
 
-@mcp.tool(auth=require_auth)
+# 빌트인 헬퍼에 require_auth는 없으므로, "토큰만 있으면 통과"는 커스텀 check로 정의한다.
+def authenticated_only(ctx: AuthContext) -> bool:
+    return ctx.token is not None
+
+@mcp.tool(auth=authenticated_only)
 def protected_tool(): ...
 
 @mcp.resource("data://secret", auth=require_scopes("read"))
@@ -818,10 +876,10 @@ def secret_data(): ...
 def admin_prompt(): ...
 ```
 
-빌트인 체크:
-- `require_auth`: 유효한 토큰 필요
+빌트인 체크 (FastMCP 3 공식):
 - `require_scopes(*scopes)`: 특정 OAuth 스코프 필요
 - `restrict_tag(tag, scopes)`: 태그된 컴포넌트에 스코프 요구
+- "유효 토큰만 통과"는 위 예시의 `authenticated_only`처럼 커스텀 함수로 직접 정의 (이전 원문에 등장하던 `require_auth`는 공식 API에 없음)
 
 ##### 서버 전체 Auth
 
@@ -829,10 +887,14 @@ AuthMiddleware로 모든 컴포넌트에 인가 적용:
 
 ```python
 from fastmcp.server.middleware import AuthMiddleware
-from fastmcp.server.auth import require_auth, restrict_tag
+from fastmcp.server.auth import require_scopes, restrict_tag
+from fastmcp.server.auth import AuthContext  # ✅ FastMCP 3 공식 import 경로
 
-# 모든 컴포넌트에 auth 요구
-mcp = FastMCP(middleware=[AuthMiddleware(auth=require_auth)])
+def authenticated_only(ctx: AuthContext) -> bool:
+    return ctx.token is not None
+
+# 모든 컴포넌트에 "유효 토큰" 요구
+mcp = FastMCP(middleware=[AuthMiddleware(auth=authenticated_only)])
 
 # 태그 기반 제한
 mcp = FastMCP(middleware=[
@@ -1036,7 +1098,7 @@ trace.set_tracer_provider(provider)
 
 ##### 백그라운드 태스크 (SEP-1686)
 
-Docket 통합을 통한 장기 실행 태스크용 MCP 스펙 확장—SQLite 또는 Postgres가 지원하는 영속 태스크 큐와 수평 워커 스케일링:
+Docket 통합을 통한 장기 실행 태스크용 MCP 스펙 확장 — 기본 백엔드는 `memory://`이며, **프로덕션 영속성과 수평 워커 확장은 Redis 또는 Valkey 백엔드(`redis://host:port/db`)** 에서 동작한다:
 
 ```python
 from fastmcp.server.tasks import TaskConfig
@@ -1243,7 +1305,7 @@ def my_tool(ctx: Context) -> str:
     return "detailed response with more context"
 ```
 
-`"stdio"`, `"sse"`, 또는 `"streamable-http"`를 반환한다.
+`"stdio"`, `"sse"` (legacy), 또는 `"streamable-http"`(2025-03-26 스펙 표준)를 반환한다. FastMCP는 호환을 위해 SSE transport도 여전히 식별 가능하지만, 신규 서버는 **Streamable HTTP**를 채택하는 것이 권장된다.
 
 ---
 

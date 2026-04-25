@@ -43,10 +43,11 @@ Price: $999
 LLM은 처리할 수 있는 토큰 수가 제한되어 있습니다:
 
 ```python
-# GPT-4의 경우
-MAX_TOKENS = 128_000  # 입력 + 출력 합계
+# GPT-4 Turbo의 경우 (`gpt-4` 자체는 컨텍스트 윈도우 8,192이고,
+# 128,000은 `gpt-4-turbo` 계열의 한도이다 — 모델별로 정확히 구분할 것)
+MAX_TOKENS = 128_000  # 입력 + 출력 합계 (GPT-4 Turbo)
 
-# 비용 예시 (GPT-4 Turbo 기준)
+# 비용 예시 (GPT-4 Turbo 출시 시점 가격 기준 — 최신 가격은 platform.openai.com/pricing 참고)
 INPUT_COST_PER_1K = 0.01  # $0.01 per 1K tokens
 OUTPUT_COST_PER_1K = 0.03  # $0.03 per 1K tokens
 
@@ -112,22 +113,29 @@ processed_docs = summarize_and_extract_key_points(raw_docs)  # 50,000 tokens
 
 ```python
 import re
-from typing import str
+# 참고: `str`은 Python 내장 타입이므로 `from typing import str`처럼 import하면
+# ImportError가 난다. `str`은 그냥 사용하고, typing에서는 Optional/List/Dict 등
+# 제네릭 타입만 가져온다 (Python 3.9+ 에서는 내장 list/dict로도 충분).
 
 def clean_text(text: str) -> str:
     """
     텍스트에서 불필요한 요소 제거
     """
-    # HTML 태그 제거
+    # 1. <script>·<style> 블록은 본문까지 통째로 제거
+    #    (단순 r'<[^>]+>'는 태그만 지우고 자바스크립트/CSS 본문은 텍스트로 남기므로 위험)
+    text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+
+    # 2. 나머지 HTML 태그 제거
     text = re.sub(r'<[^>]+>', '', text)
 
-    # 여러 공백을 하나로
+    # 3. 여러 공백을 하나로
     text = re.sub(r'\s+', ' ', text)
 
-    # 특수 문자 제거 (선택적)
+    # 4. 특수 문자 제거 (선택적 — 정규화·구조화 단계에서 슬래시·콜론·대괄호가 필요하면 이 줄은 생략하거나 화이트리스트를 넓힐 것)
     text = re.sub(r'[^\w\s가-힣.,!?-]', '', text)
 
-    # 앞뒤 공백 제거
+    # 5. 앞뒤 공백 제거
     text = text.strip()
 
     return text
@@ -143,6 +151,8 @@ raw_html = """
 
 cleaned = clean_text(raw_html)
 # 결과: "제목입니다 이것은 여러 공백이 있는 텍스트입니다."
+# 주의: <script>/<style> 블록을 먼저 제거하지 않으면 alertXSS 같은 본문이 텍스트로 남는다.
+#      복잡한 HTML은 BeautifulSoup의 decompose() + get_text()를 쓰는 편이 더 안전하다.
 ```
 
 ### 2.2 청킹 (Chunking)
@@ -208,19 +218,28 @@ def normalize_data(text: str) -> str:
     데이터를 일관된 형식으로 정규화
     """
     # 날짜 형식 통일
-    # "2024/01/01", "2024.01.01", "01-01-2024" -> "2024-01-01"
+    # "2024/01/01", "2024.01.01" -> "2024-01-01"
+    # "15-03-2024" (DD-MM-YYYY) -> "2024-03-15"
     date_patterns = [
         (r'(\d{4})[/.](\d{2})[/.](\d{2})', r'\1-\2-\3'),
-        (r'(\d{2})-(\d{2})-(\d{4})', r'\3-\1-\2'),
+        # 두 번째 패턴은 DD-MM-YYYY를 가정 → \3(연도)-\2(월)-\1(일)
+        (r'(\d{2})-(\d{2})-(\d{4})', r'\3-\2-\1'),
     ]
 
     for pattern, replacement in date_patterns:
         text = re.sub(pattern, replacement, text)
 
-    # 화폐 형식 통일
-    # "$1,000", "1000 USD", "₩1,000" -> "1000 USD"
-    text = re.sub(r'\$(\d{1,3}(?:,\d{3})*)', r'\1 USD', text)
-    text = re.sub(r'₩(\d{1,3}(?:,\d{3})*)', r'\1 KRW', text)
+    # 화폐 형식 통일 — 캡처한 금액에서 콤마까지 제거해야 "$50,000" → "50000 USD"
+    text = re.sub(
+        r'\$(\d{1,3}(?:,\d{3})*)',
+        lambda m: f"{m.group(1).replace(',', '')} USD",
+        text,
+    )
+    text = re.sub(
+        r'₩(\d{1,3}(?:,\d{3})*)',
+        lambda m: f"{m.group(1).replace(',', '')} KRW",
+        text,
+    )
 
     # 대소문자 통일 (선택적)
     # text = text.lower()
@@ -350,7 +369,7 @@ print(json.dumps(structured, indent=2, ensure_ascii=False))
 ### 3.1 RAG (Retrieval-Augmented Generation)
 
 ```python
-from typing import List, Dict
+from typing import List, Dict, Any
 from sentence_transformers import SentenceTransformer
 import chromadb
 
@@ -907,7 +926,7 @@ from typing import List, Dict, Any
 from dataclasses import dataclass
 import chromadb
 from sentence_transformers import SentenceTransformer
-import openai
+from openai import OpenAI  # OpenAI Python SDK 1.x (구버전 `import openai`+`openai.ChatCompletion`은 더 이상 지원되지 않음)
 
 @dataclass
 class Document:
@@ -924,7 +943,7 @@ class DocumentQASystem:
         self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
         self.chroma_client = chromadb.Client()
         self.collection = self.chroma_client.create_collection("qa_docs")
-        openai.api_key = openai_api_key
+        self.client = OpenAI(api_key=openai_api_key)
 
     def ingest_documents(self, documents: List[Document]):
         """
@@ -982,14 +1001,14 @@ class DocumentQASystem:
 답변:
 """
 
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
+        response = self.client.chat.completions.create(
+            model="gpt-4o-mini",  # 최신 권장 모델 — 시점에 맞게 교체
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=500,
-            temperature=0.7
+            max_completion_tokens=500,  # max_tokens는 deprecated → max_completion_tokens
+            temperature=0.7,
         )
 
         return response.choices[0].message.content

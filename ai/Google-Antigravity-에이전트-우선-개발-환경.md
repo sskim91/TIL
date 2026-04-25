@@ -377,7 +377,7 @@ Google Antigravity:
 
 ---
 
-**발표일**: 2025년
+**발표일**: 2025년 11월 18일 (Gemini 3와 동시 공개)
 **현재 상태**: Public Preview (무료)
 **지원 플랫폼**: MacOS, Windows, Linux
 

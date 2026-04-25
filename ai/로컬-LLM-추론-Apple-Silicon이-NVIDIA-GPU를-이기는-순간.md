@@ -43,10 +43,10 @@ flowchart LR
 | Gemma 4 26B MoE | ~16GB | OK |
 | Gemma 4 31B Dense | ~20GB | OK |
 | Qwen 3.5 122B MoE | ~64GB | **불가** |
-| Llama 4 Maverick 109B | ~60GB | **불가** |
+| Llama 4 Scout 109B (17B active MoE) | ~60GB | **불가** |
 | Qwen 3.5 397B MoE | ~214GB | **불가** |
 
-모델이 VRAM에 안 들어가면 어떻게 될까? 나머지를 시스템 RAM으로 offload해야 한다. 그런데 시스템 RAM과 GPU 사이에는 PCIe 버스가 있고, 이 버스의 대역폭은 고작 **~32 GB/s** (PCIe 5.0 x16 기준)에 불과하다. GPU VRAM의 1,792 GB/s와 비교하면 **56배 느린 병목** 이 생기는 것이다.
+모델이 VRAM에 안 들어가면 어떻게 될까? 나머지를 시스템 RAM으로 offload해야 한다. 그런데 시스템 RAM과 GPU 사이에는 PCIe 버스가 있고, RTX 5090이 사용하는 **PCIe 5.0 x16의 단방향 대역폭은 약 64 GB/s** (32 GT/s × 16 lane, 128b/130b 인코딩 적용)에 불과하다. GPU VRAM의 1,792 GB/s와 비교하면 **약 28배 느린 병목** 이 생기는 것이다 — 한 세대 전인 PCIe 4.0 x16(~32 GB/s)이라면 격차는 56배까지 벌어진다.
 
 ## 2. 통합 메모리가 이 문제를 어떻게 해결하는가
 
@@ -116,7 +116,8 @@ flowchart TD
     B -->|"30B 이하<br>(VRAM에 들어감)"| C["NVIDIA 유리<br>3배 빠른 토큰 생성"]
     B -->|"70B 이상<br>(VRAM 초과)"| D["Apple Silicon 유리<br>128GB 통합 메모리"]
     A --> E{"학습/파인튜닝?"}
-    E -->|"Yes"| F["NVIDIA 필수<br>CUDA 생태계"]
+    E -->|"대규모 사전학습<br>/ CUDA 전용 도구"| F["NVIDIA 유리"]
+    E -->|"LoRA · QLoRA<br>경량 파인튜닝"| F2["둘 다 가능<br>(Apple은 MLX-LM)"]
     E -->|"추론만"| G["둘 다 가능"]
     A --> H{"노트북 필요?"}
     H -->|"Yes"| I["MacBook Pro<br>배터리 추론 가능"]
@@ -150,7 +151,7 @@ flowchart TD
 |----|-------------|-----------|
 | M5 Pro | 307 GB/s | 64 GB |
 | M5 Max | 614 GB/s | 128 GB |
-| M4 Ultra | 819 GB/s | 512 GB |
+| M3 Ultra | 819 GB/s | 512 GB |
 | RTX 5090 (데스크톱) | ~1,792 GB/s | 32 GB (VRAM) |
 | RTX 5090 (노트북) | ~1,100 GB/s | 24 GB (VRAM) |
 
@@ -169,7 +170,8 @@ flowchart TD
 3. **정답은 "모델 크기"에 달려 있다**
    - 30B 이하 → NVIDIA (빠른 토큰 생성)
    - 70B 이상 → Apple Silicon (offload 없이 구동 가능)
-   - 학습/파인튜닝 → NVIDIA (CUDA 생태계 필수)
+   - 대규모 사전학습·CUDA 전용 도구 → NVIDIA 유리
+   - LoRA·QLoRA 경량 파인튜닝 → 둘 다 가능 (Apple은 MLX-LM 활용)
 
 ---
 

@@ -172,8 +172,8 @@ sequenceDiagram
     Note over R: [0.1, 0.6, 0.05, 0.02, 0.4, 0.01, 0.01, 0.01]<br>Top-2 선택 → Expert 2, Expert 5
     R->>E2: 토큰 벡터 전달
     R->>E5: 토큰 벡터 전달
-    Note over E2: 4096→16384→4096<br>(FFN 연산)
-    Note over E5: 4096→16384→4096<br>(FFN 연산)
+    Note over E2: 4096→14336→4096<br>(Mixtral 공식 config의<br>intermediate_size 기준)
+    Note over E5: 4096→14336→4096<br>(Mixtral 공식 config의<br>intermediate_size 기준)
     E2->>Out: 0.6 × E2(x)
     E5->>Out: 0.4 × E5(x)
     Note over Out: 0.6×E2(x) + 0.4×E5(x)<br>+Residual Connection
@@ -274,7 +274,7 @@ $$
 
 결과적으로, Mixtral 8x7B를 서빙하려면 **47B 파라미터 전체를 GPU 메모리에 올려야 한다.** FP16 기준으로 약 94GB의 VRAM이 필요하다. 추론 시 연산량은 12B Dense 모델 수준이지만, 메모리는 47B Dense 모델 수준이 필요한 셈이다.
 
-여기에 **KV 캐시(KV Cache)** 문제까지 더해진다. 추론 시 이전 토큰들의 Key/Value 벡터를 캐시에 저장해야 하는데, 거대한 Expert 가중치가 VRAM의 대부분을 차지하기 때문에 긴 컨텍스트 처리를 위한 KV 캐시 여유 공간이 Dense 모델 대비 부족해진다. DeepSeek-V3가 **Multi-head Latent Attention(MLA)** 을 도입한 이유도 KV 캐시 크기를 압축하여 MoE의 메모리 병목을 완화하기 위해서다.
+여기에 **KV 캐시(KV Cache)** 문제까지 더해진다. 추론 시 이전 토큰들의 Key/Value 벡터를 캐시에 저장해야 하는데, 거대한 Expert 가중치가 VRAM의 대부분을 차지하기 때문에 긴 컨텍스트 처리를 위한 KV 캐시 여유 공간이 Dense 모델 대비 부족해진다. **Multi-head Latent Attention(MLA)** 은 이 문제에 잘 어울리는 해법인데, 정확히는 DeepSeek가 **V2 논문(2024년 5월)에서 처음 도입**하고 V3가 그대로 계승한 기법이다. MLA의 1차 목적은 KV 캐시를 저차원 latent로 압축해 long-context 추론의 메모리 부담을 일반적으로 줄이는 것이고, MoE 환경에서는 Expert 가중치에 VRAM이 많이 잡히기 때문에 그 효과가 특히 크게 체감되는 것이다 (즉 MoE 전용 기법은 아니다).
 
 ```mermaid
 flowchart LR

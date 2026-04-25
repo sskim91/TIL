@@ -670,7 +670,7 @@ LangGraph의 **Time Travel** 은 Checkpoint 기반으로 과거 상태를 탐색
 |--------|------|------|
 | `get_state_history(config)` | 모든 Checkpoint 순회 | `Iterator[StateSnapshot]` |
 | `get_state(config)` | 특정 Checkpoint 상태 | `StateSnapshot` |
-| `update_state(config, values)` | 상태 수정 (새 Checkpoint 생성) | `dict` |
+| `update_state(config, values)` | 상태 수정 (새 Checkpoint 생성) | **새 Checkpoint를 가리키는 `RunnableConfig`** (이 반환값을 다음 `invoke()`/`get_state()`에 그대로 넘겨야 분기된 상태를 따라간다) |
 | `invoke(None, config)` | Checkpoint에서 재실행 | `State` |
 
 **활용 시나리오:**

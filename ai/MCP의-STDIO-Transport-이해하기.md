@@ -200,10 +200,13 @@ flowchart TB
 
 MCP 프로토콜은 **통신 내용**(JSON-RPC 메시지)과 **통신 방법**(Transport)을 분리했다. Transport는 두 가지가 있다:
 
-| Transport | 통신 경로 | 연결 방식 | 사용 사례 |
-|-----------|----------|----------|----------|
-| **STDIO** | 프로세스 파이프 | 부모가 자식을 spawn | 로컬 도구, CLI |
-| **SSE** | HTTP 네트워크 | 클라이언트가 서버에 연결 | 원격 서버, 웹 |
+| Transport | 통신 경로 | 연결 방식 | 사용 사례 | 상태 |
+|-----------|----------|----------|----------|------|
+| **STDIO** | 프로세스 파이프 | 부모가 자식을 spawn | 로컬 도구, CLI | 표준 |
+| **Streamable HTTP** | 단일 HTTP 엔드포인트(POST + 선택적 SSE 스트리밍) | 클라이언트가 서버에 연결 | 원격 서버, 웹, 팀 공유 | **2026년 표준** (2025-03-26 스펙) |
+| **SSE** (legacy) | 별도 SSE 엔드포인트 | 클라이언트가 서버에 연결 | (이전 원격 서버) | **Deprecated** — 2025-03-26 스펙부터 Streamable HTTP로 대체 |
+
+> **중요 — SSE는 deprecated**: 본 문서에서 이후 4장 등에서 비교 대상으로 다루는 *SSE Transport*는 MCP 스펙 2025-03-26 버전부터 **Streamable HTTP에 의해 대체된 legacy 옵션**이다. 신규 MCP 서버를 만든다면 SSE 대신 Streamable HTTP를 사용해야 한다 — 단일 엔드포인트로 양방향 통신·세션 재연결·중간 미들웨어 호환성이 모두 단순해진다. 다만 본 문서의 `STDIO vs SSE` 비교는 "로컬 파이프 vs 네트워크 transport"라는 **개념적 대비**를 보여주는 데는 여전히 유효하므로 학습용으로 그대로 읽되, 실제 코드를 작성할 때는 SSE를 Streamable HTTP로 교체해 사용하라.
 
 ### 3.2 왜 STDIO가 기본인가?
 
@@ -361,20 +364,20 @@ flowchart TB
     Q1{"대민 서비스 or<br>팀 공유?"}
 
     STDIO["✅ STDIO<br>(보안 자동, 설정 불필요)"]
-    SSE["✅ SSE<br>(보안 직접 구현 필요)"]
+    SHTTP["✅ Streamable HTTP<br>(2026 표준, 보안 직접 구현 필요)"]
 
     Q1 -->|"No, 혼자 씀"| STDIO
-    Q1 -->|"Yes"| SSE
+    Q1 -->|"Yes"| SHTTP
 
     style STDIO fill:#2E7D32,color:#fff
-    style SSE fill:#1565C0,color:#fff
+    style SHTTP fill:#1565C0,color:#fff
 ```
 
 | 상황 | 추천 Transport | 보안 |
 |------|---------------|------|
 | 혼자 로컬에서 개발 | **STDIO** | 자동 (신경 쓸 것 없음) |
-| 팀 내부 공유 서버 | **SSE** | 인증 필요 |
-| 대민 오픈 서비스 | **SSE** | 인증 + HTTPS + 방화벽 등 |
+| 팀 내부 공유 서버 | **Streamable HTTP** (legacy SSE 아님) | 인증 필요 |
+| 대민 오픈 서비스 | **Streamable HTTP** (legacy SSE 아님) | 인증 + HTTPS + 방화벽 등 |
 | 빠른 프로토타이핑 | **STDIO** | 자동 |
 
 ### 4.2 상세 비교
@@ -460,7 +463,7 @@ flowchart LR
 | STDIO가 프로토콜인가? | **아니다.** 통신 채널(Transport)이다 |
 | 새로운 기술인가? | **아니다.** 1970년대 Unix부터 존재 |
 | MCP에서 왜 사용하나? | 설정 없이 안전하게 로컬 통신 |
-| 언제 다른 걸 쓰나? | 원격 접근이나 다중 클라이언트 필요 시 SSE |
+| 언제 다른 걸 쓰나? | 원격 접근이나 다중 클라이언트 필요 시 **Streamable HTTP** (구 SSE는 2025-03-26 스펙부터 deprecated) |
 
 ### MCP 통신의 전체 그림
 

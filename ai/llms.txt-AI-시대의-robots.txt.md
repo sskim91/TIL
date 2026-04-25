@@ -254,6 +254,16 @@ timeline
 | Anthropic Docs | `https://docs.anthropic.com/llms.txt` |
 | Cloudflare | `https://developers.cloudflare.com/llms.txt` |
 
+### 5.3 효과와 한계 — 솔직하게 보기
+
+llms.txt는 사실상의 표준(de facto standard) 단계에 가깝지, IETF 같은 공식 표준 단계에 진입한 것은 아니다. 2026년 4월 기준으로 알아둘 점:
+
+- **주요 LLM의 자동 활용 여부는 불투명하다.** OpenAI, Anthropic, Google 등이 ChatGPT·Claude·Gemini가 사이트 방문 시 `/llms.txt`를 *자동으로* 우선 참조한다고 공식 발표한 적은 없다. 채택 사이트는 늘고 있지만, 그것이 곧 LLM 응답 품질 향상으로 이어진다는 정량 근거는 아직 빈약하다.
+- **호환되는 활용 패턴은 따로 있다.** 사용자가 직접 `https://example.com/llms.txt`를 LLM에 제시하거나, RAG 파이프라인이 명시적으로 이 파일을 우선 인덱싱하도록 설정하는 경우에는 명확한 효과가 있다. 즉 *수동·시스템 통합* 단계에서는 유효하다.
+- **악용 가능성도 있다.** 사이트 운영자가 llms.txt에 "보여주고 싶은 페이지"만 골라 넣을 수 있어, SEO처럼 LLM 응답을 편향되게 만들 수 있다는 비판이 존재한다.
+
+따라서 llms.txt는 "두기만 하면 LLM이 알아서 본다"가 아니라, "LLM 도구·에이전트가 사이트 정보를 가져갈 때 *효율적인 진입점*을 제공한다"로 이해하는 것이 더 정확하다.
+
 ## 6. 내 사이트에 적용하기
 
 ### 6.1 기본 템플릿

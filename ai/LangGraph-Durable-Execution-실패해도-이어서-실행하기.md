@@ -30,7 +30,7 @@ flowchart LR
 | 서버 재시작 | 모든 진행 소실 | 저장된 상태에서 재개 |
 | 장시간 작업 | 불안정 | 안정적 |
 | 비용 | 중복 실행으로 증가 | 최소화 |
-| 멱등성 필요 | 모든 노드에 필요 | 실패한 노드만 재실행 |
+| 멱등성 책임 범위 | 모든 노드에서 신경 써야 함 | **Task 단위로 좁아짐** — 완료된 Task는 pending writes로 스킵되지만, 재실행되는 Task(특히 외부 API 호출·DB 쓰기 같은 사이드 이펙트가 있는 작업)는 여전히 멱등하게 설계해야 함 |
 
 ## 1. 왜 Durable Execution이 필요한가?
 
@@ -136,6 +136,8 @@ flowchart TD
 ### 2.1 기본 구조: @task 데코레이터
 
 LangGraph는 `@task` 데코레이터로 개별 작업을 정의한다. 각 Task의 결과는 자동으로 저장된다.
+
+> ⚠️ **Checkpointer 선택과 "재개"의 의미** — 아래 예제와 2.2절에서 사용하는 `InMemorySaver`는 **같은 프로세스 안에서 일어난 실패의 재개**까지만 시연한다 (예: 예외 발생 후 재호출). 처음의 비교 표에서 다룬 "**서버 재시작 후 재개**"까지 보장하려면 `PostgresSaver` 같은 영속 checkpointer를 써야 한다. 학습 예제는 InMemorySaver로 단순화해 두었지만, 실제 프로덕션 Durable Execution에는 `PostgresSaver`를 권장한다.
 
 ```python
 from langgraph.func import entrypoint, task

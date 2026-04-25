@@ -284,7 +284,7 @@ graph = builder.compile(
 노드 함수에서 `get_store()`로 Store에 접근한다.
 
 ```python
-from langgraph.config import get_store, get_configurable
+from langgraph.config import get_store, get_config
 
 
 def memory_node(state: State) -> dict:
@@ -292,7 +292,7 @@ def memory_node(state: State) -> dict:
     store = get_store()
 
     # 현재 사용자 ID (config에서 가져오기)
-    configurable = get_configurable()
+    configurable = get_config().get("configurable", {})
     user_id = configurable.get("user_id", "anonymous")
 
     # 사용자 선호도 조회
@@ -316,7 +316,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
-from langgraph.config import get_store, get_configurable
+from langgraph.config import get_store, get_config
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 import json
@@ -332,7 +332,7 @@ llm = ChatOpenAI()
 def extract_preferences(state: State) -> dict:
     """대화에서 사용자 선호도를 추출하여 Store에 저장"""
     store = get_store()
-    configurable = get_configurable()
+    configurable = get_config().get("configurable", {})
     user_id = configurable.get("user_id", "anonymous")
 
     # LLM으로 선호도 추출 (간단한 예시)
@@ -366,7 +366,7 @@ def extract_preferences(state: State) -> dict:
 def chatbot_with_memory(state: State) -> dict:
     """사용자 선호도를 활용한 응답 생성"""
     store = get_store()
-    configurable = get_configurable()
+    configurable = get_config().get("configurable", {})
     user_id = configurable.get("user_id", "anonymous")
 
     # 사용자 선호도 조회
@@ -542,8 +542,25 @@ recent_items = store.search(
 
 | Store | 패키지 | 용도 |
 |-------|--------|------|
-| `InMemoryStore` | `langgraph` | 개발/테스트 |
-| `PostgresStore` | `langgraph-checkpoint-postgres` | 프로덕션 |
+| `InMemoryStore` | `langgraph` | 개발/테스트 (시맨틱 검색 옵션 지원) |
+| `PostgresStore` | `langgraph-checkpoint-postgres` | 프로덕션 (pgvector 기반 시맨틱 검색 지원) |
+
+> **시맨틱 검색(vector search)** — LangGraph Store는 단순 key-value 저장에 그치지 않는다. 생성 시 `index={"embed": embed_fn, "dims": 1536}`처럼 임베딩 함수와 차원을 지정하면, 저장한 값들이 자동으로 벡터화되어 `store.search(namespace, query="자연어 쿼리")`로 의미 기반 검색이 가능해진다. 사용자 프로필·과거 대화 요약처럼 누적되는 long-term memory에서 *적합한 기억만 골라 컨텍스트에 주입*하는 핵심 기능이다.
+>
+> ```python
+> from langgraph.store.memory import InMemoryStore
+> from langchain_openai import OpenAIEmbeddings
+>
+> embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+> store = InMemoryStore(
+>     index={"embed": embeddings, "dims": 1536}
+> )
+> store.put(("users", "u1"), "fact_1", {"text": "피자를 좋아한다"})
+> store.put(("users", "u1"), "fact_2", {"text": "운동은 잘 안 한다"})
+>
+> # 자연어 쿼리로 관련 기억 검색
+> hits = store.search(("users", "u1"), query="음식 취향", limit=3)
+> ```
 
 ### 5.2 PostgresStore 사용
 

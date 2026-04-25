@@ -409,26 +409,36 @@ Claude: create_issue 도구를 사용해서 이슈를 생성하겠습니다.
 
 자체 AI 앱을 만들고, 그 앱에서 MCP Server의 도구를 사용하고 싶다면 Client가 필요하다.
 
+아래는 MCP 공식 Python SDK([modelcontextprotocol/python-sdk](https://github.com/modelcontextprotocol/python-sdk))의 **`ClientSession` + transport 조합** 패턴이다 — `mcp.Client()` 같은 단일 클래스가 아니라, transport(`stdio_client`, `streamable_http_client` 등)를 열고 그 위에 `ClientSession`을 띄워 사용하는 구조다.
+
 ```python
-# 자체 AI 앱에서 MCP Client 사용
-from mcp import Client
+# 자체 AI 앱에서 MCP Client 사용 (공식 Python SDK 패턴)
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 async def main():
-    # MCP Server에 연결
-    client = Client()
-    await client.connect("stdio://weather-server")
-
-    # 사용 가능한 도구 확인
-    tools = await client.list_tools()
-    print(f"사용 가능한 도구: {tools}")
-
-    # 도구 호출
-    result = await client.call_tool(
-        "get_weather",
-        {"city": "Seoul"}
+    # 1) 서버를 stdio로 spawn할 파라미터 준비
+    server_params = StdioServerParameters(
+        command="python",
+        args=["weather_server.py"],
     )
-    print(f"결과: {result}")
+
+    # 2) stdio transport 위에 ClientSession 띄우기
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            # 3) 핸드셰이크
+            await session.initialize()
+
+            # 4) 도구 목록 조회
+            tools = await session.list_tools()
+            print(f"사용 가능한 도구: {[t.name for t in tools.tools]}")
+
+            # 5) 도구 호출
+            result = await session.call_tool("get_weather", {"city": "Seoul"})
+            print(f"결과: {result}")
 ```
+
+원격 서버에 접속할 때는 `mcp.client.streamable_http.streamablehttp_client`로 transport만 교체하면 동일한 `ClientSession` 인터페이스로 사용할 수 있다.
 
 ### 4.2 MCP Gateway/Proxy 구축 시
 
@@ -484,8 +494,9 @@ flowchart TB
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Linux | `~/.config/Claude/claude_desktop_config.json` |
 
+macOS 예시: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
 ```json
-// macOS 예시: ~/Library/Application Support/Claude/claude_desktop_config.json
 {
   "mcpServers": {
     "weather": {
@@ -493,10 +504,14 @@ flowchart TB
       "args": ["/path/to/weather_server.py"]
     },
     "github": {
-      "command": "npx",
-      "args": ["-y", "@anthropic/mcp-server-github"],
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
       "env": {
-        "GITHUB_TOKEN": "your-token"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "your-token"
       }
     }
   }

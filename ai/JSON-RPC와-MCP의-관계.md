@@ -14,24 +14,25 @@ flowchart TB
 
         subgraph Transport["Transport (전송 방식)"]
             STDIO["STDIO<br>(stdin/stdout)"]
-            HTTP["HTTP<br>(POST + SSE)"]
-            WS["WebSocket<br>(미래)"]
+            SHTTP["Streamable HTTP<br>(2025-03-26 표준)"]
+            HTTPLEG["HTTP+SSE<br>(deprecated, legacy)"]
         end
     end
 
     MSG --> STDIO
-    MSG --> HTTP
-    MSG --> WS
+    MSG --> SHTTP
+    MSG --> HTTPLEG
 
     style MSG fill:#1565C0,color:#fff
     style STDIO fill:#2E7D32,color:#fff
-    style HTTP fill:#F57C00,color:#fff
+    style SHTTP fill:#F57C00,color:#fff
+    style HTTPLEG fill:#9E9E9E,color:#fff
 ```
 
 | 계층 | 역할 | MCP에서 |
 |------|------|---------|
 | **메시지 형식** | "무엇"을 보내는가 | **JSON-RPC 2.0** |
-| **Transport** | "어떻게" 보내는가 | STDIO, HTTP, WebSocket |
+| **Transport** | "어떻게" 보내는가 | STDIO, **Streamable HTTP**(2025-03-26 표준), HTTP+SSE(legacy) |
 
 **핵심:**
 - JSON-RPC = 메시지의 **포맷** (봉투 양식)

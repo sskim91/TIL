@@ -58,13 +58,14 @@ flowchart TB
 
 ### 각 도구별 컨텍스트 파일
 
-| 도구 | 파일명 | 위치 |
-|------|--------|------|
-| GitHub Copilot | `agents.md`, `copilot-instructions.md` | `.github/` |
-| Claude Code | `CLAUDE.md` | 프로젝트 루트 |
-| Cursor | `.cursorrules` | 프로젝트 루트 |
-| Windsurf | `.windsurfrules` | 프로젝트 루트 |
-| Aider | `.aider.conf.yml` | 프로젝트 루트 |
+| 도구 | 파일명 | 위치 | 비고 |
+|------|--------|------|------|
+| GitHub Copilot | `copilot-instructions.md` | `.github/` | Copilot 전용 공식 경로 |
+| OpenAI Codex / 다중 도구 공통 | `AGENTS.md` | 프로젝트 루트 | 대문자 표기. Codex·Claude Code·Cursor 등 여러 도구가 공유하는 사실상 표준 |
+| Claude Code | `CLAUDE.md` | 프로젝트 루트 또는 `~/.claude/CLAUDE.md` (전역) | AGENTS.md를 자동 인식하지는 않음 — 공유하려면 `CLAUDE.md` 안에서 `@AGENTS.md`로 import |
+| Cursor | `.cursor/rules/` 디렉토리 | 프로젝트 루트 | 구버전 `.cursorrules`는 deprecated이지만 호환은 유지 |
+| Windsurf | `.windsurf/rules/` 디렉토리 또는 `.windsurfrules` | 프로젝트 루트 | 신규 방식은 디렉토리 |
+| Aider | `CONVENTIONS.md` | 프로젝트 루트 | `.aider.conf.yml`은 별도의 *Aider 설정* 파일이지 컨텍스트 파일이 아님 |
 
 ## 2. 성공의 6가지 핵심 요소
 

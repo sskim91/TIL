@@ -27,11 +27,13 @@ sequenceDiagram
     Graph-->>User: 최종 결과
 ```
 
-| 방식 | 설명 | 사용 시점 |
-|------|------|----------|
-| `interrupt()` | 노드 **내부** 에서 동적으로 중단 | 조건부 승인 필요 시 |
-| `interrupt_before` | 특정 노드 **실행 전** 에 중단 | 디버깅, 검토 |
-| `interrupt_after` | 특정 노드 **실행 후** 에 중단 | 결과 확인 후 진행 |
+| 방식 | 설명 | 사용 시점 | 위계 |
+|------|------|----------|------|
+| **`interrupt()` 함수** | 노드 **내부** 에서 동적으로 중단, `Command(resume=...)`로 값을 받아 재개 | 조건부 승인, 사용자 입력 수집, 도구 호출 검토 등 모든 프로덕션 HITL 워크플로 | **표준 권장 방식** (LangGraph 공식) |
+| `interrupt_before` | 특정 노드 **실행 전** 에 중단 (정적 설정) | 디버깅·테스트에서 결정론적 중단점이 필요할 때 | 보조 |
+| `interrupt_after` | 특정 노드 **실행 후** 에 중단 (정적 설정) | 디버깅·결과 확인 | 보조 |
+
+> `interrupt_before`/`interrupt_after`는 여전히 지원되지만, 동적 분기·resume 값 전달·`Command` 통합이 모두 가능한 `interrupt()` 함수가 1급 메커니즘이다. 새 워크플로를 짤 때는 **`interrupt()` 함수부터** 고려하라.
 
 ## 1. 왜 Interrupt가 필요한가?
 
@@ -196,16 +198,9 @@ from langgraph.types import Command
 graph.invoke(Command(resume=True), config)
 graph.invoke(Command(resume="user input text"), config)
 graph.invoke(Command(resume={"action": "approve"}), config)
-
-# 상태 업데이트와 함께
-graph.invoke(
-    Command(
-        resume="approved",
-        update={"messages": [{"role": "human", "content": "승인합니다"}]}
-    ),
-    config
-)
 ```
+
+> ⚠️ **`Command`의 인자별 위치** — LangGraph 공식 문서에 따르면 `update`/`goto`/`graph` 같은 인자는 **노드 함수의 반환값**에 사용하는 것이 의도된 패턴이고, `invoke()`/`stream()` 입력으로 넘기는 `Command`는 **`resume`** 만 의도된 사용이다. 따라서 "재개와 동시에 상태도 업데이트하고 싶다"면 `invoke(Command(resume=..., update=...))`로 넘기는 대신, 노드 내부에서 `interrupt()` 반환값을 받은 뒤 `return Command(update=..., goto=...)`로 처리하는 3.3절 패턴을 써야 한다.
 
 ### 3.2 Command의 goto로 분기
 
@@ -341,7 +336,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
-from langgraph.types import interrupt
+from langgraph.types import Command, interrupt
 
 
 class AgentState(TypedDict):

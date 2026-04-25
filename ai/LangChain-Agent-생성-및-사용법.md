@@ -113,9 +113,11 @@ model = init_chat_model(
     temperature=0
 )
 
-# 5. 응답 형식 정의
-@dataclass
-class ResponseFormat:
+# 5. 응답 형식 정의 — 인스턴스(.속성) 접근을 쓰려면 dataclass가 아니라 Pydantic BaseModel을 사용한다.
+#    LangChain v1의 structured_response는 *dataclass 스키마를 주면 dict로*, *Pydantic BaseModel을 주면 인스턴스로* 반환된다.
+from pydantic import BaseModel
+
+class ResponseFormat(BaseModel):
     """Response schema for the agent."""
     # A punny response (always required)
     punny_response: str
@@ -145,10 +147,16 @@ response = agent.invoke(
 )
 
 print(response['structured_response'])
-# ResponseFormat(
-#     punny_response="Florida is still having a 'sun-derful' day!...",
-#     weather_conditions="It's always sunny in Florida!"
-# )
+# 위 출력 형식은 표기상 인스턴스처럼 보이지만, 실제 LangChain v1 공식 동작은 다음과 같다:
+#   ⚠️ response_format=<dataclass>로 줄 때 structured_response는 **dict**로 반환된다.
+#       즉 `response['structured_response']['punny_response']` 처럼 *dict 접근*해야 한다.
+#       인스턴스 형태(`.punny_response`)로 받고 싶다면 ResponseFormat을 dataclass 대신
+#       `pydantic.BaseModel`로 정의해야 한다.
+# 예시 dict 형태:
+# {
+#     "punny_response": "Florida is still having a 'sun-derful' day!...",
+#     "weather_conditions": "It's always sunny in Florida!"
+# }
 
 # 9. 대화 이어서 진행
 response = agent.invoke(
@@ -398,12 +406,14 @@ temperature = extract_temperature(response)  # 복잡한 정규식 필요
 **After (응답 형식 사용):**
 
 ```python
-@dataclass
-class ResponseFormat:
+from pydantic import BaseModel  # 인스턴스(.속성) 접근을 쓰려면 BaseModel을 사용
+
+class ResponseFormat(BaseModel):
     punny_response: str
     weather_conditions: str | None = None
 
 response = agent.invoke(...)['structured_response']
+# Pydantic BaseModel을 쓰면 인스턴스로 반환된다:
 # ResponseFormat(
 #     punny_response="Florida is having a sun-derful day!",
 #     weather_conditions="It's always sunny in Florida!"
@@ -413,6 +423,9 @@ response = agent.invoke(...)['structured_response']
 print(response.weather_conditions)  # "It's always sunny in Florida!"
 if response.weather_conditions:
     display_weather_widget(response.weather_conditions)
+
+# 만약 dataclass로 스키마를 정의했다면 structured_response는 dict로 돌아오므로,
+# response["weather_conditions"] 처럼 dict 접근으로 바꿔야 한다.
 ```
 
 **실전 응답 형식 예시:**
@@ -502,22 +515,29 @@ checkpointer = InMemorySaver()
 from langgraph.checkpoint.memory import InMemorySaver
 checkpointer = InMemorySaver()
 
-# 2. SqliteSaver - SQLite에 저장 (영구)
-# 용도: 소규모 프로덕션, 로컬 앱
+# 2. SqliteSaver - SQLite에 저장 (로컬/실험용)
+# 용도: 단일 사용자 로컬 앱·CLI 도구 (동시 쓰기 한계가 있어 트래픽 있는 프로덕션엔 부적합)
+# ⚠️ from_conn_string()은 컨텍스트 매니저이므로 with 블록 안에서 사용해야 한다.
 from langgraph.checkpoint.sqlite import SqliteSaver
-checkpointer = SqliteSaver.from_conn_string("chat_history.db")
 
-# 3. PostgresSaver - PostgreSQL에 저장 (영구)
-# 용도: 대규모 프로덕션
+with SqliteSaver.from_conn_string("chat_history.db") as checkpointer:
+    # ... 이 블록 안에서 agent를 빌드·실행
+    ...
+
+# 3. PostgresSaver - PostgreSQL에 저장 (프로덕션 권장)
+# 용도: 동시 사용자가 있는 프로덕션, 다중 서버
 from langgraph.checkpoint.postgres import PostgresSaver
-checkpointer = PostgresSaver.from_conn_string(
-    "postgresql://user:pass@localhost:5432/chatdb"
-)
 
-# 4. RedisSaver - Redis에 저장 (빠른 접근)
-# 용도: 고성능 실시간 챗봇
-from langgraph.checkpoint.redis import RedisSaver
-checkpointer = RedisSaver.from_conn_string("redis://localhost:6379/0")
+with PostgresSaver.from_conn_string(
+    "postgresql://user:pass@localhost:5432/chatdb"
+) as checkpointer:
+    checkpointer.setup()  # 첫 실행 시 테이블 생성
+    # ... agent 빌드·실행
+    ...
+
+# (참고) Redis 기반 체크포인터는 LangGraph 공식 Python 패키지(langgraph-checkpoint-*)
+# 목록에 포함되어 있지 않다. 필요하다면 커뮤니티/외부 구현을 사용해야 하며,
+# 핵심 LangGraph 가이드의 표준 옵션은 위의 InMemory / Sqlite / Postgres이다.
 ```
 
 **대화 저장 방식:**
@@ -557,27 +577,26 @@ sequenceDiagram
 ```python
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-# 영구 저장소
-checkpointer = SqliteSaver.from_conn_string("chat_history.db")
-
-agent = create_agent(
-    model=model,
-    tools=tools,
-    checkpointer=checkpointer
-)
-
-# 사용자별 대화 관리
-def chat_with_user(user_id: str, message: str):
-    # 사용자마다 별도의 thread_id
-    config = {"configurable": {"thread_id": f"user_{user_id}"}}
-
-    response = agent.invoke(
-        {"messages": [{"role": "user", "content": message}]},
-        config=config,
-        context=Context(user_id=user_id)
+# ⚠️ SqliteSaver.from_conn_string()은 컨텍스트 매니저이므로 with 블록 안에서 agent를 사용한다.
+with SqliteSaver.from_conn_string("chat_history.db") as checkpointer:
+    agent = create_agent(
+        model=model,
+        tools=tools,
+        checkpointer=checkpointer,
     )
 
-    return response['structured_response']
+    # 사용자별 대화 관리
+    def chat_with_user(user_id: str, message: str):
+        # 사용자마다 별도의 thread_id
+        config = {"configurable": {"thread_id": f"user_{user_id}"}}
+
+        response = agent.invoke(
+            {"messages": [{"role": "user", "content": message}]},
+            config=config,
+            context=Context(user_id=user_id),
+        )
+
+        return response['structured_response']
 
 # User A와 대화
 chat_with_user("alice", "날씨 알려줘")
@@ -599,19 +618,22 @@ chat_with_user("alice", "어제 날씨 얘기 했었는데...")
 
 ```python
 # 특정 thread의 전체 대화 기록 조회
+# ⚠️ SqliteSaver.from_conn_string()은 컨텍스트 매니저 — with 블록에서 사용한다.
+# ⚠️ 메시지 조회는 checkpointer 객체에서 직접 꺼내는 게 아니라, 컴파일된 agent의 get_state(config)
+#    가 반환하는 StateSnapshot.values["messages"]를 사용하는 것이 LangGraph의 표준 API다.
 from langgraph.checkpoint.sqlite import SqliteSaver
 
-checkpointer = SqliteSaver.from_conn_string("chat_history.db")
-
-# 대화 기록 가져오기
 thread_id = "user_alice"
 config = {"configurable": {"thread_id": thread_id}}
 
-# 저장된 상태 확인
-state = checkpointer.get(config)
-if state:
-    for message in state['messages']:
-        print(f"{message['role']}: {message['content']}")
+with SqliteSaver.from_conn_string("chat_history.db") as checkpointer:
+    agent = create_agent(model=model, tools=tools, checkpointer=checkpointer)
+
+    snapshot = agent.get_state(config)  # StateSnapshot 반환
+    if snapshot and snapshot.values:
+        for message in snapshot.values["messages"]:
+            # message는 LangChain BaseMessage 객체 — role 대신 .type, .content 사용
+            print(f"{message.type}: {message.content}")
 ```
 
 ### 3.7 Agent 생성
@@ -632,8 +654,8 @@ agent = create_agent(
 | 파라미터 | 타입 | 필수 | 설명 |
 |---------|------|------|------|
 | `model` | ChatModel | ✅ | LLM 모델 |
-| `system_prompt` | str | ✅ | Agent의 역할과 지침 |
-| `tools` | list[Tool] | ✅ | 사용 가능한 도구 목록 |
+| `system_prompt` | str | ❌ | Agent의 역할과 지침. 생략 시 모델이 입력 메시지에서 작업을 직접 추론한다 |
+| `tools` | list[Tool] | ❌ | 사용 가능한 도구 목록. 빈 리스트면 도구 호출 없는 단일 LLM 노드처럼 동작 |
 | `context_schema` | Type | ❌ | 런타임 컨텍스트 스키마 |
 | `response_format` | Type | ❌ | 응답 형식 지정 |
 | `checkpointer` | Checkpointer | ❌ | 대화 저장소 |
@@ -886,6 +908,13 @@ messages = [
 
 ## 5. 실전 활용 예제
 
+> ⚠️ **이 절의 모든 `@dataclass class XxxResponse`는 인스턴스 접근(`.속성`)으로 시연되지만, LangChain v1의 실제 동작은 다음과 같다는 점을 기억하라**:
+>
+> - `response_format=<dataclass>` → `structured_response`는 **dict**로 반환됨 → `result["category"]` 형태로 접근해야 함
+> - `response_format=<pydantic.BaseModel>` → `structured_response`는 **인스턴스**로 반환됨 → `result.category` 그대로 접근 가능
+>
+> 따라서 아래 예시 코드를 그대로 실행하려면 **모든 `@dataclass`를 `pydantic.BaseModel`로 바꾸거나**, 아니면 `result.category` 같은 속성 접근을 모두 `result["category"]` dict 접근으로 바꿔야 한다. 본문은 가독성을 위해 인스턴스 접근(BaseModel 가정)으로 표기되어 있다.
+
 ### 5.1 고객 지원 챗봇
 
 ```python
@@ -942,8 +971,13 @@ def get_refund_policy(runtime: ToolRuntime[CustomerContext]) -> str:
 
 # Agent 생성
 model = init_chat_model("anthropic:claude-sonnet-4-5", temperature=0)
-checkpointer = SqliteSaver.from_conn_string("support_chats.db")
 
+# ⚠️ SqliteSaver.from_conn_string()은 컨텍스트 매니저다.
+#     실제 운영에서는 다음처럼 with 블록으로 감싸 그 안에서 agent를 사용해야 한다:
+#         with SqliteSaver.from_conn_string("support_chats.db") as checkpointer:
+#             agent = create_agent(..., checkpointer=checkpointer)
+#             ...
+#     아래 코드는 의사 흐름 예시이므로, 실제 코드에서는 위 with 패턴을 적용할 것.
 SYSTEM_PROMPT = """당신은 전문 고객 지원 상담원입니다.
 
 고객의 문의를 분류하고, 적절한 도구를 사용하여 답변하세요.
@@ -1302,9 +1336,18 @@ for msg in all_messages:
 
 4. **프로덕션에서는 영구 저장소 사용**
    ```python
-   # ❌ InMemorySaver (개발용)
-   # ✅ SqliteSaver, PostgresSaver (프로덕션)
-   checkpointer = SqliteSaver.from_conn_string("prod.db")
+   # ❌ InMemorySaver (개발/테스트용 — 프로세스 종료 시 휘발)
+   # ⚠️ SqliteSaver — 로컬/소규모 데모용 (단일 writer 한계로 동시 사용자 트래픽엔 부적합)
+   # ✅ PostgresSaver — 동시 사용자 있는 프로덕션 권장
+   #    그리고 from_conn_string()은 컨텍스트 매니저로 써야 한다.
+   from langgraph.checkpoint.postgres import PostgresSaver
+
+   with PostgresSaver.from_conn_string(
+       "postgresql://user:pass@db:5432/prod"
+   ) as checkpointer:
+       checkpointer.setup()
+       agent = create_agent(model=model, tools=tools, checkpointer=checkpointer)
+       # ... 이 with 블록 안에서 invoke
    ```
 
 ### ❌ Don'ts

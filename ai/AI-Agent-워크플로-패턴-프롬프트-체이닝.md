@@ -246,9 +246,16 @@ result = prompt_chain("Python 비동기 프로그래밍 입문", steps)
 print(result["final"])
 ```
 
-> **실무 권장 - 왜 Structured Outputs가 필수인가**: 위 예시의 `text.count("##")`같은 문자열 매칭은 LLM이 형식을 조금만 바꿔도(예: `##` 대신 `###` 사용) 검증이 실패한다. 실무에서는 **Structured Outputs(JSON Mode)** 나 **Pydantic** 을 사용해 응답 스키마를 강제해야 한다. `{"sections": [...], "word_count": 1500}`처럼 구조화된 응답을 받으면 필드 존재 여부와 타입을 확실히 검증할 수 있다.
+> **실무 권장 - 왜 응답 스키마를 강제해야 하는가**: 위 예시의 `text.count("##")`같은 문자열 매칭은 LLM이 형식을 조금만 바꿔도(예: `##` 대신 `###` 사용) 검증이 실패한다. 실무에서는 응답 스키마를 강제하는 두 메커니즘을 **구분해서** 써야 한다.
+>
+> | 메커니즘 | 보장 범위 |
+> |----------|-----------|
+> | **JSON Mode** (`response_format={"type": "json_object"}`) | "유효한 JSON 생성"만 보장 — 필드/타입 일치는 보장하지 않음 |
+> | **Structured Outputs** (`response_format={"type": "json_schema", ...}`) 또는 OpenAI/Anthropic SDK의 Pydantic 기반 `parse` API | **선언한 스키마와의 일치까지 보장** — 필드 존재·타입·enum까지 강제 |
+>
+> 즉 "JSON 형식만 받으면 충분" 하면 JSON Mode, "특정 스키마(예: `{"sections": [...], "word_count": 1500}`)를 강제" 하려면 Structured Outputs를 써야 한다. Pydantic 모델을 정의하고 그대로 `parse`에 넘기면 응답이 곧바로 검증된 객체로 들어와 검증 코드가 단순해진다.
 
-> **실무 팁 - 모델 믹스**: 각 단계마다 적합한 모델과 `temperature`를 다르게 설정하면 비용과 품질을 동시에 잡을 수 있다. 예를 들어, 개요 생성/교정은 `gpt-4o-mini`로, 본문 작성은 `gpt-4o`나 `claude-3-5-sonnet`으로 처리한다. 검증 단계는 `temperature=0`으로 일관성을, 창의적 작문은 `0.7` 이상으로 다양성을 확보한다.
+> **실무 팁 - 모델 믹스**: 각 단계마다 적합한 모델과 `temperature`를 다르게 설정하면 비용과 품질을 동시에 잡을 수 있다. 2026년 시점 기준 예시 — 개요 생성/교정은 경량 모델(`gpt-4o-mini`, `claude-haiku-4-5`)로, 본문 작성처럼 추론·표현이 중요한 단계는 상위 모델(`gpt-4o`/`gpt-5` 계열, `claude-sonnet-4-5` 이상)로 처리한다. 검증 단계는 `temperature=0`으로 일관성을, 창의적 작문은 `0.7` 이상으로 다양성을 확보한다 (구체 모델명은 빠르게 갱신되니 사용 시점의 최신 모델 카드를 확인할 것).
 
 ### 3.3 이전 출력 참조가 필요한 경우
 

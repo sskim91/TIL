@@ -372,20 +372,21 @@ Namespace: '', Next: ('before',)           # Parent 시작
 
 ### 4.2 Subgraph 상태 직접 조회
 
-특정 Subgraph의 상태만 조회하려면 `checkpoint_ns`를 지정한다.
+LangGraph의 Subgraph checkpoint namespace는 단순 `"child"`가 아니라 **`"노드명:uuid"`** 형식이고, 중첩 Subgraph는 `|`로 이어진다 (예: `"child:abc-123|inner:def-456"`). 따라서 namespace를 직접 하드코딩하기보다 **`subgraphs=True` 옵션**으로 Subgraph state를 함께 받아오는 방식이 안전하다.
 
 ```python
-# Subgraph 상태 조회
-subgraph_config = {
-    "configurable": {
-        "thread_id": "demo",
-        "checkpoint_ns": "child"  # Subgraph 네임스페이스
-    }
-}
+# 권장 방식 — subgraphs=True로 Subgraph state까지 함께 조회
+parent_state = parent_graph.get_state(
+    {"configurable": {"thread_id": "demo"}},
+    subgraphs=True,
+)
 
-subgraph_state = parent_graph.get_state(subgraph_config)
-print(subgraph_state.values)
+# tasks 안의 각 task가 자신의 namespace와 state를 들고 있다
+for task in parent_state.tasks:
+    print(task.name, task.state)  # task.state.values에 Subgraph 내부 값
 ```
+
+> 만약 namespace 문자열을 직접 알고 있다면 `{"thread_id": "demo", "checkpoint_ns": "child:<uuid>"}`로 `get_state()`를 호출할 수도 있지만, uuid는 실행마다 달라지므로 일반적으로는 위처럼 `subgraphs=True` 경로가 실무 표준이다.
 
 ## 5. Streaming과 Subgraph
 
@@ -414,15 +415,17 @@ for namespace, chunk in parent_graph.stream(
 Namespace: ()
   Chunk: {'before': {'value': 10}}
 
-Namespace: ('child',)
+Namespace: ('child:abc-123',)        # ⚠️ "노드명:task_id" 형식
   Chunk: {'step1': {'value': 20}}
 
-Namespace: ('child',)
+Namespace: ('child:abc-123',)
   Chunk: {'step2': {'value': 30}}
 
 Namespace: ()
   Chunk: {'after': {'result': '최종 값: 30'}}
 ```
+
+> **중요 — namespace는 `'노드명'`이 아니라 `'노드명:task_id'`** : LangGraph가 Subgraph 이벤트를 흘려보낼 때 namespace 튜플의 각 원소는 부모에서 그 Subgraph를 호출한 *노드명에 task id가 결합된 문자열*이다. 그래서 `namespace == ('child',)` 같은 정확한 일치 비교는 **항상 False**가 되어 Subgraph 이벤트를 놓치게 된다.
 
 ### 5.2 Namespace 기반 필터링
 
@@ -435,8 +438,8 @@ for namespace, chunk in parent_graph.stream(
     if namespace == ():
         # Parent Graph 이벤트
         print(f"[Parent] {chunk}")
-    elif namespace == ("child",):
-        # Subgraph 이벤트
+    elif namespace and namespace[0].startswith("child:"):
+        # Subgraph 이벤트 — 'child:<task_id>' prefix로 판별
         print(f"[Subgraph] {chunk}")
 ```
 
@@ -631,13 +634,15 @@ class RetrievalState(TypedDict):
 
 ### 8.1 순환 참조 금지
 
-Subgraph가 자신을 포함하는 Parent를 참조하면 안 된다.
+Subgraph가 자신을 포함하는 Parent를 참조하면 안 된다 — 이 경우 **빌드 시점에 자동으로 거부되지는 않는다**. 컴파일은 통과하지만, 실행 중에 부모→자식→부모→… 가 무한 반복되어 결국 **`RecursionError` / Python 재귀 한도 초과 / 스택 오버플로**로 실패한다.
 
 ```python
-# ❌ 순환 참조
+# ❌ 순환 참조 — 빌드는 통과, 실행 시 RecursionError 가능성
 parent_graph = parent_builder.compile()
-child_builder.add_node("parent", parent_graph)  # 에러!
+child_builder.add_node("parent", parent_graph)
 ```
+
+따라서 LangGraph의 자동 검증을 기대하지 말고, **설계 단계에서 그래프 호출 그래프(call graph)에 사이클이 없는지 직접 확인**해야 한다 (실제 그래프 노드 사이의 엣지에는 사이클이 있어도 무방하다 — 여기서 막아야 하는 것은 *서브그래프 컴포지션 트리*의 사이클이다).
 
 ### 8.2 Checkpointer 공유
 
@@ -655,7 +660,15 @@ def wrapped_child(state):
 
 **래핑 함수와 Checkpoint 세부 히스토리:**
 
-래핑 함수에서 `config`를 전달하더라도, Subgraph 자체가 Checkpointer 없이 컴파일되었다면 **Subgraph 내부 노드들의 세부 히스토리는 저장되지 않는다**. Parent 입장에서는 래핑 함수 노드 하나가 실행된 것으로만 기록된다.
+이 부분은 `compile(checkpointer=...)`의 세 가지 값을 정확히 구분해 이해해야 한다.
+
+| `compile()` 인자 | 동작 |
+|------------------|------|
+| `checkpointer=None` (기본값) | **Per-invocation 모드** — 자체 저장소는 없지만, 부모 그래프의 checkpointer가 호출 시 *상속*되어 Subgraph 내부 step도 저장된다 |
+| `checkpointer=<saver>` | Subgraph가 자체 checkpointer를 갖는다 (직접 노드로 추가하면 보통 부모 것을 쓰면 충분하므로 흔한 패턴은 아님) |
+| `checkpointer=False` | **명시적 stateless** — 부모의 checkpointer를 상속하지 않으며, Subgraph 내부 step의 히스토리가 저장되지 않는다. 짧고 가벼운 read-only Subgraph 등에 사용 |
+
+따라서 "Checkpointer 없이 컴파일됐다"라는 모호한 표현을 피해야 한다. **`checkpointer=False`로 명시적으로 stateless로 만든 경우에만 Subgraph 내부 히스토리가 저장되지 않는다.** 또한 래핑 함수 안에서 `child_graph.invoke(state, config)`를 호출할 때, child가 `checkpointer=None`이면 부모 config의 checkpointer가 그대로 흐르므로 세부 히스토리가 보존된다.
 
 ```python
 # Subgraph 내부까지 Time Travel/디버깅이 필요한 경우
@@ -667,9 +680,11 @@ parent_builder.add_node("child", child_graph)  # ✅ 래핑 없이 직접 추가
 
 | 방식 | Subgraph 내부 Checkpoint |
 |------|-------------------------|
-| 직접 노드 추가 (`add_node(name, graph)`) | ✅ 자동 저장 |
-| 래핑 함수 + Subgraph에 Checkpointer 없음 | ❌ 저장 안 됨 |
-| 래핑 함수 + Subgraph에 Checkpointer 있음 | ✅ 저장됨 |
+| 직접 노드 추가 (`add_node(name, graph)`) | ✅ 자동 저장 (부모의 checkpointer 자동 공유) |
+| 래핑 함수 + Subgraph가 `checkpointer=None`(기본값) + 부모 `config` 전달 | ✅ 부모의 checkpointer를 상속해 per-invocation 저장 |
+| 래핑 함수 + Subgraph가 `checkpointer=False` (명시적 stateless) | ❌ 저장 안 됨 (의도된 stateless) |
+| 래핑 함수 + Subgraph가 자체 `checkpointer` 보유 | ✅ Subgraph가 자체 저장소에 기록 |
+| 래핑 함수 호출 시 `config`를 전달하지 않음 | ❌ 부모 컨텍스트가 전파되지 않아 저장 안 됨 |
 
 ### 8.3 Config 전파
 

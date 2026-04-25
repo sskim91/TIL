@@ -190,14 +190,23 @@ functions = [
     }
 ]
 
-response = openai.ChatCompletion.create(
-    model="gpt-4",
+from openai import OpenAI  # OpenAI Python SDK 1.x — 구버전 `import openai` + `openai.ChatCompletion`은 더 이상 동작하지 않는다.
+
+client = OpenAI()
+
+# 또한 2023년의 functions/function_call 인터페이스는 deprecated되어,
+# 현재 표준은 tools/tool_calls 인터페이스다. 위 functions를 tools 형식으로 변환:
+tools = [{"type": "function", "function": fn} for fn in functions]
+
+response = client.chat.completions.create(
+    model="gpt-4o",   # 예시 모델. 실제 사용 시점에서는 platform.openai.com/docs/models 의 "Frontier" 항목에 표기된 권장 모델(예: GPT-5 계열)로 교체하라.
     messages=[{"role": "user", "content": "서울 날씨는?"}],
-    functions=functions
+    tools=tools,
 )
 
-# GPT-4가 자동으로 함수 호출 결정
-# function_call: {"name": "get_weather", "arguments": '{"location": "Seoul"}'}
+# 모델이 자동으로 도구 호출을 결정한다:
+# response.choices[0].message.tool_calls[0]
+#   → name="get_weather", arguments='{"location": "Seoul"}'
 ```
 
 **AutoGPT/BabyAGI 예시**

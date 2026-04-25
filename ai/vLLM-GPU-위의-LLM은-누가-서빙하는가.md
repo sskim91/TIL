@@ -314,7 +314,7 @@ vLLM만 있는 건 아니다. 목적과 환경에 따라 선택지가 다르다.
 | **vLLM** | UC Berkeley | PagedAttention, 범용적, 커뮤니티 활발 | 대부분의 프로덕션 환경 |
 | **TGI** | HuggingFace | HF 생태계 통합, 배포 간편 | HuggingFace 모델 빠르게 서빙 |
 | **TensorRT-LLM** | NVIDIA | H100 최적화 극대화, 설정 복잡 | 최대 성능이 필요한 대규모 서비스 |
-| **SGLang** | Stanford | 구조화된 출력(JSON 등)에 강점 | JSON 응답이 중요한 Agent 시스템 |
+| **SGLang** | LMSys (UC Berkeley 주도) | 구조화된 출력(JSON 등)에 강점, RadixAttention | JSON 응답이 중요한 Agent 시스템 |
 | **Ollama** | Ollama | 로컬 실행 특화, 설치 간편 | 로컬 개발/테스트 |
 
 ```mermaid

@@ -52,7 +52,7 @@ response = llm.invoke("둘의 차이는 뭐야?")
 
 왜 이런 일이 벌어질까?
 
-**LLM API는 Stateless(무상태)다.** 각 요청은 완전히 독립적으로 처리된다. 서버 측에서 이전 대화를 저장하지 않는다. 마치 매번 새로운 사람과 대화하는 것과 같다.
+**핵심 LLM API는 기본적으로 Stateless(무상태)다.** OpenAI Chat Completions, Anthropic Messages 같은 표준 API에서 각 요청은 독립적으로 처리되고, 서버는 이전 대화를 자동으로 보존하지 않는다 — 그래서 클라이언트가 매번 히스토리를 넘겨야 한다. 다만 일부 API는 **서버 측 상태 관리 옵션**을 제공한다 — OpenAI **Responses API**의 `previous_response_id` 또는 신규 **Conversations API**가 현재(2026-04) 권장되는 경로다. 참고로 OpenAI Assistants API의 `thread_id` 방식은 2025-08-26 deprecated, 2026-08-26 종료 예정이므로 신규 도입 시에는 사용하지 않는 것이 안전하다. 이런 서버 상태 옵션을 써도 *모델이 추론할 때는 결국 이전 대화가 컨텍스트에 포함되어야* 하므로, 멀티턴의 본질(=이전 대화를 어떤 형태로든 모델에 다시 넣어야 한다)은 그대로다.
 
 ### 1.2 그렇다면 ChatGPT는 어떻게?
 
@@ -136,15 +136,25 @@ Turn 50: 수만 토큰 💥
 
 **문제 1: 토큰 제한**
 
-LLM에는 컨텍스트 윈도우 제한이 있다. GPT-4는 8K~128K, Claude는 200K까지. 아무리 커도 무한하지 않다.
+LLM에는 컨텍스트 윈도우 제한이 있다. 2026년 4월 기준 한도는 빠르게 확장되어, 주요 모델별로:
+
+| 모델 계열 | 컨텍스트 윈도우 |
+|-----------|-----------------|
+| GPT-4o | 128K |
+| GPT-5 / Codex 계열 | 256K~400K |
+| Claude Sonnet 4.5 | 200K |
+| Claude Sonnet 4.6 | 1M |
+| Gemini 2.5 Pro / Gemini 3 Pro Preview | 약 1M (정확히는 1,048,576 토큰) |
+
+용량 한계는 빠르게 완화되고 있으므로, *최신 모델에서는 "토큰 제한 초과"보다 아래의 비용/지연이 메모리 관리의 더 큰 동기*가 된다.
 
 **문제 2: 비용 폭증**
 
-매 요청마다 전체 히스토리를 보내므로, 대화가 길어질수록 비용이 누적되어 급격하게 증가한다. (토큰 수가 등차수열의 합으로 늘어나 $O(n^2)$ 에 가까워진다)
+매 요청마다 전체 히스토리를 보내므로, 대화가 길어질수록 비용이 누적되어 급격하게 증가한다. (토큰 수가 등차수열의 합으로 늘어나 누적 비용은 $O(n^2)$ 에 가까워진다)
 
 **문제 3: 응답 지연**
 
-토큰이 많아지면 처리 시간도 늘어난다.
+토큰이 많아지면 처리 시간도 늘어난다 — 컨텍스트 윈도우 한도 안이라도 prefill 시간은 입력 토큰 수에 비례한다.
 
 ### 2.2 해결책: 메모리 관리 전략
 
@@ -179,7 +189,9 @@ LangChain은 다양한 메모리 관리 전략을 제공한다.
 
 > **참고:** 현재 LangChain에서는 상태 관리를 위해 `ConversationChain`보다 더 유연하고 강력한 **LangGraph** 사용을 권장하는 추세다. 이 문서의 예제는 메모리의 기본 개념을 이해하기 위한 것이다. 실제 프로덕션에서는 [LangGraph Persistence](https://langchain-ai.github.io/langgraph/how-tos/persistence/)를 참고하라.
 
-### 3.1 ConversationBufferMemory (전체 저장)
+> ⚠️ **이 절(3.1~3.6)의 예제는 모두 deprecated legacy API다.** 본문에 등장하는 `ConversationChain`, `ConversationBufferMemory`, `ConversationBufferWindowMemory`, `ConversationSummaryMemory`, `ConversationSummaryBufferMemory`, `ConversationTokenBufferMemory`, `VectorStoreRetrieverMemory`는 LangChain 공식 문서가 deprecated로 표시한 클래스들이며, LangChain v1부터는 `langchain-classic` 패키지로 분리되었다. 현재 권장 경로는 ① `RunnableWithMessageHistory` 또는 ② **LangGraph의 checkpointer/persistence**다. 아래 코드는 *각 메모리 전략의 차이를 직관적으로 보여주는 개념 학습용*으로만 참고하고, 실제 프로덕션 구현은 [LangGraph Persistence](https://langchain-ai.github.io/langgraph/how-tos/persistence/) 문서를 따르라. (LangGraph는 단순히 히스토리를 변수에 담는 것을 넘어 State와 Checkpointer로 대화 상태를 영속화한다는 점이 핵심 차이다.)
+
+### 3.1 ConversationBufferMemory (전체 저장) — *deprecated 개념 학습용*
 
 가장 단순한 방식. 모든 대화를 그대로 저장한다.
 

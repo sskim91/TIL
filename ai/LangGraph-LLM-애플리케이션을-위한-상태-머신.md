@@ -26,7 +26,7 @@ flowchart LR
 
 | 구분 | LangChain | LangGraph |
 |------|-----------|-----------|
-| 구조 | 선형 체인 | 방향 그래프 (DAG) |
+| 구조 | 선형 체인 | 방향 그래프 (순환·루프 허용 — DAG가 *아님*) |
 | 분기 | 제한적 | 조건부 엣지로 자유롭게 |
 | 루프 | 불가능 | 노드 간 순환 가능 |
 | 상태 | 암묵적 | **명시적** State 객체 |
@@ -308,7 +308,16 @@ builder.add_node("general", handle_general)
 
 # 3. 엣지 추가
 builder.add_edge(START, "classify")
-builder.add_conditional_edges("classify", route_by_intent)
+builder.add_conditional_edges(
+    "classify",
+    route_by_intent,
+    {
+        # route_by_intent의 반환값 → 실제 등록한 노드명 매핑
+        "weather_node": "weather",
+        "booking_node": "booking",
+        "general_node": "general",
+    },
+)
 builder.add_edge("weather", END)
 builder.add_edge("booking", END)
 builder.add_edge("general", END)
@@ -516,19 +525,24 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.checkpoint.postgres import PostgresSaver
 
-# 개발/테스트용 (메모리)
+# (1) 개발/테스트용 — 메모리 기반은 객체 단독으로 사용 가능
 memory = InMemorySaver()
-
-# 프로덕션용 (SQLite)
-checkpointer = SqliteSaver.from_conn_string("checkpoints.db")
-
-# 프로덕션용 (PostgreSQL)
-checkpointer = PostgresSaver.from_conn_string(
-    "postgresql://user:pass@localhost:5432/mydb"
-)
-
-# 그래프에 적용
 app = workflow.compile(checkpointer=memory)
+
+# (2) 로컬/실험용 — SQLite (공식 문서 권장 범위: experimentation, local workflows)
+#     ⚠️ from_conn_string은 컨텍스트 매니저로 써야 한다 (with ... as).
+with SqliteSaver.from_conn_string("checkpoints.db") as checkpointer:
+    app = workflow.compile(checkpointer=checkpointer)
+    # ... 이 with 블록 안에서 invoke/stream 호출
+
+# (3) 프로덕션 권장 — PostgreSQL
+#     최초 1회 setup()으로 테이블 생성 필요.
+with PostgresSaver.from_conn_string(
+    "postgresql://user:pass@localhost:5432/mydb"
+) as checkpointer:
+    checkpointer.setup()           # 첫 실행 시 테이블 생성
+    app = workflow.compile(checkpointer=checkpointer)
+    # ... 이 with 블록 안에서 invoke/stream 호출
 ```
 
 ### 4.2 Thread ID로 대화 관리
@@ -681,20 +695,22 @@ async for event in app.astream_events(initial_state, config, version="v2"):
         print(event["data"]["chunk"].content, end="", flush=True)
 ```
 
-## 7. LangChain Agent와 LangGraph 언제 뭘 써야 할까?
+## 7. `create_agent` vs LangGraph — 어떤 *추상화 레벨*을 쓸까?
+
+> 2025년 LangChain v1부터 `create_agent`가 **내부적으로 LangGraph로 구현**되었기 때문에, 더 이상 "LangChain Agent vs LangGraph"라는 이분법적 선택이 아니다. 둘은 같은 LangGraph 런타임 위의 **다른 추상화 레벨**일 뿐이다.
 
 | 상황 | 추천 | 이유 |
 |------|------|------|
-| 단순 Q&A 챗봇 | LangChain Agent | 선형 흐름으로 충분 |
-| 도구 호출 Agent | LangChain Agent | `create_agent`로 쉽게 구현 |
-| 조건부 분기 필요 | **LangGraph** | `add_conditional_edges` |
-| 재시도/루프 필요 | **LangGraph** | 노드 순환 가능 |
-| Human-in-the-loop | **LangGraph** | `interrupt()` 내장 |
-| 복잡한 워크플로우 | **LangGraph** | 그래프로 명확하게 표현 |
-| 상태 저장/복구 | **LangGraph** | Checkpointing |
-| 멀티 에이전트 | **LangGraph** | 각 에이전트를 노드로 |
+| 단순 Q&A 챗봇 | `create_agent` (고수준 헬퍼) | 표준 ReAct 루프면 충분, 코드 짧음 |
+| 도구 호출 Agent | `create_agent` (고수준 헬퍼) | 도구 + 시스템 프롬프트만 넘기면 끝 |
+| 조건부 분기 필요 | **LangGraph 직접 사용** | `add_conditional_edges`로 원하는 그래프 설계 |
+| 재시도/루프 필요 | **LangGraph 직접 사용** | 노드 순환 가능 |
+| Human-in-the-loop | **LangGraph 직접 사용** | `interrupt()`를 원하는 노드에 삽입 |
+| 복잡한 워크플로우 | **LangGraph 직접 사용** | 그래프로 명확하게 표현 |
+| 상태 저장/복구 | 둘 다 가능 | 둘 모두 동일한 Checkpointer 사용 |
+| 멀티 에이전트 | **LangGraph 직접 사용** | 각 에이전트를 서브그래프/노드로 조합 |
 
-**실제로 LangChain의 `create_agent` 내부도 LangGraph로 구현되어 있다.** 간단한 경우 `create_agent`를 쓰고, 커스텀 워크플로우가 필요하면 LangGraph로 직접 구현하면 된다.
+요약: **표준 패턴은 `create_agent`로, 커스텀 그래프 구조가 필요하면 LangGraph API를 직접 사용한다.** 둘 사이를 마이그레이션하는 비용도 낮다 — 기존 `create_agent` 결과물을 LangGraph 그래프 안의 노드로 그대로 끼워 넣을 수 있다.
 
 ## 8. 정리
 

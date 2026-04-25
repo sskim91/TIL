@@ -4,7 +4,7 @@ LangGraph로 챗봇을 만들었는데, 서버가 재시작되면 모든 대화 
 
 ## 결론부터 말하면
 
-**Persistence는 그래프의 상태를 저장소에 영속화하는 기능** 이다. 각 노드 실행 후 **Checkpoint** 를 생성하여 저장하고, 필요할 때 복구할 수 있다. 이를 통해 **대화 컨텍스트 유지**, **중단/재개**, **Time Travel** 이 가능해진다.
+**Persistence는 그래프의 상태를 저장소에 영속화하는 기능** 이다. 각 **super-step boundary**(LangGraph 실행의 한 "틱") 끝에서 **Checkpoint** 를 생성하여 저장한다 — 순차 그래프라면 결과적으로 "노드마다 1개"처럼 보이지만, 병렬 노드가 같은 super-step에서 실행되는 경우 그 super-step 전체가 하나의 checkpoint로 묶인다. 이를 통해 **대화 컨텍스트 유지**, **중단/재개**, **Time Travel** 이 가능해진다.
 
 ```mermaid
 flowchart LR
@@ -501,10 +501,13 @@ print(state.next)    # 다음 실행될 노드
 
 ```python
 # Thread의 모든 Checkpoint 조회
-for checkpoint in checkpointer.list(config):
-    print(f"ID: {checkpoint['id']}")
-    print(f"Time: {checkpoint['ts']}")
-    print(f"Values: {checkpoint['channel_values']}")
+# checkpointer.list()는 Iterator[CheckpointTuple]을 반환한다.
+# CheckpointTuple은 NamedTuple이므로 .checkpoint, .config, .metadata 속성으로 접근.
+for ct in checkpointer.list(config):
+    print(f"ID:     {ct.checkpoint['id']}")
+    print(f"Time:   {ct.checkpoint['ts']}")
+    print(f"Values: {ct.checkpoint['channel_values']}")
+    print(f"Source: {ct.metadata.get('source')}")
     print("---")
 ```
 
@@ -548,9 +551,11 @@ LangGraph의 **Persistence** 는 그래프 상태를 영속화하여 다음을 �
 
 | 상황 | 추천 |
 |------|------|
-| 개발/테스트 | `InMemorySaver` |
-| 단일 서버, 간단한 프로덕션 | `SqliteSaver` |
-| 다중 서버, 확장 필요 | `PostgresSaver` |
+| 개발/테스트, 단위 테스트 | `InMemorySaver` |
+| 로컬 도구·CLI·소규모 단일 사용자 앱 | `SqliteSaver` (SQLite는 WAL 모드여도 단일 writer라 동시 쓰기에 한계가 있음) |
+| 동시 사용자가 있는 프로덕션 (단일 서버여도) / 다중 서버 / 확장 필요 | `PostgresSaver` 또는 외부 DB 기반 커스텀 Checkpointer |
+
+> **주의**: "단일 서버 = SqliteSaver"로 단순화하기 쉽지만, *서버 수*가 1대인 것과 *동시 사용자/요청 수*는 다른 차원이다. 노드 실행마다 checkpoint를 기록하는 워크로드는 곧 동시 쓰기로 이어지므로, 실제 트래픽이 있는 챗봇·웹 서비스는 single-server라도 PostgreSQL을 권장한다.
 
 **활용 시나리오:**
 

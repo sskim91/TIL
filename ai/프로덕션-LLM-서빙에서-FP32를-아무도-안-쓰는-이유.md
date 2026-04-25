@@ -80,7 +80,7 @@ flowchart LR
 | FP16 | 16 | 5비트 | 10비트 | 빠르지만 **범위가 좁아** overflow 위험 |
 | **BF16** | 16 | **8비트** | 7비트 | FP32와 **같은 범위**, 정밀도만 낮음 |
 
-BF16은 FP32와 **지수부가 같다.** 즉, 표현할 수 있는 숫자의 범위(dynamic range)가 FP32와 동일하다. 학습 중 gradient 값이 극단적으로 크거나 작아져도 overflow/underflow가 발생하지 않는다. FP16은 지수부가 5비트뿐이라 이런 문제가 빈번했고, 복잡한 loss scaling이 필요했다.
+BF16은 FP32와 **지수부가 같다.** 즉, 표현할 수 있는 숫자의 범위(dynamic range)가 FP32와 동일하다. 학습 중 gradient 값이 극단적으로 크거나 작아져도 **FP16에 비해 overflow/underflow 위험이 크게 줄어든다** (BF16도 유한 정밀도이므로 위험 자체가 사라지는 것은 아니다). FP16은 지수부가 5비트뿐이라 이런 문제가 빈번했고, 복잡한 loss scaling이 필요했다.
 
 그래서 BF16은 **"FP32의 drop-in replacement"** 라고 불린다. 연산은 2배 빠르고, 메모리는 절반이면서, 학습 안정성은 FP32와 거의 같다.
 
@@ -91,7 +91,7 @@ BF16은 FP32와 **지수부가 같다.** 즉, 표현할 수 있는 숫자의 범
 ```mermaid
 flowchart TD
     A["BF16 원본 가중치<br>(학습 결과물)"] --> B{"하드웨어는?"}
-    B -->|"H100 / H200<br>(Hopper)"| C["FP8 양자화<br>캘리브레이션 불필요<br>품질 손실 거의 없음"]
+    B -->|"H100 / H200<br>(Hopper)"| C["FP8 양자화<br>동적 경로는 캘리브레이션 생략 가능<br>품질 손실 거의 없음"]
     B -->|"B200 / RTX 5090<br>(Blackwell)"| D["NVFP4 양자화<br>QAD로 품질 복구<br>메모리 4배 절감"]
     B -->|"구형 GPU<br>(A100 등)"| E["INT8 또는<br>AWQ/GPTQ INT4"]
     B -->|"CPU / Apple Silicon"| F["GGUF Q4_K_M"]
@@ -124,7 +124,7 @@ LLM 추론 중 GPU 메모리를 차지하는 것은 세 가지다:
 
 FP8은 NVIDIA Hopper 아키텍처(H100, H200)에서 **네이티브 하드웨어 지원** 이 있다. Tensor Core가 FP8 연산을 직접 처리하므로, 소프트웨어 양자화와는 차원이 다른 성능을 낸다.
 
-FP8의 가장 큰 장점은 **캘리브레이션이 필요 없다** 는 것이다. dynamic quantization으로 별도의 calibration 데이터셋 없이 바로 적용할 수 있어서, 모델을 배포하는 운영 부담이 크게 줄어든다.
+FP8의 운영 친화적인 점은 **동적 양자화(dynamic quantization) 경로에서는 별도의 calibration 데이터셋 없이 바로 적용할 수 있다** 는 것이다. 다만 이는 FP8 전반의 특성이 아니라 경로별 차이임에 유의해야 한다 — TensorRT-LLM·NeMo의 FP8 PTQ 워크플로처럼 static scaling factor를 미리 산출해 두는 배포 방식에서는 calibration 단계가 필요하다. 정리하면, MXFP8 같은 동적 경로는 calibration 생략이 가능해 운영 부담이 작고, static PTQ 경로는 한 번의 calibration을 거치는 대신 런타임 오버헤드가 더 적다.
 
 ### 3.2 NVFP4 — 차세대 표준
 
@@ -135,6 +135,8 @@ NVIDIA Blackwell GPU에서 등장한 NVFP4는 기존 INT4와 근본적으로 다
 | **E2M1** | 1 sign + 2 exponent + 1 mantissa = 4비트 |
 | **Block Scale** | 16개 값마다 FP8(E4M3) 스케일 팩터 공유 |
 | **Tensor Scale** | 텐서 전체에 FP32 스케일 적용 |
+
+> **유효 비트수**: 16개 값당 `4×16 + 8 = 72비트`이므로, 파라미터당 **4.5 effective bits**. 즉 BF16(16비트) 대비 약 **3.55배 메모리 절감** 이다. INT4(4비트)와 비교하면 0.5비트를 더 쓰는 대신, 그 0.5비트(micro-block FP8 스케일)로 부동소수점 dynamic range를 확보한다 — 이것이 NVFP4가 INT4 대비 이상치(outlier)를 잘 처리하는 이유다.
 
 이 "2단계 스케일링"으로 dynamic range를 넓게 유지하면서 4비트 압축을 달성한다. LLM의 가중치 분포에는 이상치(outlier)가 존재하는데, 정수 포맷인 INT4는 이런 이상치를 잘 처리하지 못한다. 부동소수점인 NVFP4는 이상치를 더 잘 표현하므로, **같은 4비트에서 INT4보다 품질 손실이 적다.**
 

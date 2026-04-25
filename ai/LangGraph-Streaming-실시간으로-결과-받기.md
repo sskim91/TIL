@@ -510,7 +510,7 @@ async def generate_stream(user_message: str):
     yield "data: [DONE]\n\n"
 
 
-@app.post("/chat")
+@app.get("/chat")
 async def chat(message: str):
     return StreamingResponse(
         generate_stream(message),
@@ -518,10 +518,12 @@ async def chat(message: str):
     )
 ```
 
-**프론트엔드 (JavaScript):**
+> **메서드 선택 주의** — `EventSource` API는 **GET 요청만 지원**한다. 따라서 EventSource를 쓰려면 서버도 위 예시처럼 `@app.get`이어야 한다 (POST면 405 Method Not Allowed). 챗봇처럼 메시지가 길거나 복잡한 body를 보내야 한다면, 아래 *프론트엔드 옵션 2*처럼 `fetch` + `ReadableStream`으로 POST + body를 직접 다루는 방식이 실무 표준이다.
+
+**프론트엔드 옵션 1 — EventSource (위 GET 엔드포인트와 짝)**
 
 ```javascript
-const eventSource = new EventSource('/chat?message=Hello');
+const eventSource = new EventSource(`/chat?message=${encodeURIComponent('Hello')}`);
 
 eventSource.onmessage = (event) => {
     if (event.data === '[DONE]') {
@@ -533,6 +535,37 @@ eventSource.onmessage = (event) => {
     // 실시간으로 텍스트 표시
     document.getElementById('response').innerText += data.content;
 };
+```
+
+**프론트엔드 옵션 2 — fetch + ReadableStream (POST + body 가능, 실무 표준)**
+
+```javascript
+// 서버를 @app.post("/chat")로 바꾸고 body로 메시지를 받도록 한 경우
+const res = await fetch('/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: 'Hello' }),
+});
+
+const reader = res.body.getReader();
+const decoder = new TextDecoder();
+let buffer = '';
+
+while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE 이벤트 파싱 (data: ... \n\n 단위)
+    const events = buffer.split('\n\n');
+    buffer = events.pop(); // 마지막 미완성 조각 보존
+    for (const evt of events) {
+        const line = evt.replace(/^data:\s*/, '');
+        if (line === '[DONE]') return;
+        const data = JSON.parse(line);
+        document.getElementById('response').innerText += data.content;
+    }
+}
 ```
 
 ## 8. Stream Mode 비교 정리

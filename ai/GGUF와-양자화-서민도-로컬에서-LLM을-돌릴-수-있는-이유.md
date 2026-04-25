@@ -4,7 +4,7 @@
 
 ## 결론부터 말하면
 
-**양자화(Quantization)는 LLM의 가중치 정밀도를 낮춰 파일 크기와 메모리 사용량을 줄이는 기술이다.** GGUF는 이 양자화된 모델을 저장하고 실행하기 위한 파일 포맷이다.
+**양자화(Quantization)는 LLM의 가중치 정밀도를 낮춰 파일 크기와 메모리 사용량을 줄이는 기술이다.** GGUF는 추론용 모델을 단일 파일로 패키징하는 GGML 기반 포맷이며, F32·F16·BF16 같은 고정밀 가중치도 담을 수 있다 (양자화는 GGUF가 지원하는 여러 저장 옵션 중 하나일 뿐, 양자화 전용 포맷은 아니다).
 
 | 구분 | FP16 (원본) | Q4_K_M (양자화) | 감소율 |
 |------|-------------|-----------------|--------|
@@ -160,7 +160,7 @@ model-Q4_K_M-imatrix.gguf   ← Imatrix 적용
 
 ### 3.1 GGUF의 정체
 
-**GGUF(GPT-Generated Unified Format)** 는 llama.cpp 프로젝트에서 만든 파일 포맷이다. Georgi Gerganov가 개발했다.
+**GGUF** 는 llama.cpp 프로젝트(Georgi Gerganov)에서 만든 파일 포맷이다. 공식 사양 문서는 약어 풀이를 명시하지 않지만, 커뮤니티에서는 일반적으로 **"GGML Universal Format"** 으로 풀이한다 (한때 "GPT-Generated Unified Format"이라는 풀이가 퍼졌으나 이는 ChatGPT가 만들어낸 추측에서 비롯된 비공식 명명이다).
 
 여기서 중요한 점: **GGUF 자체는 양자화 방법이 아니다.** 양자화된 모델을 저장하는 **컨테이너 포맷** 이다.
 
@@ -246,11 +246,14 @@ $$
 ### 4.3 Ollama로 실행하기
 
 ```bash
-# Q4 양자화된 llama3.1 8B 실행
+# 기본 태그 — 8b는 일반적으로 8b-instruct-q4_K_M으로 매핑됨
 ollama run llama3.1:8b
 
-# 특정 양자화 버전 지정
-ollama run llama3.1:8b-q4_K_M
+# 특정 양자화 버전을 명시적으로 지정 (실제 존재하는 태그 형식)
+ollama run llama3.1:8b-instruct-q4_K_M
+ollama run llama3.1:8b-instruct-q5_K_M
+
+# 사용 가능한 태그 전체 목록은 https://ollama.com/library/llama3.1/tags 에서 확인
 ```
 
 ### 4.4 직접 양자화하기
@@ -258,9 +261,11 @@ ollama run llama3.1:8b-q4_K_M
 llama.cpp를 사용해서 직접 양자화할 수도 있다:
 
 ```bash
-# 1. llama.cpp 빌드
-git clone https://github.com/ggerganov/llama.cpp
-cd llama.cpp && make
+# 1. llama.cpp 빌드 (CMake 기반 — 2024년 6월부터 공식 빌드 방식 전환)
+git clone https://github.com/ggml-org/llama.cpp
+cd llama.cpp
+cmake -B build
+cmake --build build --config Release -j
 
 # 2. HuggingFace 모델을 GGUF로 변환 (FP16)
 python convert_hf_to_gguf.py ./my-model --outfile model-f16.gguf
