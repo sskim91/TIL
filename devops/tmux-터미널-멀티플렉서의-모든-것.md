@@ -200,17 +200,36 @@ tail -f /var/log/app/error.log
 
 ### 4.3 페어 프로그래밍
 
-같은 세션에 여러 사람이 attach할 수 있다. 한 사람이 타이핑하면 다른 사람 화면에도 실시간으로 보인다.
+같은 세션에 여러 사람이 attach할 수 있다. 한 사람이 타이핑하면 다른 사람 화면에도 실시간으로 보인다. 단, 두 사용자가 어떤 OS 계정으로 붙느냐에 따라 절차가 달라진다.
+
+**케이스 1: 같은 계정에 SSH로 들어오는 경우**
 
 ```bash
 # A가 세션 생성
 tmux new -s pair
 
-# B가 같은 세션에 붙기
+# B도 동일 계정(예: deploy)으로 SSH 접속 후
 tmux a -t pair
-
-# 이제 둘이 같은 화면을 공유
 ```
+
+이 경우 둘 다 `/tmp/tmux-<UID>/default` 소켓을 공유하므로 추가 설정이 필요 없다.
+
+**케이스 2: 서로 다른 OS 계정인 경우**
+
+기본 socket은 `/tmp/tmux-<UID>/`에 사용자 본인만 접근 가능한 권한(0700)으로 생성되기 때문에, 단순히 `tmux a`로 붙으려 하면 다른 사용자는 "no server running" 또는 권한 오류를 만난다. 이때는 공유 socket을 명시적으로 만들어야 한다.
+
+```bash
+# A가 공유 socket 경로로 세션 생성
+tmux -S /tmp/pair-sock new -s pair
+
+# 다른 사용자가 접근 가능하도록 권한 부여 (그룹 공유)
+chgrp devs /tmp/pair-sock && chmod 770 /tmp/pair-sock
+
+# B가 같은 socket을 지정해 attach
+tmux -S /tmp/pair-sock a -t pair
+```
+
+`-S` 옵션은 socket 파일 경로를 지정하는 옵션으로, 모든 tmux 명령에 동일하게 붙여야 한다(`ls`, `kill-session` 등 포함). 작업이 끝나면 socket 파일을 삭제하는 것을 잊지 말자.
 
 ### 4.4 불안정한 네트워크 환경
 

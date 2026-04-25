@@ -126,13 +126,14 @@ Weaveworks는 말만 한 게 아니었다. 직접 도구를 만들었다. **Flux
 timeline
     title GitOps의 역사
     2017 : Alexis Richardson이 "GitOps" 용어 창안
-         : Weaveworks가 Flux 프로젝트 시작
+         : Weaveworks가 Flux 프로젝트 시작 (실제 코드는 2016년 시작)
     2018 : Intuit이 ArgoCD 오픈소스 공개
-    2019 : ArgoCD CNCF Incubating 프로젝트 승인
-    2020 : Flux CNCF Incubating 프로젝트 승인
-    2022 : ArgoCD CNCF Graduated 프로젝트 승인
-         : Flux CNCF Graduated 프로젝트 승인
-         : OpenGitOps 프로젝트 공식 원칙 발표
+    2019 : Flux CNCF Sandbox 프로젝트 합류 (7월)
+    2020 : Argo CNCF Incubating 프로젝트 승인 (3월 26일)
+    2021 : Flux CNCF Incubating 프로젝트 승인 (3월 12일)
+    2022 : OpenGitOps 1.0 공식 원칙 발표 (6월)
+         : Flux CNCF Graduated 프로젝트 승인 (11월 30일)
+         : Argo CNCF Graduated 프로젝트 승인 (12월 6일)
     2024 : Weaveworks 폐업 (2월), Flux는 CNCF 커뮤니티가 계속 유지
 ```
 

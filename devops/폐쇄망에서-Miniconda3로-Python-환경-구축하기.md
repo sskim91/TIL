@@ -137,9 +137,12 @@ conda-pack -n myenv -o myenv.tar.gz
 mkdir -p ~/envs/myenv
 tar -xzf myenv.tar.gz -C ~/envs/myenv
 source ~/envs/myenv/bin/activate
+conda-unpack    # 환경 내부의 hardcoded 절대 경로를 현재 위치로 재작성
 ```
 
-conda가 설치되지 않은 대상 서버에서도 압축 해제만으로 즉시 실행 가능한 환경을 만들 수 있어, 복잡한 의존성을 가진 프로젝트에서 유용하다. 단, **패키징하는 PC와 대상 서버의 OS 및 아키텍처가 동일해야 한다** 는 점에 주의해야 한다. 예를 들어 Mac에서 `conda-pack`으로 만든 아카이브는 Linux 서버에서 동작하지 않는다. 개발 PC가 Windows/Mac이고 배포 서버가 Linux라면, 동일한 Linux 환경(예: Docker 컨테이너)에서 패키징해야 한다.
+여기서 마지막 `conda-unpack` 단계를 절대 빠뜨리면 안 된다. `conda-pack`은 패키징 시점의 절대 경로(예: `/home/builder/miniconda3/envs/myenv/...`)를 환경 내부 스크립트, conda metadata, 일부 shebang에 그대로 박아 넣는다. `conda-unpack`은 이 경로들을 새 위치로 일괄 치환해 환경을 정상화한다. 생략하면 `python` 실행은 멀쩡해 보여도 activate 후크나 `pkg-config`, conda 명령처럼 hardcoded path를 읽는 도구에서 조용한 실패가 발생한다.
+
+또한 conda가 설치되지 않은 대상 서버에서도 압축 해제만으로 즉시 실행 가능한 환경을 만들 수 있어, 복잡한 의존성을 가진 프로젝트에서 유용하다. 단, **패키징하는 PC와 대상 서버의 OS 및 아키텍처가 동일해야 한다** 는 점에 주의해야 한다. 예를 들어 Mac에서 `conda-pack`으로 만든 아카이브는 Linux 서버에서 동작하지 않는다. 개발 PC가 Windows/Mac이고 배포 서버가 Linux라면, 동일한 Linux 환경(예: Docker 컨테이너)에서 패키징해야 한다.
 
 ## 정리
 
