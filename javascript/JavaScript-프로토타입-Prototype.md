@@ -139,7 +139,7 @@ const person2 = new Person('Bob');
 ```
 - `new` 키워드로 생성된 실제 객체
 - **`[[Prototype]]`** (내부 슬롯)으로 프로토타입 객체를 참조
-- `__proto__` 접근자로 프로토타입에 접근 가능 (비표준이지만 널리 사용)
+- `__proto__` 접근자로 프로토타입에 접근 가능 ([ES2015부터 ECMAScript 표준 — Annex B](https://tc39.es/ecma262/#sec-additional-properties-of-the-object.prototype-object) — 단, 웹 호환성 유지를 위한 normative이므로 신규 코드에서는 [`Object.getPrototypeOf()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/getPrototypeOf) / [`Object.setPrototypeOf()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/setPrototypeOf) 사용이 권장됨)
 
 ### 관계 흐름
 
@@ -584,8 +584,10 @@ if (!Array.prototype.includes) {
         const n = fromIndex | 0;
         let k = Math.max(n >= 0 ? n : len - Math.abs(n), 0);
         
+        // 실제 Array.prototype.includes는 SameValueZero 비교 사용 — NaN을 NaN과 같다고 본다
         while (k < len) {
-            if (o[k] === searchElement) {
+            if (o[k] === searchElement ||
+                (o[k] !== o[k] && searchElement !== searchElement)) {  // NaN 처리
                 return true;
             }
             k++;
@@ -647,12 +649,26 @@ function merge(target, source) {
     return target;
 }
 
+// 진짜 프로토타입 오염은 재귀 merge나 Object.assign이 아닌 깊이 있는 할당에서 발생한다.
+// 아래 deepMerge는 'a.__proto__.isAdmin = true' 같은 설정을 따라가 Object.prototype을 오염시킨다.
+function deepMerge(target, source) {
+    for (const key in source) {
+        if (typeof source[key] === 'object' && source[key] !== null) {
+            if (!target[key]) target[key] = {};
+            deepMerge(target[key], source[key]);   // 재귀로 따라 들어가며 __proto__도 추적
+        } else {
+            target[key] = source[key];
+        }
+    }
+    return target;
+}
+
 const maliciousInput = JSON.parse('{"__proto__": {"isAdmin": true}}');
 const user = {};
-merge(user, maliciousInput);
+deepMerge(user, maliciousInput);   // user.__proto__ === Object.prototype 이 오염됨
 
-// 모든 객체에 영향!
-console.log({}.isAdmin);  // true (보안 문제!)
+// 이제 모든 객체에 영향!
+console.log({}.isAdmin);  // true (Object.prototype.isAdmin === true — 보안 문제!)
 
 // ✅ 안전한 방법
 function safeMerge(target, source) {
