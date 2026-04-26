@@ -442,12 +442,22 @@ ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
     for (int i = 0; i < 10_000; i++) {
         executor.submit(() -> {
-            String result = fetchFromAPI();  // 블로킹처럼 보이지만
-            process(result);                  // 실제론 논블로킹으로 동작
+            // 블로킹 호출처럼 작성하지만, I/O 대기 시점에 virtual thread가
+            // carrier thread에서 unmount되어 carrier가 다른 virtual thread를 실행한다.
+            // (호출 자체가 논블로킹으로 바뀌는 게 아니다)
+            String result = fetchFromAPI();
+            process(result);
         });
     }
 }
 ```
+
+> ⚠️ 일부 blocking 연산은 carrier thread를 함께 block시킨다(=pinning). `synchronized` 블록 안의 블로킹 I/O, 일부 native 메서드 등이 대표적이다.
+>
+> - **Java 21~23**: `synchronized` 블록 안에서 블로킹하면 carrier가 pin됨 → `ReentrantLock`이 권장됨
+> - **Java 24+ (JEP 491)**: `synchronized`에서도 virtual thread가 unmount될 수 있도록 개선 → 이 제약이 해소됨. 더 이상 virtual thread만의 이유로 `ReentrantLock`으로 교체할 필요 없음
+>
+> native 메서드 등 다른 pinning 사례는 여전히 남아 있으므로 `jdk.tracePinnedThreads`로 확인하는 게 안전하다.
 
 Virtual Threads가 혁신적인 이유:
 - **Concurrent한 설계**를 강제하지 않아도 됨 (기존 코드 그대로)
@@ -484,6 +494,15 @@ sequenceDiagram
     T2->>M: write count = 0 + 1 = 1
     Note over M: count = 1 (예상: 2)
 ```
+
+> ⚠️ **흔한 오해: `volatile`로는 해결되지 않는다**
+>
+> `volatile int count`로 만들어도 이 race condition은 그대로 발생한다. `volatile`은 **visibility**(다른 스레드가 최신 값을 보게 함)만 보장하고 **atomicity**(read-modify-write를 깨지지 않게 함)는 보장하지 않기 때문이다. `count++`는 단일 연산이 아니라 복합 연산이라 두 스레드가 같은 값을 읽고 같은 값을 쓰는 구간이 여전히 존재한다.
+>
+> 진짜 해결책:
+> - **`AtomicInteger.incrementAndGet()`** — CAS(Compare-And-Swap) 기반 lock-free atomicity
+> - **`synchronized`** 블록 — mutex로 read-modify-write를 통째로 보호
+> - **`LongAdder`** — 경합이 매우 심한 카운터에 더 효율적
 
 ### 6.2 Deadlock
 

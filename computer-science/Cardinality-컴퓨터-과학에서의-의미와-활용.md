@@ -83,6 +83,8 @@ SHOW INDEX FROM users;
 +-------+------------+----------+--------------+-------------+
 ```
 
+> ⚠️ **주의**: `SHOW INDEX`의 Cardinality는 실제 고유값 수가 아니라 **InnoDB가 일부 페이지를 샘플링해 산출한 통계 추정값**이다. 동일 테이블이라도 실행 시점에 따라 달라질 수 있고, 옵티마이저는 이 추정값을 보고 실행계획을 세운다. 통계가 오래되어 실제 분포와 어긋나면 잘못된 인덱스를 고를 수 있으므로 필요 시 `ANALYZE TABLE users;`로 갱신한다. 정확한 고유값이 필요하면 `SELECT COUNT(DISTINCT col) FROM users;`로 직접 계산해야 한다.
+
 ### 2.3 Selectivity: Cardinality의 실전 활용
 
 **Selectivity**(선택도)는 Cardinality를 실제 쿼리 최적화에 활용하는 지표다.
@@ -306,9 +308,12 @@ groups:
 scrape_configs:
   - job_name: 'app'
     metric_relabel_configs:
-      - source_labels: [user_id]
-        action: drop  # user_id 라벨 삭제
+      # user_id 라벨만 제거 (sample은 그대로 유지)
+      - action: labeldrop
+        regex: user_id
 ```
+
+> ⚠️ `action: drop`은 라벨을 제거하는 게 아니라 매칭된 **sample 자체를 버린다**. 라벨만 제거하려면 `labeldrop`(이름이 정규식과 매칭) 또는 `labelkeep`(매칭되는 라벨만 남김)을 사용해야 한다.
 
 ### 5.5 Cardinality 모니터링 권장 사항
 

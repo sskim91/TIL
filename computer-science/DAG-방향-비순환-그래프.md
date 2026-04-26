@@ -115,7 +115,10 @@ def search_with_retry(state, max_retries=3):
 **방법 2: 순환을 허용하되 제한** - LangGraph처럼 `recursion_limit`을 건다:
 
 ```python
-app = graph.compile(recursion_limit=10)  # 최대 10번 순환 후 강제 종료
+# recursion_limit은 compile()이 아니라 실행 시 config로 전달
+app = graph.compile()
+result = app.invoke(inputs, config={"recursion_limit": 10})
+# 최대 10 step 초과 시 GraphRecursionError 발생
 ```
 
 두 번째 방법은 **엄밀히 말하면 DAG가 아니다.** 순환을 허용하기 때문이다. 하지만 "유한한 순환"을 허용해서 실용성을 얻는 트레이드오프다.
@@ -143,7 +146,7 @@ class ResponseNode {
 }
 ```
 
-Spring의 Bean 의존성 그래프도 DAG다. **순환 의존성이 생기면 Spring이 에러를 던지는 이유가 바로 이것이다:**
+Spring의 Bean 의존성 그래프도 **생성자 주입 기준으로는 DAG**다. **생성자 주입에서 순환 의존성이 생기면 Spring이 에러를 던지는 이유가 바로 이것이다:**
 
 ```
 BeanCurrentlyInCreationException:
@@ -152,6 +155,8 @@ BeanCurrentlyInCreationException:
 ```
 
 Spring은 Bean을 생성할 때 의존성 순서대로 생성해야 한다. A가 B에 의존하면 B를 먼저 만들어야 한다. 그런데 B도 A에 의존한다면? 뭘 먼저 만들어야 할지 결정할 수 없다. 그래서 에러가 발생한다.
+
+> 📝 setter/field injection이나 `@Lazy`를 쓰면 Spring이 프록시·지연 초기화로 순환을 깰 수 있어 부분적으로 허용된다. 다만 공식 가이드는 권장하지 않으며, 의존성 그래프를 DAG로 유지하는 게 안전한 설계다.
 
 ### 2.2 DAG vs 다른 구조 비교
 
@@ -215,7 +220,7 @@ gitGraph
 - 자식이 부모를 가리키지, **부모가 자식을 가리키지 않는다** (비순환)
 - **머지 커밋은 여러 부모를 가진다** (DAG, Tree가 아님)
 
-과거를 수정할 수 없고, 미래가 과거를 참조할 수 없다. 이게 바로 DAG의 특성이다.
+새 커밋(미래)이 과거 커밋을 참조할 수는 있지만, **과거 커밋이 미래 커밋을 참조할 수는 없다**. 이게 바로 DAG의 특성이다.
 
 ### 3.2 빌드 시스템 (Gradle, Maven)
 
@@ -264,8 +269,9 @@ graph.add_conditional_edges(
     {"retry": "search", "done": "respond"}  # search로 돌아갈 수 있음
 )
 
-# 무한 루프 방지를 위한 제한
-app = graph.compile(recursion_limit=10)
+# 무한 루프 방지를 위한 제한 (compile 인자 아님 - 실행 시 config로 전달)
+app = graph.compile()
+result = app.invoke(inputs, config={"recursion_limit": 10})
 ```
 
 **DAG만 필요하다면 LangChain LCEL을 쓰라** 는 게 공식 권장이다.
@@ -273,8 +279,9 @@ app = graph.compile(recursion_limit=10)
 ### 3.4 데이터 파이프라인 (Apache Airflow)
 
 ```python
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+# Airflow 3.x 기준 import 경로
+from airflow.sdk import DAG
+from airflow.providers.standard.operators.python import PythonOperator
 
 with DAG("data_pipeline", ...) as dag:
     extract = PythonOperator(task_id="extract", ...)
@@ -283,6 +290,8 @@ with DAG("data_pipeline", ...) as dag:
 
     extract >> transform >> load  # DAG 정의
 ```
+
+> 📝 Airflow 2.x에서는 `from airflow import DAG`, `from airflow.operators.python import PythonOperator`였지만, 3.x에서 SDK·Providers 구조로 분리되어 import 경로가 바뀌었다.
 
 Airflow는 아예 핵심 객체 이름이 `DAG`다. ETL 파이프라인에서 작업 의존성을 정의하고, 병렬 실행 가능한 작업을 자동으로 식별한다.
 
@@ -309,16 +318,17 @@ flowchart LR
 
 B와 C는 서로 의존하지 않으므로 순서가 바뀌어도 된다. **이게 바로 병렬 실행 가능한 작업이다.**
 
-Java로 구현하면:
+Java로 구현하면 (순환 탐지 통합):
 
 ```java
 public List<Node> topologicalSort(Graph dag) {
     List<Node> result = new ArrayList<>();
     Set<Node> visited = new HashSet<>();
+    Set<Node> recursionStack = new HashSet<>();  // 현재 DFS 경로 추적
 
     for (Node node : dag.getNodes()) {
         if (!visited.contains(node)) {
-            dfs(node, visited, result);
+            dfs(node, visited, recursionStack, result);
         }
     }
 
@@ -326,16 +336,25 @@ public List<Node> topologicalSort(Graph dag) {
     return result;
 }
 
-private void dfs(Node node, Set<Node> visited, List<Node> result) {
+private void dfs(Node node, Set<Node> visited, Set<Node> stack, List<Node> result) {
     visited.add(node);
+    stack.add(node);  // 경로에 진입
+
     for (Node neighbor : node.getOutgoingNodes()) {
+        if (stack.contains(neighbor)) {
+            throw new IllegalStateException("Cycle detected: not a DAG");
+        }
         if (!visited.contains(neighbor)) {
-            dfs(neighbor, visited, result);
+            dfs(neighbor, visited, stack, result);
         }
     }
-    result.add(node);  // 후위 순회: 자식들 다 방문 후 추가
+
+    stack.remove(node);    // 경로에서 이탈
+    result.add(node);      // 후위 순회: 자식들 다 방문 후 추가
 }
 ```
+
+> ⚠️ **순환 탐지를 통합한 이유**: 단순히 `visited`만 체크하면 순환이 있는 그래프에서 silent하게 잘못된 순서를 반환한다. `recursionStack`으로 현재 경로를 추적해야 "이미 방문한 노드(다른 경로)"와 "현재 경로의 노드(순환)"를 구분할 수 있다. 별도의 `hasCycle()`을 먼저 호출하는 것보다 한 번의 DFS로 통합하는 것이 시간복잡도와 코드 모두에서 깔끔하다.
 
 시간복잡도는 $O(V + E)$다. 모든 노드와 엣지를 한 번씩 방문한다.
 

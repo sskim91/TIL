@@ -219,10 +219,11 @@ libuv가 하는 일:
 | 작업 유형 | 처리 방식 | 이유 |
 |----------|----------|------|
 | 네트워크 I/O | epoll/kqueue | OS가 비동기 지원 |
-| 파일 I/O | Thread Pool | OS가 비동기 미지원* |
+| 파일 I/O (Linux 5.10+) | io_uring (libuv 1.45+) | 진짜 비동기 파일 I/O |
+| 파일 I/O (구버전/미지원) | Thread Pool | fallback |
 | DNS 조회 | Thread Pool | getaddrinfo가 블로킹 |
 
-*Linux에는 `io_uring`이 있지만 libuv는 아직 Thread Pool 사용
+> 📝 libuv 1.45.0(2023-06)부터 Linux 커널 5.10+ 환경에서 `read/write/fsync/openat/close` 등 일부 파일 작업에 io_uring을 사용한다. 미지원 작업이나 구버전 커널에서는 기존 Thread Pool로 fallback한다.
 
 #### Python의 asyncio
 
