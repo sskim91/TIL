@@ -150,6 +150,8 @@ boto3는 AWS API 정의 파일에서 **자동으로 코드가 생성** 된다. �
 
 boto3는 같은 AWS 서비스를 두 가지 방식으로 다룰 수 있다.
 
+> **⚠️ Resource API 공식 maintenance mode (2023.11~):** AWS는 [boto3 Resource interface에 더 이상 신규 투자를 하지 않겠다고 공식 발표](https://github.com/boto/boto3/discussions/3563)했다. 신규 서비스에는 Resource가 추가되지 않으며, 장기적으로 **Client API로 마이그레이션**이 권장된다. 기존 Resource 코드는 당분간 동작하지만 신규 코드는 Client를 쓰는 편이 안전하다.
+
 ### Client (저수준)
 
 AWS API와 1:1 매핑. 모든 AWS 서비스 지원.

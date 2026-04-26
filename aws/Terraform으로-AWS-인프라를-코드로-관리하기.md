@@ -78,7 +78,7 @@ resource "aws_instance" "web" {
 }
 ```
 
-Ansible 같은 명령적(Imperative) 도구는 "이 작업을 수행해"라고 지시한다. 현재 상태를 고려하지 않고 항상 같은 작업을 수행하기 때문에, 멱등성을 직접 관리해야 한다.
+> **참고:** Ansible을 흔히 "명령적(Imperative)"이라고 비교하지만 엄밀히는 절반만 맞다. Ansible 모듈은 대부분 **선언적이고 idempotent**하게 설계되어 있어 `package: name=nginx state=present`처럼 "어떤 상태여야 하는지"를 선언한다. 다만 **playbook의 task 실행은 위에서 아래로 순차 실행되는 절차적 흐름**이다. Terraform과의 진짜 차이는 "imperative vs declarative"보다 **state 파일을 통한 전역 의존성 그래프 관리 vs 호스트별 모듈 실행 모델**에 가깝다.
 
 ### 2.2 멀티 클라우드 지원
 
@@ -276,9 +276,9 @@ $ terraform apply -var="environment=dev"
 $ terraform apply -var="environment=prod" -var="instance_type=t2.large"
 ```
 
-### 4.3 실전 예제: VPC + EC2 + RDS
+### 4.3 실전 예제: VPC + EC2
 
-실제 웹 애플리케이션을 위한 기본 인프라를 만들어보자.
+실제 웹 애플리케이션의 네트워킹 + 컴퓨트 기본 인프라를 만들어보자. (RDS·라우팅 테이블·IGW 등 풀 스택 예시는 분량 관계로 생략 — 실무에서는 `aws_internet_gateway`, `aws_route_table`, `aws_db_instance`까지 함께 정의한다.)
 
 ```hcl
 # VPC 생성
@@ -410,19 +410,19 @@ flowchart LR
 2. **State 손실 위험**: 노트북 포맷하면 State도 사라짐
 3. **동시 작업 불가**: 두 명이 동시에 `apply`하면 State가 꼬임
 
-### 5.3 Remote State (S3 + DynamoDB)
+### 5.3 Remote State (S3 native locking)
 
-실무에서는 반드시 Remote State를 사용한다.
+실무에서는 반드시 Remote State를 사용한다. 현재 권장은 **S3 native locking**(Terraform 1.10에서 GA). 기본값은 여전히 `false`이므로 `use_lockfile = true`를 명시적으로 설정해 활성화한다:
 
 ```hcl
-# backend.tf
+# backend.tf — 현재 권장 (S3 native locking)
 terraform {
   backend "s3" {
-    bucket         = "my-terraform-state-bucket"
-    key            = "prod/terraform.tfstate"
-    region         = "ap-northeast-2"
-    encrypt        = true
-    dynamodb_table = "terraform-state-lock"
+    bucket       = "my-terraform-state-bucket"
+    key          = "prod/terraform.tfstate"
+    region       = "ap-northeast-2"
+    encrypt      = true
+    use_lockfile = true   # S3에 .tflock 파일로 잠금
   }
 }
 ```
@@ -430,8 +430,10 @@ terraform {
 | 구성 요소 | 역할 |
 |----------|------|
 | S3 버킷 | State 파일 저장 |
-| DynamoDB 테이블 | State 잠금 (동시 작업 방지) |
+| `use_lockfile = true` | 같은 버킷에 `.tflock` 파일로 동시 작업 방지 |
 | 암호화 | State에 포함된 민감 정보 보호 |
+
+> **레거시 — DynamoDB 잠금:** Terraform 1.10 이전에는 `dynamodb_table = "terraform-state-lock"`로 별도 DynamoDB 테이블에 잠금을 걸었다. 이 방식은 [현재 deprecated이며 향후 minor 버전에서 제거 예정](https://developer.hashicorp.com/terraform/language/backend/s3)이다. 기존 환경에서 마이그레이션할 때만 사용하자.
 
 ---
 
