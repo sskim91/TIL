@@ -713,15 +713,23 @@ public class SSEMessage {
 }
 
 // Redis Pub/Sub를 활용한 Scale-out 대응
+// 주의: Spring Data Redis에는 @KafkaListener / @RabbitListener 같은 어노테이션 기반 리스너가 없다.
+// MessageListener 인터페이스를 직접 구현하거나, RedisMessageListenerContainer + MessageListenerAdapter로 등록해야 한다.
 @Component
-public class SSEBroadcaster {
+@RequiredArgsConstructor
+public class SSEBroadcaster implements MessageListener {
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
     private final List<SseEmitter> localEmitters = new CopyOnWriteArrayList<>();
 
-    // Redis 메시지 수신 → 로컬 클라이언트에게 전파
-    @RedisListener(topics = "sse-events")
-    public void onMessage(String message) {
+    // MessageListener 인터페이스 메서드 — RedisMessageListenerContainer가 호출한다
+    @Override
+    public void onMessage(Message message, byte[] pattern) {
+        String body = new String(message.getBody(), StandardCharsets.UTF_8);
+        handleMessage(body);
+    }
+
+    private void handleMessage(String message) {
         try {
             SSEMessage sseMessage = objectMapper.readValue(message, SSEMessage.class);
             List<SseEmitter> deadEmitters = new ArrayList<>();

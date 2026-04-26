@@ -242,11 +242,19 @@ sequenceDiagram
 <!-- Almost Standards Mode 또는 Quirks Mode -->
 </html>
 
-<!-- ❌ 나쁨: XHTML 1.0 (오래된 DOCTYPE) -->
+<!-- ⚠️ 권장 안 됨: XHTML 1.0 (오래된 DOCTYPE) -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
-<!-- Almost Standards Mode -->
+<!-- 실제로는 Standards Mode 트리거 (Almost Standards가 아님).
+     Almost Standards가 되는 것은 XHTML 1.0 Transitional/Frameset 쪽이다. -->
+</html>
+
+<!-- ❌ 진짜 Almost Standards가 되는 케이스: XHTML 1.0 Transitional (system identifier 포함) -->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<!-- Almost Standards Mode (이미지 baseline 등 일부 비표준 동작) -->
 </html>
 
 <!-- ✅ 좋은 예: HTML5 DOCTYPE (최신) -->
