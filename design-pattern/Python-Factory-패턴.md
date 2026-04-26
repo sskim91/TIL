@@ -738,7 +738,7 @@ class GzipCompression:
     def compress(self, data: bytes) -> bytes:
         return b"GZIP: " + data
 
-class Brotli Compression:
+class BrotliCompression:
     def compress(self, data: bytes) -> bytes:
         return b"Brotli: " + data
 
