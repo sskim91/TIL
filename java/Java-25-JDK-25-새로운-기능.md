@@ -8,8 +8,10 @@ Java 25는 **LTS (Long-Term Support) 릴리스**로, **18개의 JEP**를 포함�
 
 ```java
 // Java 25 - 이제 이렇게 간단하게!
+// (JEP 512 Compact Source File. java.lang.IO는 자동 static import 되지 않으므로
+//  IO.println으로 호출하거나 `import static java.lang.IO.*;`을 명시한다.)
 void main() {
-    println("Hello, World!");
+    IO.println("Hello, World!");
 }
 
 // 기존 방식
@@ -48,14 +50,16 @@ public class Main {
 **키 유도 함수 API**
 
 ```java
-// 비밀번호 기반 키 생성 표준화
-// PBKDF2, Argon2 등 다양한 KDF 알고리즘 지원
+// JDK 25에서 KDF API가 최종 확정됨.
+// 표준 구현으로 HKDF(RFC 5869)를 포함하며,
+// Argon2 같은 추가 KDF는 향후 작업으로 별도 도입 예정.
+KDF hkdf = KDF.getInstance("HKDF-SHA256");
 ```
 
 **사용 사례:**
-- 비밀번호 해싱
-- 암호화 키 생성
+- 키 파생 (root key → session key)
 - 보안 토큰 생성
+- 암호화 키 도출 (TLS, Signal 프로토콜 등)
 
 ### 🚀 언어 개선
 
@@ -133,24 +137,26 @@ ResultSet rs = ...;
 #### JEP 512: Compact Source Files and Instance Main Methods
 **간결한 소스 파일과 인스턴스 main 메서드**
 
+> **주의**: 아래 예시는 모두 `java.lang.IO`를 사용한다. JEP 512 최종 사양에서는 `IO`의 static 메서드를 자동 import하지 않으므로, `IO.println(...)`처럼 호출하거나 파일 상단에 `import static java.lang.IO.*;`을 명시해야 한다.
+
 ```java
 // 가장 간단한 Hello World
 void main() {
-    println("Hello, World!");
+    IO.println("Hello, World!");
 }
 
 // 인스턴스 필드도 사용 가능
 String message = "Hello";
 
 void main() {
-    println(message);
+    IO.println(message);
 }
 
 // 간단한 계산기
 void main() {
     int a = 10;
     int b = 20;
-    println("합: " + (a + b));
+    IO.println("합: " + (a + b));
 }
 ```
 
@@ -162,7 +168,7 @@ void main() {
     var sum = numbers.stream()
         .mapToInt(Integer::intValue)
         .sum();
-    println("합계: " + sum);
+    IO.println("합계: " + sum);
 }
 ```
 
@@ -256,8 +262,8 @@ public class RequestContext {
         ScopedValue.newInstance();
 
     public static void handleRequest(User user) {
-        // 스코프 내에서만 값 유효
-        ScopedValue.runWhere(CURRENT_USER, user, () -> {
+        // 스코프 내에서만 값 유효 (Java 25 최종 API: where(...).run(...))
+        ScopedValue.where(CURRENT_USER, user).run(() -> {
             processRequest();
         });
     }
@@ -325,38 +331,40 @@ void vectorAdd(float[] a, float[] b, float[] c) {
 - 메서드 실행 패턴 미리 분석
 - 컴파일 최적화 향상
 
-#### JEP 519: Compact Object Headers (최종 확정!)
+#### JEP 519: Compact Object Headers (최종 확정 — product feature)
 **압축된 객체 헤더**
 
-```java
-// 객체 헤더 크기 감소 → 메모리 절약
-
-// 기존: 객체 헤더 12-16바이트
-// Java 25: 더 작은 헤더 크기
-
-// 수백만 개의 객체가 있다면?
-// 상당한 메모리 절약!
+```bash
+# JDK 25에서 product feature로 승격되었지만, 기본 객체 헤더 레이아웃은 변경되지 않는다.
+# 사용하려면 JVM 옵션으로 명시 활성화해야 한다.
+java -XX:+UseCompactObjectHeaders MyApp
 ```
 
-**영향:**
+```java
+// 활성화 시 객체 헤더 크기 감소 → 메모리 절약
+// 기본 (활성화 안 함): 12~16바이트
+// -XX:+UseCompactObjectHeaders 활성화: 8바이트
+```
+
+**영향 (활성화 시):**
 - 힙 메모리 사용량 감소
 - 더 많은 객체를 메모리에 보관 가능
 - GC 압력 감소
-- 캐시 효율성 향상
+- CPU 캐시 라인 효율 향상
 
-**실제 효과:**
+**실제 효과 (활성화 시):**
 ```
 100만 개 객체 기준
-기존: 12MB (헤더만)
-Java 25: ~8MB (약 33% 절약)
+기본 (옵션 OFF): 12MB (헤더만)
+-XX:+UseCompactObjectHeaders ON: ~8MB (약 33% 절약)
 ```
 
 #### JEP 521: Generational Shenandoah
 **세대별 Shenandoah GC**
 
 ```bash
-# Shenandoah GC 사용
-java -XX:+UseShenandoahGC -XX:+UseGenShenandoahGC MyApp
+# Shenandoah GC를 Generational 모드로 사용 (JEP 521, JDK 25 product feature)
+java -XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational MyApp
 ```
 
 **개선사항:**
@@ -379,14 +387,13 @@ java -XX:+UseShenandoahGC -XX:+UseGenShenandoahGC MyApp
 **JFR CPU 시간 프로파일링**
 
 ```bash
-# CPU 시간 정확하게 측정
-java -XX:StartFlightRecording:filename=profile.jfr \
-     -XX:+FlightRecorderOptions:enable-cpu-time=true \
-     MyApp
+# CPU 시간 정확하게 측정 (Linux 한정 Experimental 기능)
+# 새로 추가된 jdk.CPUTimeSample 이벤트를 활성화한다.
+java -XX:StartFlightRecording=jdk.CPUTimeSample#enabled=true,filename=profile.jfr MyApp
 ```
 
 **활용:**
-- 정확한 CPU 사이클 측정
+- wall-clock이 아닌 실제 CPU 사이클 측정
 - 핫스팟 식별
 - 성능 병목 지점 파악
 
@@ -400,18 +407,26 @@ java -XX:StartFlightRecording:filename=profile.jfr \
 #### JEP 520: JFR Method Timing & Tracing
 **JFR 메서드 타이밍 및 추적**
 
-```java
-// 메서드 실행 시간 추적
-@JFREvent
-public void processOrder(Order order) {
-    // 자동으로 실행 시간 기록
-}
+JEP 520은 소스 코드에 애노테이션을 붙이는 방식이 아니라, **bytecode instrumentation 기반**으로 `jdk.MethodTiming` / `jdk.MethodTrace` JFR 이벤트의 필터를 통해 추적할 메서드를 명령줄·`jcmd`·JMX 등으로 지정하는 방식이다. 소스 코드 변경 없이 운영 시점에 켤 수 있다.
+
+```bash
+# 특정 메서드의 실행 시간을 JFR로 기록 (필터로 메서드 지정)
+java -XX:StartFlightRecording:method-timing=com.example.OrderService::processOrder \
+     -XX:StartFlightRecording:filename=profile.jfr \
+     MyApp
+
+# 호출 추적(스택 추적 등)도 별도 필터로 가능 (메서드 인자 기록은 Non-Goal로 미지원)
+# 필터 문법은 와일드카드를 지원하지 않으며, 클래스 전체 또는 클래스::메서드 형태로 지정한다.
+java -XX:StartFlightRecording:method-trace=com.example.PaymentService \
+     MyApp
+# 특정 메서드만:
+# -XX:StartFlightRecording:method-trace=com.example.PaymentService::charge
 ```
 
 **장점:**
-- 메서드 레벨 성능 분석
-- 오버헤드 최소화
-- 프로덕션 환경에서도 사용 가능
+- 메서드 레벨 성능 분석을 코드 수정 없이 가능
+- 오버헤드 최소화 (필요한 메서드만 instrument)
+- 프로덕션 환경에서도 사용 가능 (`jcmd JFR.start`)
 
 ### 🗑️ 제거 및 변경
 
@@ -419,11 +434,14 @@ public void processOrder(Order order) {
 **32비트 x86 지원 제거**
 
 ```bash
-# ❌ 더 이상 지원 안 됨
-java -d32 MyApp
+# ❌ -d32/-d64 옵션은 JDK 9 이전에 deprecated, 이후 제거되었다.
+#    Java 25 런처는 해당 옵션을 받지 않는다.
+java -d32 MyApp   # 인식 불가
+java -d64 MyApp   # 인식 불가
 
-# ✅ 64비트만 지원
-java -d64 MyApp  # 또는 그냥 java MyApp
+# ✅ 64비트 JDK인지 확인하고 그냥 실행한다
+java -version     # "64-Bit Server VM" 표기 확인
+java MyApp
 ```
 
 **영향:**
@@ -452,9 +470,11 @@ void main() {
     System.out.println("Hello, World!");
 }
 
-// Java 25 (더 간단!)
+// Java 25 - JEP 512 Compact Source File에서는 java.lang.IO 사용 가능
+// (자동 static import는 최종 사양에서 채택되지 않았으므로 IO.println 형태로 호출하거나
+//  `import static java.lang.IO.*;`을 명시한다.)
 void main() {
-    println("Hello, World!");  // System.out 생략 가능
+    IO.println("Hello, World!");
 }
 ```
 
@@ -472,7 +492,7 @@ import module java.net.http;
 ### 패턴 매칭 진화
 
 ```java
-// Java 17: Record 패턴
+// Java 21: Record 패턴 (JEP 440에서 final, 19/20 preview 거침)
 record Point(int x, int y) {}
 
 if (obj instanceof Point(int x, int y)) {
@@ -520,13 +540,15 @@ switch (value) {
 ### String::hashCode 최적화
 
 ```java
-// 컴파일 타임에 미리 계산
+// JDK 25에서 String.hash 필드가 @Stable로 다뤄지면서,
+// JIT가 String 상수의 hashCode 호출을 constant folding 할 수 있는 가능성이 커졌다.
+// (javac 컴파일 타임 상수가 되는 것이 아니라, 런타임 JIT 최적화의 결과)
 String constant = "Hello";
-int hash = constant.hashCode();  // 컴파일 시 상수로!
+int hash = constant.hashCode();  // JIT가 first-call 이후 상수 접힘으로 최적화 가능
 
-// 성능 향상
-// 기존: 런타임 계산
-// Java 25: 컴파일 타임 최적화
+// 효과
+// - 기존: 매 호출마다 hash 캐시 확인 + 최초 1회 계산
+// - Java 25: JIT가 안정 값으로 보고 inline·constant fold 적용 가능
 ```
 
 ## 4. 실전 예제
@@ -535,10 +557,13 @@ int hash = constant.hashCode();  // 컴파일 시 상수로!
 
 ```java
 // Java 25 스타일
-import module java.net.http;
+// 주의: HttpServer는 jdk.httpserver 모듈의 com.sun.net.httpserver 패키지에 있다.
+// java.net.http 모듈은 HttpClient용이며 HttpServer를 포함하지 않는다.
+import module jdk.httpserver;
+import java.net.InetSocketAddress;
 
-void main() {
-    var server = HttpServer.create(8080);
+void main() throws IOException {
+    var server = HttpServer.create(new InetSocketAddress(8080), 0);
 
     server.createContext("/", exchange -> {
         String response = "Hello from Java 25!";
@@ -548,16 +573,17 @@ void main() {
     });
 
     server.start();
-    println("서버 시작: http://localhost:8080");
+    IO.println("서버 시작: http://localhost:8080");
 }
 ```
 
 ### 데이터 처리
 
 ```java
-void main() {
-    import module java.base;
+// import 선언은 파일 최상단(컴파일 단위 수준)에 둬야 한다 — 메서드 내부에는 둘 수 없다.
+import module java.base;
 
+void main() {
     var numbers = List.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
     // 짝수만 필터링하고 제곱
@@ -566,7 +592,7 @@ void main() {
         .map(n -> n * n)
         .toList();
 
-    println("결과: " + result);  // [4, 16, 36, 64, 100]
+    IO.println("결과: " + result);  // [4, 16, 36, 64, 100]
 }
 ```
 
@@ -579,19 +605,19 @@ record Company(String name, int employees) {}
 void processEntity(Object entity) {
     switch (entity) {
         case Person(var name, int age) when age >= 18 ->
-            println(name + "님은 성인입니다");
+            IO.println(name + "님은 성인입니다");
 
         case Person(var name, int age) ->
-            println(name + "님은 미성년자입니다");
+            IO.println(name + "님은 미성년자입니다");
 
         case Company(var name, int emp) when emp > 100 ->
-            println(name + "는 대기업입니다");
+            IO.println(name + "는 대기업입니다");
 
         case int count when count > 0 ->  // NEW in Java 25!
-            println("양수: " + count);
+            IO.println("양수: " + count);
 
         default ->
-            println("알 수 없는 타입");
+            IO.println("알 수 없는 타입");
     }
 }
 ```
@@ -637,8 +663,8 @@ ScopedValue<User> currentUser = ScopedValue.newInstance();
 # 기존
 java -XX:+UseG1GC MyApp
 
-# Java 25
-java -XX:+UseShenandoahGC -XX:+UseGenShenandoahGC MyApp
+# Java 25 (Generational Shenandoah, JEP 521)
+java -XX:+UseShenandoahGC -XX:ShenandoahGCMode=generational MyApp
 ```
 
 ### 권장 사항
@@ -745,13 +771,16 @@ Java 25 (AOT):
 
 ```java
 // Java 25로 간결한 마이크로서비스
-import module java.net.http;
+// HttpServer는 jdk.httpserver 모듈에 있다 (java.net.http 모듈은 HttpClient 전용).
+import module jdk.httpserver;
 import module com.fasterxml.jackson;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 
 record User(String name, String email) {}
 
-void main() {
-    var server = HttpServer.create(8080);
+void main() throws IOException {
+    var server = HttpServer.create(new InetSocketAddress(8080), 0);
 
     server.createContext("/users", exchange -> {
         if ("GET".equals(exchange.getRequestMethod())) {
@@ -764,13 +793,15 @@ void main() {
     });
 
     server.start();
-    println("서비스 시작됨");
+    IO.println("서비스 시작됨");
 }
 
-void sendJson(HttpExchange exchange, Object data) {
+void sendJson(HttpExchange exchange, Object data) throws IOException {
     var json = new ObjectMapper().writeValueAsString(data);
-    exchange.sendResponseHeaders(200, json.length());
-    exchange.getResponseBody().write(json.getBytes());
+    // Content-Length는 글자 수(length())가 아니라 바이트 수 기준이어야 한다.
+    byte[] body = json.getBytes(StandardCharsets.UTF_8);
+    exchange.sendResponseHeaders(200, body.length);
+    exchange.getResponseBody().write(body);
     exchange.close();
 }
 ```
@@ -929,9 +960,10 @@ java -XX:+HeapDumpOnOutOfMemoryError \
 ### 빠른 참조
 
 ```java
-// 간결한 Hello World
+// 간결한 Hello World (JEP 512 Compact Source File)
+// java.lang.IO는 자동 static import 되지 않으므로 IO.println로 호출.
 void main() {
-    println("Hello, Java 25!");
+    IO.println("Hello, Java 25!");
 }
 
 // 모듈 Import
@@ -939,14 +971,14 @@ import module java.base;
 
 // 기본 타입 패턴 매칭
 switch (obj) {
-    case int i -> println("정수: " + i);
-    case String s -> println("문자열: " + s);
-    default -> println("기타");
+    case int i -> IO.println("정수: " + i);
+    case String s -> IO.println("문자열: " + s);
+    default -> IO.println("기타");
 }
 
-// Scoped Values
+// Scoped Values (Java 25 최종 API)
 ScopedValue<User> currentUser = ScopedValue.newInstance();
-ScopedValue.runWhere(currentUser, user, () -> {
+ScopedValue.where(currentUser, user).run(() -> {
     // 스코프 내에서만 유효
 });
 ```

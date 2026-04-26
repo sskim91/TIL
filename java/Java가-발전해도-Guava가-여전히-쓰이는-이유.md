@@ -24,7 +24,7 @@ multimap.put("fruits", "banana");
 
 ## 1. Java가 Guava에서 흡수한 것들
 
-Java 8부터 6개월마다 새 버전이 나오면서, Guava의 많은 기능이 표준 라이브러리에 들어갔다.
+Java 9 이후 6개월 릴리스 cadence가 도입되면서, Guava의 많은 기능이 표준 라이브러리에 들어갔다.
 
 | Guava 기능 | Java 표준화 | 버전 |
 |-----------|------------|------|
@@ -338,7 +338,7 @@ filter.mightContain("banana");  // false (아마도)
 
 ### 버전 관리
 
-Guava는 **버전별 호환성 정책이 엄격하지 않다**. 메이저 버전 업그레이드 시 deprecated API가 제거될 수 있으니 주의해야 한다.
+Guava의 [공식 호환성 정책](https://github.com/google/guava#important-warnings)에 따르면 **`@Beta` 어노테이션이 붙은 API만 언제든 변경/제거될 수 있고**, 그 외의 API는 `@Deprecated` 상태라도 장기적으로 binary-compatible하게 유지된다. 따라서 버전 업그레이드 전에는 deprecated 여부보다 **사용 중인 API의 `@Beta` 표시 여부를 점검하는 것이 핵심**이다.
 
 특히 여러 라이브러리가 서로 다른 버전의 Guava에 의존하면 **의존성 지옥**(Dependency Hell)을 경험하기 쉽다. 충돌을 미리 파악하려면:
 
@@ -359,17 +359,18 @@ mvn dependency:tree | grep guava
 </dependency>
 ```
 
-### Java 버전과 Guava 버전
+### JRE / Android Flavor
 
-| Guava 버전 | 아티팩트 | 최소 Java 버전 |
-|-----------|---------|---------------|
-| 32.x 이상 | `guava-jre` | **Java 11+** |
-| 32.x 이상 | `guava-android` | Java 8+ |
-| 31.x 이하 | `guava` | Java 8+ |
+Guava의 Maven `artifactId`는 항상 `guava`이고, **JRE/Android 구분은 버전 suffix(`-jre` / `-android`)** 로 한다. 두 flavor는 Java 버전 분기가 아니라 **타겟 플랫폼 분기**다.
 
-> ⚠️ **주의**: `-jre` 버전은 Java 11 이상이 필요하다. Java 8 환경에서는 반드시 `-android` 버전을 사용해야 한다.
+| Flavor | 용도 | 환경 |
+|--------|------|------|
+| `33.x.x-jre` | 일반 JVM 서버/데스크톱 애플리케이션 | **Java 8+ JRE** |
+| `33.x.x-android` | Android 앱, 또는 Android 호환이 필요한 라이브러리 | Android API + Java 8+ |
 
-Android를 지원하거나 Java 8 환경이라면 `-android` suffix 버전을 사용한다:
+> ⚠️ **주의**: Java 8 환경이라고 해서 `-android`를 써야 하는 것은 아니다. JRE flavor도 Java 8+ JRE에서 동작하며, **Android 또는 Android와 코드를 공유하는 라이브러리가 아니라면 `-jre`를 선택**한다.
+
+Android 앱 또는 Android 호환 라이브러리라면 `-android` suffix 버전을 사용한다:
 
 ```xml
 <artifactId>guava</artifactId>

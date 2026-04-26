@@ -19,7 +19,7 @@ try {
     if (reader != null) reader.close();
 }
 
-// Java 7+ - try-with-resources + NIO.2
+// Java 8+ - try-with-resources(Java 7) + NIO.2(Java 7) + BufferedReader.lines(Java 8)
 try (BufferedReader reader = Files.newBufferedReader(Paths.get("file.txt"))) {
     reader.lines().forEach(System.out::println);
 }
@@ -247,11 +247,15 @@ try (InputStream in = getClass().getResourceAsStream("/template.txt");
 ### readAllBytes(), readNBytes()
 
 ```java
-// 전체 읽기
+// Java 9 - 전체 읽기
 byte[] all = inputStream.readAllBytes();
 
-// N바이트만 읽기 (헤더 파싱 등에 유용)
-byte[] header = inputStream.readNBytes(1024);
+// Java 9 - 미리 할당한 버퍼에 정확히 N바이트 채워 읽기
+byte[] header = new byte[1024];
+int read = inputStream.readNBytes(header, 0, header.length);
+
+// Java 11+ - 새 배열을 반환하는 간편한 오버로드 (헤더 파싱 등에 유용)
+byte[] header2 = inputStream.readNBytes(1024);
 ```
 
 ---
@@ -338,18 +342,21 @@ try (InputStream in = new FileInputStream("source.dat");
 ### File.delete() Windows 동작 변경
 
 ```java
-// Java 25에서 Windows에서의 동작이 변경됨
+// Java 25 변경 (JDK-8355954): Windows에서 java.io.File.delete()가
+// read-only 속성이 설정된 파일에 대해 삭제를 거부하도록 변경됨.
+// 이전 버전에서는 JVM이 read-only 비트를 자동 해제 후 삭제했지만,
+// 이제는 사용자 의도와 다른 silent 동작을 막기 위해 거부하는 쪽으로 변경됨.
+// (Files.delete()는 이번 변경 대상이 아니며 기존과 동일하게 동작)
+
 File file = new File("readonly-file.txt");
+file.delete();   // false 반환 (실패 원인은 알 수 없음)
 
-// Java 24 이전: 읽기 전용 파일도 삭제 가능했음 (일부 상황)
-// Java 25: 읽기 전용(DOS read-only attribute) 파일 삭제 시 false 반환
-
-// 해결 방법: 먼저 쓰기 가능으로 변경
+// 해결 방법: 먼저 쓰기 가능으로 변경 후 삭제
 file.setWritable(true);
 file.delete();
 
-// 또는 NIO.2 사용 (더 명확한 예외)
-Files.delete(path);  // AccessDeniedException
+// 대비책: NIO.2의 Files.delete()는 실패 시 명확한 예외로 원인을 드러낸다
+Files.delete(path);  // AccessDeniedException 등
 ```
 
 ### java.lang.IO 클래스

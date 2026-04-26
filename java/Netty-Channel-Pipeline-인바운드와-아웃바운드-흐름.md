@@ -321,7 +321,7 @@ public class HttpServerInitializer extends ChannelInitializer<SocketChannel> {
 }
 ```
 
-> **참고**: 과거에는 `HttpRequestDecoder`(In)와 `HttpResponseEncoder`(Out)를 따로 등록했지만, 최신 Netty에서는 이 둘을 합친 `HttpServerCodec`을 사용하는 것이 권장된다.
+> **참고**: `HttpServerCodec`은 `HttpRequestDecoder`(Inbound)와 `HttpResponseEncoder`(Outbound)를 한 번에 등록해주는 편의 클래스다. 둘을 따로 등록하는 것과 동작은 동일하며, 코드 간결성을 위해 `HttpServerCodec`을 자주 선택한다.
 
 ### 요청/응답 흐름
 
@@ -381,12 +381,14 @@ public class MyHttpHandler extends SimpleChannelInboundHandler<FullHttpRequest> 
 ### 실수 1: Outbound 핸들러 순서
 
 ```java
-// ❌ 잘못된 순서
+// ❌ 치명적 오류: encoder가 실행되지 않는다
 pipeline.addLast("business", new BusinessHandler());
 pipeline.addLast("encoder", new MyEncoder());  // business 뒤에 등록
 
-// Outbound 실행: business → encoder (encoder가 실행됨!)
-// 의도한 대로 동작하지만, 읽기 어려운 코드
+// BusinessHandler 안에서 ctx.writeAndFlush(msg)를 호출하면,
+// ctx.write()는 현재 컨텍스트의 "이전(HEAD 방향)" outbound 핸들러를 찾는다.
+// → business 뒤(TAIL 쪽)에 있는 encoder는 탐색되지 않아 스킵!
+// → 데이터가 인코딩되지 않은 채 전송되어 통신 실패
 ```
 
 ```java
@@ -395,8 +397,11 @@ pipeline.addLast("decoder", new MyDecoder());
 pipeline.addLast("encoder", new MyEncoder());
 pipeline.addLast("business", new BusinessHandler());
 
-// 직관적: 디코더/인코더가 가장 네트워크에 가까움
+// business의 ctx.write() → encoder → HEAD 순으로 정상 전파
+// 디코더/인코더가 네트워크에 가깝게 배치되어 의미상으로도 직관적
 ```
+
+> **참고**: `ctx.channel().writeAndFlush(msg)`처럼 호출하면 파이프라인 TAIL부터 outbound 흐름이 시작되므로 위치에 관계없이 모든 outbound 핸들러를 거친다. 다만 일반적으로는 `ctx.write*()`를 사용하므로 등록 순서가 곧 동작 범위가 된다.
 
 ### 실수 2: `ctx.write()` vs `ctx.channel().write()`
 

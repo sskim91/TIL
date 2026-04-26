@@ -148,7 +148,9 @@ public class Example {
     String nonNullable;          // Non-nullable (기본값)
     @Nullable String nullable;   // Nullable (명시)
 
-    <T> T parametric(T value) {  // Parametric (T의 null 가능성은 호출 시 결정)
+    // 주의: @NullMarked 안에서 unbounded <T>는 사실상 <T extends Object>로 해석되어
+    // Non-null만 받는다. nullable 타입 인자도 허용하려면 bound를 @Nullable Object로 풀어야 한다.
+    <T extends @Nullable Object> T parametric(T value) {  // Parametric (T의 null 가능성은 호출 시 결정)
         return value;
     }
 }
@@ -231,12 +233,22 @@ public class UserService {
 **@NullMarked의 효과를 취소**하여 점진적 마이그레이션 지원
 
 ```java
+// src/main/java/com/example/myapp/package-info.java
 @NullMarked
 package com.example.myapp;
 
-// 대부분의 클래스는 @NullMarked를 상속받음
+import org.jspecify.annotations.NullMarked;
+```
 
-@NullUnmarked  // 이 클래스만 기존 동작 유지
+```java
+// src/main/java/com/example/myapp/LegacyService.java
+package com.example.myapp;
+
+import org.jspecify.annotations.NullUnmarked;
+
+// 같은 패키지의 클래스에는 위 package-info의 @NullMarked가 적용된다.
+// 그러나 이 클래스는 @NullUnmarked로 효과를 명시적으로 취소한다.
+@NullUnmarked
 public class LegacyService {
     String unspecified;  // Unspecified 상태로 복귀
 }
@@ -276,11 +288,12 @@ public class NewSpringCode {
 
 ```kotlin
 // Spring Framework 6 이전
-// Spring API가 Kotlin에서 플랫폼 타입(String!)으로 보임
-val user: User! = userService.getUser(id)  // Nullable인지 Non-null인지 불명확
+// Spring API가 Kotlin에서 플랫폼 타입으로 보임. (User! 표기는 컴파일러/IDE가 표시할 때만
+// 쓰는 표기일 뿐, 소스 코드에 직접 쓸 수는 없다.)
+val user = userService.getUser(id)  // 타입은 User! (플랫폼 타입) — Nullable인지 Non-null인지 불명확
 
 // Spring Framework 7 (JSpecify 적용 후)
-// JSpecify 어노테이션이 Kotlin 타입으로 자동 변환
+// JSpecify 어노테이션이 Kotlin 타입으로 자동 변환되어 명확해진다.
 val user: User? = userService.getUser(id)  // @Nullable → Nullable
 val name: String = userService.getName(id)  // Non-null → Non-null
 ```
@@ -340,16 +353,25 @@ package com.example.myapp;
 import org.jspecify.annotations.NullMarked;
 ```
 
-이제 `com.example.myapp` 패키지의 모든 클래스는 기본적으로 Non-null입니다.
+이제 `com.example.myapp` 패키지(딱 그 패키지 자체)의 모든 클래스는 기본적으로 Non-null입니다.
+
+> **주의**: JSpecify의 패키지 레벨 `@NullMarked`는 **하위 패키지로 자동 전파되지 않는다.** `com.example.myapp.service`, `com.example.myapp.controller` 같은 하위 패키지는 각자 `package-info.java`에 `@NullMarked`를 별도 선언해야 한다. 모듈 단위로 일괄 적용하려면 `@NullMarked`를 모듈 선언(`module-info.java`)이나 각 클래스/메서드 레벨로 보완하는 방식을 함께 사용한다.
 
 ### 4.2 서비스 레이어
+
+```java
+// src/main/java/com/example/myapp/service/package-info.java
+@NullMarked
+package com.example.myapp.service;
+```
 
 ```java
 package com.example.myapp.service;
 
 import org.jspecify.annotations.Nullable;
 
-// 패키지가 @NullMarked이므로 모든 타입이 기본적으로 Non-null
+// 위 package-info.java에 @NullMarked가 선언되어 있으므로
+// 이 패키지의 모든 타입은 기본적으로 Non-null
 public class UserService {
 
     private final UserRepository userRepository;
@@ -399,10 +421,12 @@ public class UserController {
         this.userService = userService;
     }
 
-    // 200 OK (User) 또는 404 Not Found (null)
+    // null을 그대로 반환해도 Spring MVC가 자동으로 404를 만들어주지는 않는다.
+    // 404를 의도한다면 ResponseEntity.ofNullable(...)을 사용해야 한다.
     @GetMapping("/{id}")
-    public @Nullable User getUser(@PathVariable String id) {
-        return userService.findById(id);
+    public ResponseEntity<User> getUser(@PathVariable String id) {
+        // findById가 null이면 404 Not Found, 값이 있으면 200 OK
+        return ResponseEntity.ofNullable(userService.findById(id));
     }
 
     // 항상 User 객체 반환 (201 Created)
@@ -527,19 +551,21 @@ public class Example {
 
 ```gradle
 // build.gradle
+// 아래 버전은 작성 시점 예시이며, 적용 전에 Maven Central에서
+// 최신 안정 버전(Error Prone, NullAway, errorprone Gradle 플러그인)을 직접 확인하라.
 plugins {
     id 'java'
-    id 'net.ltgt.errorprone' version '3.1.0'
+    id 'net.ltgt.errorprone' version '3.1.0'  // 예시
 }
 
 dependencies {
-    // JSpecify 어노테이션
+    // JSpecify 어노테이션 (1.0.0 정식)
     implementation 'org.jspecify:jspecify:1.0.0'
 
-    // Error Prone
+    // Error Prone (예시 버전 — 최신 확인 필요)
     errorprone 'com.google.errorprone:error_prone_core:2.23.0'
 
-    // NullAway
+    // NullAway (예시 버전 — 최신 확인 필요. 2024 이후 0.11.x/0.12.x 라인업 출시)
     errorprone 'com.uber.nullaway:nullaway:0.10.14'
 }
 

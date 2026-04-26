@@ -6,7 +6,7 @@ Java에서 SSH/SFTP 연결을 구현할 때 가장 많이 사용되는 JSch 라�
 
 **원본 JSch**(com.jcraft:jsch)는 2018년 0.1.55 버전을 마지막으로 업데이트가 중단되었다. 문제는 2021년 OpenSSH 8.8이 보안상의 이유로 `ssh-rsa`(SHA1 기반)를 기본 비활성화하면서 발생했다. 원본 JSch는 새로운 `rsa-sha2-256/512` 알고리즘을 지원하지 않아 많은 서버에 접속할 수 없게 되었다.
 
-**mwiede/jsch fork**는 이 문제를 해결하고, 현재 2.27.x 버전까지 활발하게 유지보수되고 있다. Drop-in replacement로 설계되어 의존성만 교체하면 기존 코드 수정 없이 사용할 수 있다.
+**mwiede/jsch fork**는 이 문제를 해결하고, 현재(2026-04 기준 최신 2.28.0) 활발하게 유지보수되고 있다. Drop-in replacement로 설계되어 의존성만 교체하면 기존 코드 수정 없이 사용할 수 있다.
 
 ```xml
 <!-- Before: 더 이상 업데이트되지 않는 원본 -->
@@ -170,10 +170,12 @@ mwiede는 자신의 블로그에서 fork를 시작한 이유를 다음과 같이
 | 카테고리 | 원본 JSch (0.1.55) | mwiede Fork (2.27.x) |
 |---------|-------------------|---------------------|
 | **RSA 서명** | ssh-rsa (SHA1) | rsa-sha2-256, rsa-sha2-512 (기본) |
-| **키 교환** | diffie-hellman-group14-sha1 | curve25519-sha256, ecdh-sha2-nistp256/384/521, ML-KEM (포스트 양자) |
-| **암호화** | aes128-ctr, aes192-ctr, aes256-ctr | aes128-gcm, aes256-gcm, chacha20-poly1305 |
-| **MAC** | hmac-sha1, hmac-sha2-256 | hmac-sha2-256-etm, hmac-sha2-512-etm |
+| **키 교환** | diffie-hellman-group14-sha1, group-exchange-sha1/sha256, ecdh-sha2-nistp256/384/521 | + curve25519-sha256, curve448-sha512, post-quantum 하이브리드 KEX(`sntrup761x25519-sha512` 등) |
+| **암호화** | aes128-ctr, aes192-ctr, aes256-ctr | + aes128-gcm, aes256-gcm, chacha20-poly1305 |
+| **MAC** | hmac-sha1, hmac-sha2-256, hmac-sha2-512 | + hmac-sha2-256-etm, hmac-sha2-512-etm (Encrypt-then-MAC) |
 | **EdDSA** | 미지원 | ssh-ed25519, ssh-ed448 |
+
+> **참고**: Fork 컬럼의 `+`는 원본 알고리즘에 더해 추가로 지원함을 의미한다. mwiede fork가 지원하는 정확한 PQC KEX 목록은 버전마다 다르므로 [공식 wiki](https://github.com/mwiede/jsch/wiki)에서 확인하라.
 
 ### 5.2 보안 기본값 강화
 

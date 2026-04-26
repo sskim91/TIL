@@ -28,7 +28,7 @@ String json = mapper.writeValueAsString(user);  // {"name":"김철수","age":25}
 
 ## 1. 왜 만들어졌는가?
 
-1995년 Java가 처음 나왔을 때, **분산 시스템**의 꿈이 있었다. **RMI(Remote Method Invocation)** - 원격 서버의 메서드를 마치 로컬처럼 호출하는 기술. 이걸 위해서는 객체를 네트워크로 전송해야 했다.
+Java 1.0이 1996년 1월에 출시되고, 이듬해 Java 1.1(1997년)에서 `Serializable`과 **RMI(Remote Method Invocation)** 가 함께 도입되면서 **분산 시스템**의 꿈이 본격화되었다. RMI는 원격 서버의 메서드를 마치 로컬처럼 호출하는 기술인데, 이를 위해서는 객체를 네트워크로 전송해야 했다.
 
 ```mermaid
 flowchart LR
@@ -255,7 +255,7 @@ sequenceDiagram
     System-->>Attacker: 시스템 장악됨
 ```
 
-**Apache Commons Collections 취약점(CVE-2015-7501)**이 대표적인 사례다. WebLogic, JBoss, Jenkins 등 수많은 시스템이 영향을 받았다.
+**Apache Commons Collections 역직렬화 RCE 가젯 체인**이 대표적인 사례다(Apache Commons Collections 자체에는 별도 CVE ID가 배정되지 않았고, 영향을 받은 제품에 각각 CVE가 발급되었다 — 예: WebLogic `CVE-2015-4852`, JBoss `CVE-2015-7501`). 이외에도 Jenkins 등 수많은 시스템이 영향을 받았다.
 
 #### 방어책: ObjectInputFilter (Java 9+)
 
@@ -476,9 +476,10 @@ public class User implements Serializable {
 ```mermaid
 timeline
     title Java 직렬화 역사
-    1995 : Java 1.0 출시
-         : Serializable 도입
-         : RMI 분산 시스템의 꿈
+    1996 : Java 1.0 출시
+    1997 : Java 1.1 출시
+         : Serializable / RMI 도입
+         : 분산 시스템의 꿈
     2000년대 : XML이 대세
             : SOAP, JAXB
             : 웹 서비스 시대

@@ -175,7 +175,7 @@ map.merge("count", 1, Integer::sum);          // 있으면 합치기
 
 Java 8에서 버킷 단위로 변경되면서 동시성 성능이 크게 향상되었다.
 
-추가로 Java 8에서는 해시 충돌 최적화도 도입되었다. 버킷 내 노드 수가 8개를 초과하면 링크드 리스트가 **Red-Black Tree**로 전환된다. 이로 인해 최악의 경우에도 검색 시간 복잡도가 O(n)에서 O(log n)으로 개선된다.
+추가로 Java 8에서는 해시 충돌 최적화도 도입되었다. 버킷 내 노드 수가 8개를 초과(`TREEIFY_THRESHOLD=8`)하고 **전체 테이블 크기가 64 이상**(`MIN_TREEIFY_CAPACITY=64`)이면 링크드 리스트가 **Red-Black Tree**로 전환된다. 테이블이 64 미만이면 트리화 대신 리사이즈를 먼저 수행한다. 트리화 덕분에 최악의 경우에도 검색 시간 복잡도가 O(n)에서 O(log n)으로 개선된다.
 
 ```mermaid
 flowchart LR
@@ -205,7 +205,9 @@ flowchart LR
 `ConcurrentHashMap`의 `size()`는 정확한 값이 아닐 수 있다. 동시 수정 중에는 근사치를 반환한다.
 
 ```java
-// 정확한 크기가 필요하면 mappingCount() 사용 (long 반환)
+// mappingCount()는 long을 반환하므로 Integer.MAX_VALUE를 넘는 매우 큰 맵에 적합하다.
+// 단, 이 메서드 역시 동시 삽입/삭제 중에는 추정값을 반환하므로
+// 강한 일관성을 보장하지는 않는다.
 long count = map.mappingCount();
 ```
 
