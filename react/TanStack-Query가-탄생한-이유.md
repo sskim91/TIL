@@ -317,8 +317,10 @@ Next.js 13+ App Router를 사용하면:
 ```tsx
 // Server Component - 서버에서 직접 데이터 fetch
 async function UserList() {
-  const users = await fetch('https://api.example.com/users');
-  return <ul>{users.map(...)}</ul>;
+  // fetch()는 Response를 반환하므로 .json()으로 파싱해야 한다
+  const res = await fetch('https://api.example.com/users');
+  const users = await res.json();
+  return <ul>{users.map(u => <li key={u.id}>{u.name}</li>)}</ul>;
 }
 
 // Server Action - 서버에서 직접 mutation 처리
@@ -438,21 +440,30 @@ HydrationBoundary의 장점:
 
 Next.js 15+ 환경에서 자주 사용되는 패턴이다. Server Action의 서버 로직과 TanStack Query의 클라이언트 캐시 관리를 결합한다:
 
+`'use server'`와 `'use client'`는 **각각 별도의 파일**에 있어야 한다. 같은 모듈에 혼합할 수 없다.
+
 ```tsx
-// Server Action 정의
+// app/actions/user.ts — Server Action 파일
 'use server';
-async function createUserAction(data: { name: string }) {
+
+export async function createUserAction(data: { name: string }) {
   const user = await db.users.create(data);
   return user;
 }
+```
 
-// Client Component에서 useMutation과 결합
+```tsx
+// app/components/CreateUserForm.tsx — Client Component 파일
 'use client';
-function CreateUserForm() {
+
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { createUserAction } from '@/app/actions/user';   // Server Action import
+
+export function CreateUserForm() {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: createUserAction,  // Server Action 호출
+    mutationFn: createUserAction,   // Server Action 호출
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
@@ -465,6 +476,8 @@ function CreateUserForm() {
   );
 }
 ```
+
+> Server Action은 빌드 시 자동으로 RPC 엔드포인트로 변환되어 클라이언트에서 함수처럼 호출 가능해진다. `'use server'`와 `'use client'` 지시문은 [Next.js 문서](https://nextjs.org/docs/app/api-reference/directives/use-server)대로 파일 단위 경계를 지켜야 한다.
 
 ### 4.5 낙관적 업데이트: useOptimistic vs TanStack Query
 
