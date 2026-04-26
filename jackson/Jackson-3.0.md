@@ -94,7 +94,7 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 | 2.x | 3.0 | 설명 |
 |-----|-----|------|
 | `JsonFactory` | `TokenStreamFactory` | 파서/생성기 팩토리 |
-| `JsonNode.getText()` | `JsonNode.getString()` | 텍스트 노드 값 가져오기 |
+| `JsonParser.getText()` | `JsonParser.getString()` | 파서의 텍스트 토큰 값 가져오기 (JsonNode는 `asString()`/`stringValue()` 사용) |
 | `TextNode` | `StringNode` | 문자열 노드 타입 |
 | `Module` | `JacksonModule` | 모듈 인터페이스 |
 | `JsonDeserializer` | `ValueDeserializer` | 커스텀 역직렬화 |
@@ -107,14 +107,16 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 JsonFactory factory = new JsonFactory();
 JsonParser parser = factory.createParser(json);
 JsonNode node = mapper.readTree(json);
-String text = node.get("name").getText();
+String text = node.get("name").asText();           // 2.x JsonNode는 asText() 사용 (getText는 JsonParser 메서드)
 
-// 변경 (3.0)
-TokenStreamFactory factory = new TokenStreamFactory();
+// 변경 (3.0) — TokenStreamFactory는 추상 부모 클래스, JSON용 구체 클래스는 여전히 JsonFactory
+JsonFactory factory = new JsonFactory();          // (또는 JsonFactory.builder().build())
 JsonParser parser = factory.createParser(json);
 JsonNode node = mapper.readTree(json);
-String text = node.get("name").getString();
+String text = node.get("name").asString();         // JsonNode는 asString() 또는 stringValue() (getText/getString은 JsonParser 전용)
 ```
+
+> **`TokenStreamFactory` vs `JsonFactory` 정확히:** Jackson 3.0의 [`TokenStreamFactory`](https://javadoc.io/static/tools.jackson.core/jackson-core/3.0.0/tools/jackson/core/TokenStreamFactory.html)는 JSON 외 다른 포맷(YAML, CBOR, XML 등)도 통합하기 위한 **추상 부모 클래스**다. `JsonFactory`는 이를 상속한 JSON 전용 구체 클래스로 그대로 사용 가능. 위 표는 "공통 추상 타입의 이름이 바뀌었다"는 의미이지, 모든 호출 위치에서 `JsonFactory`를 `TokenStreamFactory`로 치환하라는 뜻이 아니다.
 
 ### 🚨 예외 체계 개편
 
@@ -199,12 +201,14 @@ public class Event {
 
 Event event = new Event(LocalDateTime.of(2024, 11, 15, 10, 30));
 
-// 2.x 출력: {"timestamp": 1699900800000}  (타임스탬프)
-// 3.0 출력: {"timestamp": "2024-11-15T10:30:00"}  (ISO-8601)
+// 2.x 출력 (JavaTimeModule 등록 + WRITE_DATES_AS_TIMESTAMPS=true 기본):
+//   LocalDateTime은 epoch millis가 아니라 정수 배열로 직렬화된다 — {"timestamp": [2024,11,15,10,30]}
+//   epoch millis로 출력되는 것은 java.util.Date / Instant 같은 타입.
+// 3.0 출력 (WRITE_DATES_AS_TIMESTAMPS=false 기본): {"timestamp": "2024-11-15T10:30:00"}  (ISO-8601)
 
 // 3.0에서 타임스탬프로 변경하려면:
 ObjectMapper mapper = JsonMapper.builder()
-    .enable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+    .enable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
     .build();
 ```
 
@@ -233,14 +237,16 @@ public enum Status {
 **이유:** DoS 공격 방어 강화
 
 ```java
-// 깊이 조정
-JsonMapper mapper = JsonMapper.builder()
+// 깊이 조정 — streamReadConstraints는 TokenStreamFactory 빌더에 설정한다
+JsonFactory factory = JsonFactory.builder()
     .streamReadConstraints(
         StreamReadConstraints.builder()
             .maxNestingDepth(1000)  // 기존처럼 1000으로 설정
             .build()
     )
     .build();
+
+JsonMapper mapper = JsonMapper.builder(factory).build();
 ```
 
 ## 4. 새로운 기능 ✨
@@ -248,7 +254,7 @@ JsonMapper mapper = JsonMapper.builder()
 ### 1) 빌더 패턴 기반 불변성
 
 ```java
-// 기존 (2.x) - Mutable, Thread-unsafe
+// 기존 (2.x) - Mutable. 초기 설정 완료 후 공유는 thread-safe하지만, 런타임 재설정은 안전성이 보장되지 않음
 ObjectMapper mapper = new ObjectMapper();
 mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -280,7 +286,7 @@ public class JacksonConfig {
             .enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT)
 
             // 직렬화 설정
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
             .enable(SerializationFeature.INDENT_OUTPUT)
             .serializationInclusion(JsonInclude.Include.NON_NULL)
 
@@ -343,9 +349,16 @@ profile.getName();        // "Alice"
 profile.getBio();         // Optional.of("Developer")
 profile.getWebsite();     // Optional.empty()
 
-// Object → JSON
+// Object → JSON (기본 매퍼 — 빈 Optional은 null로 직렬화되어 그대로 출력됨)
 String output = mapper.writeValueAsString(profile);
-// {"name":"Alice","bio":"Developer"}  (website는 제외됨)
+// {"name":"Alice","bio":"Developer","website":null}
+
+// 빈 Optional을 응답에서 제외하려면 Include.NON_ABSENT를 명시 설정해야 한다
+ObjectMapper compactMapper = JsonMapper.builder()
+    .serializationInclusion(JsonInclude.Include.NON_ABSENT)   // null + Optional.empty() 모두 제외
+    .build();
+String compact = compactMapper.writeValueAsString(profile);
+// {"name":"Alice","bio":"Developer"}
 ```
 
 ### 3) Java Records 완벽 지원
@@ -425,9 +438,13 @@ public final class Cash implements Payment {
     private BigDecimal amount;
 }
 
-// Jackson 3.0에서 자동으로 subtype 감지!
-// @JsonSubTypes 애노테이션 불필요!
-ObjectMapper mapper = new ObjectMapper();
+// Jackson 3.0의 sealed type 지원은 "subtype 목록을 자동 감지"하는 것이지
+// 다형성 역직렬화 자체를 자동 활성화하는 것은 아니다.
+// → @JsonSubTypes는 불필요하지만, @JsonTypeInfo로 type discriminator는 여전히 명시 필요.
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
+public sealed interface Payment permits CreditCard, BankTransfer, Cash {}
+
+ObjectMapper mapper = JsonMapper.builder().build();
 
 String json = """
     {
@@ -438,11 +455,12 @@ String json = """
     """;
 
 Payment payment = mapper.readValue(json, Payment.class);
-// CreditCard 인스턴스로 자동 역직렬화됨
+// CreditCard 인스턴스로 자동 역직렬화됨 (@JsonSubTypes 없이도 OK)
 ```
 
-**Sealed Class 활용:**
+**Sealed Class 활용:** (다형성 역직렬화는 여전히 `@JsonTypeInfo` 필요)
 ```java
+@JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.PROPERTY, property = "type")
 public sealed abstract class Shape permits Circle, Rectangle, Triangle {
     public abstract double area();
 }
@@ -466,7 +484,7 @@ public final class Rectangle extends Shape {
     }
 }
 
-// 자동 다형성 처리
+// @JsonTypeInfo로 다형성 활성화 + sealed permits로 subtype 자동 감지
 List<Shape> shapes = mapper.readValue(jsonArray, new TypeReference<List<Shape>>() {});
 ```
 
@@ -482,11 +500,13 @@ mapper.canDeserialize(JavaType.class);
 JsonNode node = mapper.readTree(json);
 Iterator<Map.Entry<String, JsonNode>> fields = node.fields();  // 제거
 
-// ✅ 대안
-Iterator<String> fieldNames = node.fieldNames();
-node.fields().forEachRemaining(entry -> {
-    // 처리
+// ✅ 대안 (Jackson 3.0 신규 API)
+Collection<String> propertyNames = node.propertyNames();   // Iterator가 아닌 Collection 반환
+node.properties().forEach(entry -> {           // properties()는 Set<Map.Entry<String, JsonNode>>
+    // 처리: entry.getKey(), entry.getValue()
 });
+// 또는 forEachEntry로 한번에:
+node.forEachEntry((name, value) -> { /* 처리 */ });
 
 // ❌ URL 기반 메서드 제거
 mapper.readValue(new URL("http://example.com/data.json"), MyClass.class);
@@ -595,7 +615,7 @@ XmlMapper xmlMapper = XmlMapper.builder()
 
 □ 삭제된 메서드 대체
   - `canSerialize()`, `canDeserialize()` 제거
-  - `fields()` → `fieldNames()`
+  - `fields()` → `propertyNames()` / `properties()` / `forEachEntry()` (Jackson 3.0 신규 API)
 
 □ ObjectMapper 빌더 패턴 적용
   - 설정 코드를 빌더 방식으로 변경
@@ -672,7 +692,7 @@ public class JacksonConfig {
 
         // 설정
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
+        mapper.configure(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS, false);
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
         return mapper;
@@ -701,7 +721,7 @@ public class JacksonConfig {
         // 빌더 패턴 + Java 8+ 모듈 자동 로드
         return JsonMapper.builder()
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
             .serializationInclusion(JsonInclude.Include.NON_NULL)
             .build();
     }
@@ -872,8 +892,8 @@ public record ApiResponse<T>(
 public class MoneySerializer extends ValueSerializer<BigDecimal> {
 
     @Override
-    public void serialize(BigDecimal value, JsonGenerator gen, SerializerProvider provider)
-            throws IOException {
+    public void serialize(BigDecimal value, JsonGenerator gen, SerializationContext ctxt)
+            throws JacksonException {                                  // 3.0: SerializationContext (구 SerializerProvider)
         gen.writeNumber(value.setScale(2, RoundingMode.HALF_UP));
     }
 }
@@ -883,7 +903,7 @@ public class MoneyDeserializer extends ValueDeserializer<BigDecimal> {
 
     @Override
     public BigDecimal deserialize(JsonParser p, DeserializationContext ctxt)
-            throws IOException {
+            throws JacksonException {
         String value = p.getValueAsString();
         return new BigDecimal(value).setScale(2, RoundingMode.HALF_UP);
     }
@@ -912,7 +932,7 @@ public class Order {
 1. **빌더 패턴**: 불변 `ObjectMapper` 생성
 2. **Java 8+ 내장**: Optional, java.time 자동 지원
 3. **Records 지원**: Java Records 완벽 지원
-4. **Sealed Types**: 자동 다형성 처리
+4. **Sealed Types**: `permits`로 선언된 subtype 목록 자동 감지 (`@JsonSubTypes` 불필요). 단, type discriminator 활성화는 여전히 `@JsonTypeInfo`로 명시 필요
 5. **성능 개선**: 5-10% 빠른 직렬화/역직렬화
 
 ### 언제 업그레이드?
