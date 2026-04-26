@@ -199,36 +199,34 @@ es = Elasticsearch(
 
 #### 방법 4: Certificate Pinning (고급)
 
+**핵심 원칙**: 진짜 pinning은 TLS 핸드셰이크 중에 **서버가 보낸 peer 인증서**의 지문을 검증해야 한다. 로컬 파일을 해시해서 비교하는 코드는 MITM 방어가 되지 않는다(공격자가 가짜 인증서로 응답해도 로컬 파일 검증은 항상 통과한다).
+
+elasticsearch-py 8.x는 `ssl_assert_fingerprint` 파라미터로 peer 인증서의 SHA-256 지문을 직접 검증한다.
+
 ```python
 from elasticsearch import Elasticsearch
-import ssl
-import hashlib
 
-def verify_cert_fingerprint(cert_path, expected_fingerprint):
-    """인증서 지문(fingerprint) 검증"""
-    with open(cert_path, 'rb') as f:
-        cert_data = f.read()
-    fingerprint = hashlib.sha256(cert_data).hexdigest()
-
-    if fingerprint != expected_fingerprint:
-        raise ssl.SSLError(
-            f"인증서 지문 불일치! MITM 공격 가능성\n"
-            f"Expected: {expected_fingerprint}\n"
-            f"Got: {fingerprint}"
-        )
-
-# 사전에 알고 있는 인증서 지문
-EXPECTED_FINGERPRINT = "a1b2c3d4e5f6..."
-
-verify_cert_fingerprint("/etc/elasticsearch/certs/ca.crt", EXPECTED_FINGERPRINT)
+# 서버 인증서의 SHA-256 fingerprint를 사전에 안전한 채널로 받아둔 상태
+EXPECTED_FINGERPRINT = (
+    "64:F2:88:62:8B:75:8B:13:C2:1D:31:A2:84:1B:..."
+)
 
 es = Elasticsearch(
-    ["https://es-prod.company.com:9200"],
-    ca_certs="/etc/elasticsearch/certs/ca.crt",
-    verify_certs=True,
-    basic_auth=("elastic", "password")
+    "https://es-prod.company.com:9200",
+    ssl_assert_fingerprint=EXPECTED_FINGERPRINT,  # peer 인증서 지문 검증
+    basic_auth=("elastic", "password"),
 )
+# 핸드셰이크 시 peer 인증서의 지문이 다르면 TlsError 발생 → 연결 차단
 ```
+
+지문은 인증서의 **DER 인코딩**을 해시해야 표준값과 일치한다. PEM 파일을 그대로 해시하면 개행·인코딩 차이로 다른 값이 나온다.
+
+```bash
+# 표준 SHA-256 fingerprint 추출
+openssl x509 -in /etc/elasticsearch/certs/ca.crt -noout -fingerprint -sha256
+```
+
+CA를 신뢰할 수 없는 환경(셀프 서명, 사설 CA)이나 CA가 손상되어도 특정 서버만 통신하고 싶을 때 효과적이다. 단점은 인증서 갱신 시 지문이 바뀌므로 운영 자동화가 필요하다.
 
 ## 5. 방어 메커니즘
 
