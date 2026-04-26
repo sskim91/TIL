@@ -548,5 +548,5 @@ class ErrorCode(Enum):
 ## 출처
 
 - [Python enum 공식 문서](https://docs.python.org/3/library/enum.html) - 공식 문서
-- [PEP 435 – Adding an Enum type](https://peps.python.org/pep-0435/) - Enum 도입 제안서
-- [PEP 663 – StrEnum](https://peps.python.org/pep-0663/) - StrEnum 도입 제안서
+- [PEP 435 – Adding an Enum type](https://peps.python.org/pep-0435/) - Enum 도입 제안서 (Python 3.4)
+- [Python 3.11 What's New — enum.StrEnum](https://docs.python.org/3.11/whatsnew/3.11.html#enum) - StrEnum은 별도 PEP 없이 3.11에서 직접 추가됨 (`PEP 663`은 Enum의 `str()/repr()/format()` 표준화 제안이며 withdrawn 상태)

@@ -56,24 +56,20 @@ def get_users():
     users = db.query(User).all()  # 블로킹! 다른 요청은 대기
     return jsonify(users)
 
-# FastAPI (ASGI, 비동기)
+# FastAPI (ASGI, 비동기) — SQLAlchemy 2.0 AsyncSession 패턴
 @app.get("/users")
 async def get_users():
-    users = await db.query(User).all()  # 논블로킹! 다른 요청 처리 가능
-    return users
+    result = await db.execute(select(User))   # await는 db.execute에 붙는다
+    return result.scalars().all()
 ```
 
 > **주의:** `await`만 붙인다고 마법처럼 비동기가 되는 건 아니다. 비동기 DB 드라이버(`asyncpg`, `databases`, `SQLAlchemy async` 등)를 사용해야 진짜 논블로킹 I/O가 가능하다.
 
-**벤치마크 (초당 요청 수, 높을수록 좋음):**
+**성능 비교 (정성적):** ASGI 기반 FastAPI는 일반적으로 WSGI 기반 Flask/Django보다 동시성·I/O 처리량이 높다. 다만 구체적 RPS 수치는 워크로드(CPU vs I/O 비중), 하드웨어, ORM·DB 드라이버, 워커 수, 실제 비즈니스 로직에 따라 수 배 이상 차이 나므로 단일 숫자로 일반화하기 어렵다.
 
-| 프레임워크 | 요청/초 | 비고 |
-|-----------|--------|------|
-| FastAPI | ~15,000 | ASGI + uvicorn |
-| Flask | ~2,000 | WSGI + gunicorn |
-| Django | ~1,500 | WSGI + gunicorn |
+> 객관적 비교가 필요하면 [TechEmpower Benchmarks](https://www.techempower.com/benchmarks/)에서 카테고리별(Plaintext/JSON/DB) 수치를 직접 확인하거나, 자신의 워크로드로 [`wrk`](https://github.com/wg/wrk)·[`oha`](https://github.com/hatoo/oha) 같은 도구로 측정하는 것이 좋다.
 
-> **왜 이렇게 차이가 날까?** WSGI는 동기 방식이라 I/O 대기 시간에 스레드가 놀고 있다. ASGI는 비동기라서 I/O 대기 중에도 다른 요청을 처리할 수 있다.
+> **왜 차이가 날까?** WSGI는 동기 모델이라 요청 처리 중 I/O 대기 시간에 워커(스레드/프로세스)가 점유된다. ASGI는 비동기 이벤트 루프라 같은 워커가 I/O 대기 중에 다른 요청을 처리할 수 있어, 특히 **I/O 바운드** 워크로드에서 처리량이 크게 늘어난다. CPU 바운드 작업에서는 차이가 작거나 오히려 GIL 영향으로 비슷할 수 있다.
 
 ### 1.3 개발 속도: Pydantic + Type Hints
 
@@ -119,7 +115,9 @@ class UserCreate(BaseModel):
 async def create_user(user: UserCreate):
     # 검증은 이미 완료됨! 바로 비즈니스 로직
     db_user = User(**user.model_dump())
-    await db.add(db_user)
+    db.add(db_user)               # AsyncSession.add()는 동기 메서드 — await 불필요
+    await db.commit()             # I/O가 발생하는 commit/flush에만 await
+    await db.refresh(db_user)     # auto-generated id 채우기
     return {"id": db_user.id}
 ```
 
@@ -234,12 +232,19 @@ async def async_handler():
     data = await async_db_query()
     return data
 
-# 동기 함수 - CPU 작업에 적합 (자동으로 스레드풀에서 실행)
+# 동기 함수 - 블로킹 동기 I/O 라이브러리를 쓸 때 적합 (FastAPI가 자동으로 스레드풀에서 실행)
 @app.get("/sync-endpoint")
 def sync_handler():
-    result = heavy_cpu_computation()
+    result = legacy_blocking_db_call()    # 비동기 드라이버가 없는 경우
     return result
 ```
+
+> **CPU 바운드 작업 처리 정확한 그림:** [FastAPI 공식 가이드](https://fastapi.tiangolo.com/async/)는 짧은 계산(CPU-bound)에는 `def`보다 `async def`가 낫다고 안내한다(스레드풀 컨텍스트 스위칭 비용 회피).
+> - `async def` 안에서 무거운 CPU 작업을 직접 실행하면 → **이벤트 루프 자체가 막힌다** (다른 모든 요청 대기)
+> - 일반 `def` 엔드포인트는 FastAPI가 **외부 threadpool에서 실행**하므로 이벤트 루프는 살아 있지만, GIL 때문에 threadpool 내 병렬성에는 한계가 있다
+> - 결론: 무거운 CPU 작업은 [`asyncio.to_thread`](https://docs.python.org/3/library/asyncio-task.html#asyncio.to_thread)로도 GIL을 못 우회하므로, **`ProcessPoolExecutor`/Celery/RQ 같은 별도 워커 프로세스**로 분리하는 것이 정석이다.
+>
+> `def` vs `async def` 선택의 진짜 기준은 "사용하는 라이브러리가 awaitable한가"이다.
 
 ---
 
@@ -329,7 +334,9 @@ async def get_users_async(
     return result.scalars().all()
 ```
 
-> **주의:** 동기/비동기를 혼합하지 마라! 동기 엔드포인트는 동기 의존성만, 비동기 엔드포인트는 비동기 의존성만 사용해야 일관성 있고 예측 가능한 코드가 된다.
+> **참고:** [FastAPI는 `def`/`async def` 엔드포인트와 의존성을 자유롭게 섞을 수 있다](https://fastapi.tiangolo.com/async/) — `def` 의존성은 자동으로 스레드풀에서 실행되어 이벤트 루프를 막지 않는다. 핵심 원칙은 "혼합 금지"가 아니라 다음 두 가지다:
+> 1. 사용하는 라이브러리가 `await` 가능하면 `async def`를, 블로킹이면 `def`를 선택한다.
+> 2. **`async def` 안에서 블로킹 I/O(`requests.get`, `time.sleep`, 동기 DB 드라이버)를 직접 호출하지 마라** — 전체 이벤트 루프가 멈춘다. 어쩔 수 없으면 `await asyncio.to_thread(...)`나 `run_in_executor`로 감싼다.
 
 ### 4.3 Java 개발자를 위한 비교
 
@@ -501,10 +508,17 @@ uvicorn main:app --reload
 # http://localhost:8000/docs → Swagger UI
 ```
 
-> **프로덕션 배포:** 개발 시에는 `--reload` 옵션이 편리하지만, 프로덕션에서는 Gunicorn과 Uvicorn 워커를 조합하여 멀티 프로세스로 실행한다:
+> **프로덕션 배포:** 개발 시 `--reload`는 편리하지만 프로덕션에서는 멀티 프로세스로 실행한다.
 > ```bash
-> gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker
+> # 권장: Uvicorn 자체 워커 (FastAPI 0.111.0+에서는 fastapi run도 가능 — 2024-05 추가)
+> uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
+> fastapi run main.py --workers 4              # FastAPI CLI
+>
+> # Gunicorn + Uvicorn 워커를 쓰려면 별도 패키지 사용:
+> # pip install uvicorn-worker
+> # gunicorn main:app -w 4 -k uvicorn_worker.UvicornWorker
 > ```
+> [`uvicorn.workers.UvicornWorker`는 deprecated되어](https://www.uvicorn.org/#running-with-gunicorn) 향후 제거 예정이다. 별도 [`uvicorn-worker`](https://pypi.org/project/uvicorn-worker/) 패키지로 분리되었으니 새 코드는 위 패턴을 따른다.
 
 ### 7.2 CRUD 예시
 
@@ -797,7 +811,7 @@ async def stream_response():
 
 **FastAPI를 선택해야 하는 이유:**
 
-1. **타입 안전성**: Python Type Hints로 버그를 컴파일 타임에 잡는다
+1. **타입 안전성**: Python Type Hints는 런타임에서 강제되지 않지만, mypy/pyright 같은 정적 분석 도구로 사전 검출하고 FastAPI/Pydantic이 요청/응답 데이터를 런타임 검증한다
 2. **자동 문서화**: Swagger/ReDoc이 기본 내장
 3. **고성능**: Starlette + uvicorn으로 Node.js급 성능
 4. **개발 생산성**: Pydantic으로 검증 코드 90% 감소

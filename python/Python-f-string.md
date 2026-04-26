@@ -413,35 +413,48 @@ print(f"{square(5)=}")      # "square(5)=25"
 print(f"{x=:5d}")           # "x=   10"
 ```
 
-## 10. 주의사항
+## 10. 주의사항 (Python 3.12 이전과 이후)
 
-### 백슬래시 사용 불가
+[PEP 701](https://peps.python.org/pep-0701/)(Python 3.12, 2023.10)에서 f-string의 여러 제약이 한꺼번에 제거되었다. 아래 두 항목은 **3.12+에서는 더 이상 SyntaxError가 아니다.**
+
+### 백슬래시 사용
 
 ```python
-# ❌ f-string 내부에서 백슬래시 직접 사용 불가
-# print(f"{'\n'.join(items)}")  # SyntaxError!
-
-# ✅ 미리 변수에 할당
 items = ["a", "b", "c"]
+
+# Python 3.11 이하: ❌ SyntaxError
+# Python 3.12 이상: ✅ 정상 동작
+print(f"{'\n'.join(items)}")
+
+# 3.11 이하 호환이 필요하다면 미리 변수에 할당
 newline = "\n"
 print(f"{newline.join(items)}")
-
-# ✅ 또는 f-string 밖에서 처리
-print("\n".join(items))
 ```
 
-### 주석 사용 불가
+### 주석과 멀티라인 표현식
 
 ```python
 value = 42
 
-# ❌ f-string 내부에 주석 불가
-# print(f"{value # 이 값}")  # SyntaxError!
-
-# ✅ f-string 밖에 주석
-# 이 값은 중요합니다
-print(f"{value}")
+# Python 3.11 이하: ❌ SyntaxError
+# Python 3.12 이상: ✅ 표현식 내부에 주석/줄바꿈 허용
+print(f"""{
+    value  # 이 값은 중요합니다
+    + 1
+}""")
 ```
+
+### 같은 따옴표 재사용 (3.12+)
+
+```python
+data = {"name": "홍길동"}
+
+# Python 3.11 이하: ❌ SyntaxError (외부 f"...", 내부 "..." 충돌)
+# Python 3.12 이상: ✅ 정상 동작
+print(f"{data["name"]}")
+```
+
+> **호환성 주의:** 위 기능들은 Python 3.12+에서만 동작한다. 3.11 이하를 지원해야 하는 라이브러리/스크립트라면 여전히 PEP 701 이전 패턴(미리 변수에 할당, 다른 따옴표 사용 등)을 따라야 한다.
 
 ## 요약 정리
 

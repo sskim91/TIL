@@ -632,9 +632,21 @@ prices.sum()    # 513       - 전체 합계
 prices.mean()   # 102.6     - 평균
 prices.min()    # 95        - 최소값
 prices.max()    # 110       - 최대값
-prices.std()    # 5.594...  - 표준편차
+prices.std()    # 5.594...  - 표준편차 (기본 ddof=1, 표본 표준편차)
 prices.count()  # 5         - 개수 (NaN 제외)
 ```
+
+> **⚠️ pandas vs NumPy 표준편차 함정:** `pd.Series.std()`의 기본값은 `ddof=1` (Bessel 보정, **표본 표준편차**)이지만, `np.std()`의 기본값은 `ddof=0` (**모집단 표준편차**)이다. 같은 데이터로도 결과가 다르므로 두 라이브러리를 섞어 쓸 때 주의해야 한다.
+>
+> ```python
+> import numpy as np
+> data = [100, 105, 103, 110, 95]
+> np.std(data)            # 5.0039... (ddof=0, 모집단)
+> pd.Series(data).std()   # 5.5946... (ddof=1, 표본)
+> # 통일하려면: np.std(data, ddof=1)  또는  pd.Series(data).std(ddof=0)
+> ```
+>
+> 또한 `count()`는 **NaN을 제외**한 개수, `len(series)`/`series.size`는 NaN 포함 전체 개수다. 결측이 있으면 두 값이 달라진다.
 
 ### 누적 함수
 

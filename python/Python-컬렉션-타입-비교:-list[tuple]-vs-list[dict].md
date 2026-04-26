@@ -304,14 +304,17 @@ import sys
 
 # tuple: 가벼움
 t = ("john", 30)
-print(sys.getsizeof(t))  # 48 bytes
+print(sys.getsizeof(t))  # 약 56 bytes (CPython 3.12, 64-bit 기준)
 
-# dict: 무거움
+# dict: 더 큼
 d = {"name": "john", "age": 30}
-print(sys.getsizeof(d))  # 232 bytes
-
-# ⚠️ dict가 약 5배 더 큼!
+print(sys.getsizeof(d))  # 약 184 bytes (CPython 3.12, 64-bit 기준)
 ```
+
+> **⚠️ 메모리 비교 시 주의:**
+> 1. **정확한 수치는 Python 버전·OS 아키텍처에 따라 달라진다.** Python 3.11+은 dict 메모리 레이아웃을 개선했고, 3.6 이전과 비교해도 같은 dict가 다른 크기를 갖는다.
+> 2. **`sys.getsizeof()`는 컨테이너 자체 크기만 잰다** — 내부의 문자열 `"john"`, `"name"` 같은 객체는 별도로 메모리를 차지한다. 정확한 deep size는 [`pympler.asizeof()`](https://pympler.readthedocs.io/en/latest/asizeof.html)로 측정해야 한다.
+> 3. **요점은 "tuple이 dict보다 작다"는 정성적 사실**이지 "정확히 N배"가 아니다. 데이터 양과 키 길이에 따라 비율은 크게 달라진다.
 
 ---
 
@@ -556,8 +559,8 @@ def get_user_profile() -> list[dict[str, str | int | bool]]:
 
 # 사용
 for user in get_user_profile():
-    print(f"{user['username']}: {user['total_orders']}건, "
-          f"{user['total_spent']}원")
+    print(f"{user['username']} ({user['age']}세, {user['address']}) - "
+          f"활성 여부: {user['is_active']}, 마지막 로그인: {user['last_login']}")
 ```
 
 ### 3. Pandas DataFrame 변환

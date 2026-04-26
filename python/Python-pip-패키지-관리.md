@@ -63,8 +63,8 @@ pip install django==4.2.0
 # 버전 범위 지정
 pip install "flask>=2.0.0,<3.0.0"
 
-# 최소 버전 지정
-pip install numpy>=1.20.0
+# 최소 버전 지정 (셸이 >를 리다이렉션으로 해석하지 않도록 따옴표 필수!)
+pip install "numpy>=1.20.0"
 
 # 개발 버전(pre-release) 설치
 pip install --pre black
@@ -112,8 +112,11 @@ pip install -U requests  # 축약형
 pip install --upgrade pip
 python -m pip install --upgrade pip  # 권장
 
-# 모든 패키지 업그레이드 (주의!)
-pip list --outdated --format=freeze | grep -v '^\-e' | cut -d = -f 1 | xargs -n1 pip install -U
+# 모든 패키지 업그레이드 (주의 — 의존성 충돌 위험!)
+# Bash/Zsh 기준. 최신 pip은 --format=freeze + --outdated 조합을 지원하지 않으므로
+# columns(기본) 또는 json 형식을 파싱한다. (jq 필요)
+pip list --outdated --format=json | jq -r '.[].name' | xargs -n1 pip install -U
+# 또는 더 안전한 대안: pip-review --interactive  (또는 uv: uv pip install --upgrade-package <name>)
 ```
 
 ### 패키지 정보 확인
@@ -612,8 +615,14 @@ poetry add --dev pytest black
 # 설치
 poetry install
 
-# 가상환경 활성화
-poetry shell
+# 가상환경 활성화 — Poetry 2.x부터 shell은 플러그인으로 이동
+# 옵션 1: 권장 — activate은 명령 문자열을 출력만 하므로 eval로 감싸 실제 활성화
+eval "$(poetry env activate)"      # Bash/Zsh 기준 실제 셸 활성화
+# 옵션 2: 기존 shell 명령을 쓰려면 플러그인 설치 필요
+#   poetry self add poetry-plugin-shell
+#   poetry shell
+# 옵션 3: 활성화 없이 명령만 실행 (가장 간단)
+#   poetry run python script.py
 ```
 
 ### pipenv (pip + virtualenv)
@@ -818,20 +827,42 @@ python manage.py runserver
 
 ### 패키지 배포 준비
 
-```bash
-# 1. setup.py 작성
-# (생략)
+> **2026년 권장:** 신규 패키지는 [PEP 621(2020)](https://peps.python.org/pep-0621/) 표준에 따라 **`pyproject.toml` 단독**으로 메타데이터를 정의한다. `setup.py`는 동적 빌드 로직이 필요한 경우에만 사용하고, 일반적인 패키지에서는 작성하지 않아도 된다. `setup.cfg`도 더 이상 권장되지 않는다.
 
-# 2. 빌드 도구 설치
+```toml
+# pyproject.toml — 표준 패키지 메타데이터 (PEP 621)
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]   # 또는 hatchling, flit, poetry-core 등
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my-package"
+version = "0.1.0"
+description = "My awesome package"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0", "ruff>=0.5"]
+
+[project.urls]
+Homepage = "https://github.com/user/my-package"
+```
+
+```bash
+# 1. 빌드 도구 설치
 pip install build twine
 
-# 3. 패키지 빌드
-python -m build
+# 2. 패키지 빌드 (pyproject.toml 기반)
+python -m build       # dist/ 안에 .whl과 .tar.gz 생성
 
-# 4. TestPyPI에 업로드 (테스트)
+# 3. TestPyPI에 업로드 (테스트)
 twine upload --repository testpypi dist/*
 
-# 5. PyPI에 업로드 (실제 배포)
+# 4. PyPI에 업로드 (실제 배포)
 twine upload dist/*
 ```
 

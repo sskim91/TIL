@@ -131,9 +131,14 @@ pip download -r requirements.txt -d ./packages \
     --platform win_amd64 \
     --only-binary=:all:
 
-# 모든 플랫폼용 (pure Python만)
+# 모든 플랫폼용 (pure Python wheel만 — py3-none-any)
+# 주의: --only-binary=:none:은 "binary 제한 해제"라 source까지 섞임. 의도와 반대.
+# pure Python wheel만 받으려면 platform/abi/implementation을 함께 고정해야 한다.
 pip download -r requirements.txt -d ./packages \
-    --only-binary=:none:
+    --only-binary=:all: \
+    --platform any \
+    --implementation py \
+    --abi none
 ```
 
 ## 3. 로컬 PyPI 서버 구축
@@ -327,7 +332,8 @@ for version in 3.9 3.10 3.11; do
     echo "Python ${version} 패키지 다운로드..."
     pip download -r requirements.txt \
         -d packages/python${version//.} \
-        --python-version ${version}
+        --python-version ${version} \
+        --only-binary=:all:  # --python-version은 --only-binary=:all: 또는 --no-deps와 함께 써야 함
 done
 
 # 구조:
@@ -403,9 +409,11 @@ pip install --no-index ./wheels/Django-4.2.0-py3-none-any.whl
 ### 소스에서 wheel 빌드
 
 ```bash
-# 소스 코드가 있는 경우
+# 소스 코드가 있는 경우 (PEP 517/518 표준 빌드 사용)
 cd mypackage/
-python setup.py bdist_wheel
+pip install --upgrade build  # 외부망에서 build 패키지 준비
+python -m build --wheel
+# 또는 동등하게: pip wheel . --no-deps -w dist/
 
 # 생성된 wheel 파일
 ls dist/
@@ -528,9 +536,10 @@ pip download -r requirements.txt -d ./packages \
 ```bash
 # 증상: Python 3.11에서 다운로드 → Python 3.9에 설치 실패
 
-# 해결: 타겟 Python 버전 명시
+# 해결: 타겟 Python 버전 명시 (--only-binary=:all: 필수)
 pip download -r requirements.txt -d ./packages \
-    --python-version 3.9
+    --python-version 3.9 \
+    --only-binary=:all:
 ```
 
 ### 문제 3: 일부 패키지만 업데이트 필요
@@ -614,7 +623,8 @@ cp ${REQUIREMENTS_FILE} ${DEPLOY_DIR}/
 echo "패키지 다운로드 중..."
 pip download -r ${REQUIREMENTS_FILE} \
     -d ${DEPLOY_DIR}/packages \
-    --python-version ${PYTHON_VERSION}
+    --python-version ${PYTHON_VERSION} \
+    --only-binary=:all:  # --python-version은 --only-binary=:all: 또는 --no-deps와 함께 써야 함
 
 # 4. 의존성 트리 생성
 pip install pipdeptree
@@ -768,19 +778,23 @@ uv는 pip와 동일하게 오프라인 모드를 지원합니다:
 
 **외부망에서 준비:**
 
+> ⚠️ **중요**: uv는 현재 wheel 다운로드 전용 서브커맨드(`uv pip download`)를 제공하지 않습니다.
+> `uv pip` 서브커맨드는 `install`, `uninstall`, `freeze`, `list`, `show`, `check`, `sync`, `compile`, `tree`만 있습니다.
+> 따라서 폐쇄망 시나리오에서는 **다운로드는 `pip download`로, 설치만 `uv pip install`로** 하는 하이브리드 방식이 표준입니다.
+
 ```bash
 # 1. uv 설치 파일 준비
 # uv 바이너리를 다운로드 (GitHub releases)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # → ~/.cargo/bin/uv 바이너리를 USB로 복사
 
-# 2. 패키지 다운로드 (pip download와 동일)
+# 2. 패키지 다운로드 (uv는 download 미지원이므로 pip 사용)
 uv pip compile pyproject.toml -o requirements.txt
-uv pip download -r requirements.txt -d ./wheels
+pip download -r requirements.txt -d ./wheels
 
 # 또는
 mkdir -p offline_packages
-uv pip download django requests pandas -d offline_packages
+pip download django requests pandas -d offline_packages
 
 # 3. 압축
 tar -czf uv_offline_packages.tar.gz offline_packages/ requirements.txt
@@ -819,7 +833,7 @@ celery==5.3.0
 EOF
 
 # 다운로드 (초고속)
-uv pip download -r requirements.txt -d ./wheels
+pip download -r requirements.txt -d ./wheels  # uv는 download 미지원이라 pip 사용
 
 # 폐쇄망: 설치 (초고속)
 uv venv
@@ -827,7 +841,7 @@ source .venv/bin/activate
 uv pip install --no-index --find-links=./wheels -r requirements.txt
 ```
 
-### ⚠️ 현재 제약사항 (2024년 기준)
+### ⚠️ 알려진 제약사항 (확인 시점: 2026-04-26)
 
 #### 1. Git 의존성 문제
 
@@ -847,33 +861,24 @@ dependencies = [
 # 외부망에서 git 의존성을 wheel로 변환
 git clone https://github.com/user/repo.git
 cd repo
-uv pip wheel . -w ../wheels
+uv build --wheel --out-dir ../wheels  # uv는 pip wheel 미지원, uv build 사용
 
 # pyproject.toml 수정 (폐쇄망용)
 sed -i 's|@ git+https://.*|@ file:///path/to/wheels/my_package-1.0.0-py3-none-any.whl|' pyproject.toml
 ```
 
-#### 2. uv run의 PyPI 접근 시도
+#### 2. uv run / uv sync 오프라인 동작 (과거 이슈, 현재는 해소)
+
+> 📌 **참고**: 아래는 2024년 초기 uv(0.1.x~0.2.x)에서 보고된 제약입니다.
+> 2026-04-26 기준 공식 CLI 문서상 `uv run`, `uv sync` 모두 `--offline`, `--no-index`, `--find-links`를 정식 지원합니다.
+> 안정성이 중요한 환경이라면 사용 전 본인의 uv 버전(`uv --version`)에서 동작을 검증하세요.
 
 ```bash
-# 문제: uv run이 --offline 플래그를 무시하고 PyPI 접근 시도
-uv run --offline --no-index --find-links=./wheels python script.py
-# → 여전히 PyPI에 접근 시도
-
-# 해결: 가상환경을 명시적으로 활성화
-uv venv
-source .venv/bin/activate
-python script.py  # uv run 대신 직접 실행
-```
-
-#### 3. uv sync의 불완전한 --no-index 지원
-
-```bash
-# 문제: uv sync가 --no-index를 완벽히 지원하지 않음
+# 현재(권장): uv sync / uv run 에서 --offline + --no-index + --find-links 함께 사용
 uv sync --frozen --no-index --find-links=./wheels
-# → 간헐적으로 PyPI 접근 시도
+uv run --offline --no-index --find-links=./wheels python script.py
 
-# 해결: uv pip install 사용
+# 우회(보수적): pip 호환 인터페이스 사용
 uv pip install --no-index --find-links=./wheels -r requirements.txt
 ```
 
@@ -885,7 +890,7 @@ uv pip install --no-index --find-links=./wheels -r requirements.txt
 uv pip compile pyproject.toml -o requirements.txt
 
 # Step 2: wheel 다운로드
-uv pip download -r requirements.txt -d ./wheels
+pip download -r requirements.txt -d ./wheels  # uv는 download 미지원이라 pip 사용
 
 # Step 3: uv 바이너리 포함
 cp $(which uv) ./uv_binary
@@ -926,7 +931,7 @@ uv lock
 
 # 모든 의존성을 wheel로 다운로드
 uv export --format requirements-txt > requirements.txt
-uv pip download -r requirements.txt -d ./wheels
+pip download -r requirements.txt -d ./wheels  # uv는 download 미지원이라 pip 사용
 
 # 폐쇄망에서 설치
 uv venv
@@ -952,10 +957,9 @@ uv pip install --no-index --find-links=./wheels -r requirements.txt
 - ✅ 의존성 해결 속도 빠름
 
 **단점:**
-- ❌ Git 의존성 처리 불완전
-- ❌ `uv run` 오프라인 모드 불안정
-- ❌ `uv sync` --no-index 지원 불완전
-- ❌ 문서화 부족 (베스트 프랙티스 미확립)
+- ❌ Git 의존성 처리 불완전 (외부망에서 wheel로 미리 빌드해 두어야 함)
+- ⚠️ `uv pip download`, `uv pip wheel` 서브커맨드 미지원 — 다운로드는 `pip download`, 빌드는 `uv build`/`pip wheel` 사용
+- ⚠️ `--platform`/`--python-version` 같은 cross-target 다운로드 워크플로우는 pip가 더 성숙
 
 ### 실전 팁
 
@@ -1004,7 +1008,7 @@ uv는 활발히 개발 중이며, 폐쇄망 지원이 개선될 예정입니다:
 - 커뮤니티에서 베스트 프랙티스 논의 중
 - Astral팀이 적극 개발 중
 
-**결론:** 2024년 현재 uv는 폐쇄망에서 **사용 가능하지만 pip보다 덜 성숙**합니다. 간단한 프로젝트는 속도 이점을 위해 시도해볼 만하지만, 복잡한 프로젝트는 pip를 권장합니다.
+**결론 (2026-04-26 기준):** uv의 install/sync/run 등 핵심 워크플로우는 `--offline`, `--no-index`, `--find-links`를 정식 지원하므로 폐쇄망에서도 무리 없이 쓸 수 있습니다. 다만 wheel **다운로드**(`pip download` 동등 기능)는 여전히 부재하므로, 다운로드는 pip로, 설치만 uv로 하는 하이브리드가 가장 안전한 패턴입니다.
 
 ## 11. 베스트 프랙티스
 
@@ -1092,7 +1096,7 @@ pip install --no-index --find-links=./packages -r requirements.txt
 ```bash
 # === 외부망 ===
 # 1. 준비
-uv pip download -r requirements.txt -d wheels
+pip download -r requirements.txt -d wheels  # uv는 download 미지원이라 pip 사용
 
 # 2. 전달
 tar -czf wheels.tar.gz wheels/

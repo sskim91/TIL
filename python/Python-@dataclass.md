@@ -180,16 +180,27 @@ print(profile.created_at)  # 현재 시간
 
 ```python
 @dataclass(
-    init=True,        # __init__ 생성 (기본: True)
-    repr=True,        # __repr__ 생성 (기본: True)
-    eq=True,          # __eq__ 생성 (기본: True)
-    order=False,      # __lt__, __le__, __gt__, __ge__ 생성 (기본: False)
-    frozen=False,     # 불변 객체로 만들기 (기본: False)
-    unsafe_hash=False # __hash__ 생성 (기본: False)
+    init=True,         # __init__ 생성 (기본: True)
+    repr=True,         # __repr__ 생성 (기본: True)
+    eq=True,           # __eq__ 생성 (기본: True)
+    order=False,       # __lt__, __le__, __gt__, __ge__ 생성 (기본: False)
+    frozen=False,      # 불변 객체로 만들기 (기본: False)
+    unsafe_hash=False  # 강제로 __hash__ 생성 (자세한 규칙은 아래 참고, 기본: False)
 )
 class Example:
     value: int
 ```
+
+> **`__hash__` 자동 생성 규칙 (헷갈리기 쉬움):** `unsafe_hash=False`라고 항상 `__hash__`이 빠지는 건 아니다. dataclass는 `eq`/`frozen` 조합에 따라 다음과 같이 동작한다:
+>
+> | `eq` | `frozen` | `unsafe_hash` | `__hash__` 결과 |
+> |------|----------|---------------|-----------------|
+> | True (기본) | **True** | False | **자동 생성** ✅ — set/dict 키 사용 가능 |
+> | True (기본) | False (기본) | False | **`None`으로 설정** ❌ — hashable 아님 |
+> | True | False | **True** | 강제 생성 ⚠️ — mutable인데 hash가 있어 위험 |
+> | False | 무관 | False | 부모 클래스의 `__hash__` 상속 |
+>
+> 즉 `unsafe_hash=True`는 "mutable한 dataclass에 강제로 hash를 만들 때"만 의미가 있고, 일반적으로는 `frozen=True`로 hash를 얻는 것이 안전하다.
 
 ### frozen=True (불변 객체)
 
@@ -388,12 +399,20 @@ class Child(Parent):
     student_id: int  # 기본값 없는 필드가 뒤에 오면 안 됨!
 # TypeError!
 
-# ✅ 올바른 방법
+# ✅ 올바른 방법 1: 자식 필드도 모두 기본값 부여
 @dataclass
 class ChildCorrect(Parent):
-    student_id: int
-    grade: str = "A"  # 기본값 있는 필드는 뒤에
+    student_id: int = 0      # 부모(Parent.age=0)에 기본값이 있으므로 자식 필드도 기본값 필요
+    grade: str = "A"
+
+# ✅ 올바른 방법 2: kw_only로 위치 인자 제약 회피 (Python 3.10+)
+@dataclass(kw_only=True)
+class ChildKwOnly(Parent):
+    student_id: int          # 키워드 전용이라 위치 충돌 없음
+    grade: str = "A"
 ```
+
+> **상속 시 핵심 규칙:** dataclass는 부모 → 자식 순서로 필드를 합쳐서 `__init__`을 만들기 때문에, 합쳐진 시그니처에서도 "기본값 있는 인자 뒤에 기본값 없는 인자"가 오면 안 된다. Python 3.10+에서는 `kw_only=True`나 [`field(kw_only=True)`](https://docs.python.org/3/library/dataclasses.html#dataclasses.field)로 이 제약을 우회할 수 있다.
 
 ## 8. asdict와 astuple
 
@@ -516,9 +535,9 @@ class DatabaseConfig:
 
 @dataclass
 class AppConfig:
+    secret_key: str = field(repr=False)   # 기본값 없는 필드 먼저
     debug: bool = False
     port: int = 8000
-    secret_key: str = field(repr=False)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
 
 # 사용
@@ -573,6 +592,7 @@ print(log)
 
 ```python
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
 
 @dataclass
@@ -637,7 +657,7 @@ print(response)
 | **상속** | ✅ 자유롭게 | ✅ 가능 | ⚠️ 제한적 |
 | **기본값** | ✅ 설정 가능 | ✅ 설정 가능 | ✅ 설정 가능 |
 | **타입 힌트** | ⚠️ 수동 | ✅ 필수 | ✅ 필수 |
-| **dict 키 사용** | ❌ (기본) | ⚠️ frozen=True 필요 | ✅ 기본 지원 |
+| **dict 키 사용** | ✅ 기본 가능 (단 `__eq__`만 재정의하면 `__hash__=None` 되어 불가) | ⚠️ `frozen=True` 필요 (기본 dataclass는 `__eq__` 자동 생성으로 hash 비활성화) | ⚠️ 필드 값이 모두 hashable일 때만 가능 (`list`/`dict` 같은 가변 값을 담으면 unhashable) |
 
 ### 코드 비교
 
@@ -901,7 +921,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class Example:
-    # 필수 필드
+    # 필수 필드 (기본값 없음 — 반드시 먼저)
     required_field: str
 
     # 기본값
@@ -910,8 +930,8 @@ class Example:
     # 가변 기본값
     items: list = field(default_factory=list)
 
-    # __repr__에서 숨김
-    secret: str = field(repr=False)
+    # __repr__에서 숨김 — 기본값 있는 필드 사이에 두려면 default도 함께
+    secret: str = field(default="", repr=False)
 
     # 초기화에서 제외
     computed: float = field(init=False)

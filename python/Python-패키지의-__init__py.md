@@ -270,7 +270,7 @@ __all__ = ['register_plugin', 'get_plugin']
 
 ## 5. Python 3.3+ Namespace Package
 
-`__init__.py` **없이도** 패키지 사용 가능합니다 (Python 3.3+):
+[PEP 420](https://peps.python.org/pep-0420/)으로 도입된 **암묵적 네임스페이스 패키지**(implicit namespace package)는 `__init__.py` 없이도 import할 수 있다 (Python 3.3+).
 
 ```
 myproject/
@@ -284,6 +284,23 @@ myproject/
 from namespace_pkg import module  # 동작함!
 ```
 
+### Regular Package vs Namespace Package — 같지 않다
+
+| 특성 | Regular Package (`__init__.py` 있음) | Namespace Package (`__init__.py` 없음) |
+|------|--------------------------------------|---------------------------------------|
+| 초기화 코드 실행 | ✅ | ❌ (실행할 곳이 없음) |
+| `pkg.__file__` | `__init__.py` 경로 | **존재하지 않음** (AttributeError) |
+| `pkg.__path__` | 단일 경로 (`_NamespacePath`가 아님) | `_NamespacePath` (여러 디렉토리 결합) |
+| 여러 디렉토리에 분산 | ❌ (한 곳만) | ✅ (sys.path의 여러 위치에 동일 이름이 있으면 자동 합쳐짐) |
+
+이 차이가 만드는 **실무 함정:**
+
+- **`__file__` 의존 코드**: `os.path.dirname(pkg.__file__)`로 패키지 루트를 찾는 코드는 namespace package에서 깨진다.
+- **의도치 않은 namespace 형성**: `__init__.py`를 깜빡 빼면 외부 패키지와 같은 이름의 디렉토리가 자동 병합되어 import가 다른 모듈을 가져올 수 있다.
+- **타입 체커/IDE 인식**: 일부 도구는 여전히 regular package를 가정해 namespace package를 제대로 인식하지 못한다.
+
+> **기본 권장:** 의도적으로 namespace package를 쓸 게 아니라면 `__init__.py`를 두는 편이 안전하다 (빈 파일이라도).
+
 ### 그럼 언제 __init__.py를 사용하나?
 
 | 상황 | __init__.py 필요? |
@@ -291,8 +308,9 @@ from namespace_pkg import module  # 동작함!
 | 초기화 코드 실행 | ✅ 필요 |
 | 편리한 import 제공 | ✅ 필요 |
 | 공개 API 제어 | ✅ 필요 |
-| 단순 네임스페이스만 | ❌ 불필요 (Python 3.3+) |
-| Python 2.7 지원 | ✅ 필수 |
+| 일반 단일 패키지 | ✅ 권장 (빈 파일이라도 안전성 확보) |
+| **여러 배포 패키지가 같은 namespace 공유** (예: `zope.*`, `sphinxcontrib.*`) | ❌ namespace package로 의도적 사용 |
+| Python 2.7 지원 | ✅ 필수 (Python 2.7은 2020-01-01 EOL) |
 
 ## 6. 주의사항
 

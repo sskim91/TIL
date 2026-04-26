@@ -149,20 +149,24 @@ with open("data.txt", "r") as f:
 
 ```python
 import psycopg2
+from contextlib import closing
 
-# PostgreSQL 연결
-with psycopg2.connect(
+# PostgreSQL 연결 — psycopg2의 with conn은 commit/rollback만 처리하므로
+# 명시적으로 connection을 닫으려면 closing()으로 감싼다.
+with closing(psycopg2.connect(
     host="localhost",
     database="mydb",
     user="user",
     password="password"
-) as conn:
-    with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM users")
-        results = cursor.fetchall()
-        for row in results:
-            print(row)
-# 자동으로 cursor와 conn 정리
+)) as conn:
+    with conn:                        # 트랜잭션 경계
+        with conn.cursor() as cursor: # cursor만 자동 close
+            cursor.execute("SELECT * FROM users")
+            results = cursor.fetchall()
+            for row in results:
+                print(row)
+    # 트랜잭션 commit (예외 시 rollback)
+# connection close
 ```
 
 ### Redis 연결
@@ -219,14 +223,20 @@ with open("input.txt", "r") as infile:
 
 ```python
 import psycopg2
+from contextlib import closing
 
-with psycopg2.connect(...) as conn:
-    with conn.cursor() as cursor:
-        # 여러 쿼리 실행
-        cursor.execute("INSERT INTO users (name) VALUES (%s)", ("홍길동",))
-        cursor.execute("UPDATE accounts SET balance = balance - 1000")
-    # 커밋 또는 롤백 자동 처리
+# psycopg2는 with conn 패턴이 트랜잭션만 처리하고 connection을 닫지 않는다.
+# 명시적으로 닫으려면 contextlib.closing()으로 감싼다.
+with closing(psycopg2.connect(...)) as conn:
+    with conn:                           # 트랜잭션 경계 (commit/rollback)
+        with conn.cursor() as cursor:    # cursor만 자동 close
+            cursor.execute("INSERT INTO users (name) VALUES (%s)", ("홍길동",))
+            cursor.execute("UPDATE accounts SET balance = balance - 1000")
+    # 여기서 트랜잭션 commit (예외 시 rollback)
+# 여기서 connection close (closing 덕분에)
 ```
+
+> **⚠️ psycopg2의 흔한 함정:** [psycopg2 공식 문서](https://www.psycopg.org/docs/usage.html#with-statement) 명시 — `with conn:` 블록은 트랜잭션 commit(정상 종료)/rollback(예외)만 처리하고 **connection 자체는 닫지 않는다**. Connection을 자동으로 닫으려면 위 예시처럼 `contextlib.closing()`이나 명시적 `conn.close()`가 필요하다. 이를 모르면 connection pool exhaustion으로 이어질 수 있다. (참고: **psycopg3**(2021년 출시)부터는 connection 자체도 컨텍스트 매니저로 동작해 `with psycopg.connect(...)`만으로 close된다.)
 
 ## 6. Context Manager 작동 원리
 

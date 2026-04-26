@@ -476,20 +476,24 @@ class Customer:
         pass
 ```
 
-**Python 3.11+에서는 `from __future__ import annotations`를 사용하면 따옴표를 생략할 수 있다:**
+**Python 3.7+에서는 `from __future__ import annotations`를 사용하면 따옴표를 생략할 수 있다:**
+
+[PEP 563](https://peps.python.org/pep-0563/)으로 Python 3.7부터 도입된 기능이다. 모든 어노테이션이 문자열로 처리되어 평가가 지연되므로, 정의되지 않은 이름도 타입 힌트에 그대로 쓸 수 있다.
 
 ```python
-from __future__ import annotations  # 모든 타입 힌트를 문자열로 처리
+from __future__ import annotations  # 모든 타입 힌트를 문자열로 처리 (PEP 563)
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from order import Order
 
 class Customer:
-    # ✅ 따옴표 없이도 OK (Python 3.11+)
+    # ✅ 따옴표 없이도 OK (Python 3.7+)
     def place_order(self) -> Order:
         pass
 ```
+
+> **참고:** PEP 563은 결국 기본 동작이 되지 못하고, 더 정교한 [PEP 649](https://peps.python.org/pep-0649/)(descriptor 기반 lazy evaluation)가 Python 3.14에서 채택되어 새로운 기본 동작이 되었다. 다만 `from __future__ import annotations` 자체는 여전히 사용 가능하며, 호환성 유지에 유용하다.
 
 ### 6.5 실무 예제: Agent 시스템
 

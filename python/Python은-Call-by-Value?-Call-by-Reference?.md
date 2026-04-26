@@ -15,6 +15,8 @@ Python은 **"Call by Object Reference"**(객체 참조 전달) 방식이다. Jav
 
 **핵심 차이:** Java는 타입이 전달 방식을 결정하지만, Python은 **객체의 가변성**(mutable/immutable)이 결정한다.
 
+> **엄밀히 말하면:** Java는 JLS(Java Language Specification) §8.4.1에 따라 **항상 pass-by-value**다. primitive는 값 자체를, Object는 참조 값(reference value)을 복사해 전달할 뿐이며 "참조에 의한 전달(pass-by-reference)"은 존재하지 않는다. 마찬가지로 Python의 동작은 학술적으로 **Call by Sharing**(Barbara Liskov, 1974)이라 부르며, "Call by Object Reference"는 같은 개념의 다른 이름이다.
+
 ## 쉽게 이해하기: 상자와 리모컨 비유
 
 ### 1. 불변 객체 (숫자, 문자열) - "교체 불가능한 상자"

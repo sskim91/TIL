@@ -193,7 +193,7 @@ for x, y in points:
 
 ## 6. 딕셔너리 언패킹의 한계
 
-**Python은 JavaScript처럼 딕셔너리를 키 이름으로 언패킹할 수 없다.**
+**할당문(`=`)에서는 JavaScript처럼 딕셔너리를 키 이름으로 직접 분해할 수 없다.**
 
 ```javascript
 // ✅ JavaScript - 객체 구조 분해
@@ -209,8 +209,24 @@ data = {"name": "John", "age": 30}
 name = data["name"]
 age = data["age"]
 
-# ✅ 또는 .values() 사용 (순서 보장 Python 3.7+)
+# ✅ 또는 .values() 사용 (dict 삽입 순서 보장은 Python 3.7+ 언어 스펙)
 name, age = {"name": "John", "age": 30}.values()
+```
+
+### Python 3.10+: 구조적 패턴 매칭으로 키 기반 분해
+
+[PEP 634](https://peps.python.org/pep-0634/)로 도입된 `match`/`case`는 매핑 패턴(mapping pattern)을 지원한다. 키 이름으로 안전하게 분해할 수 있고, 키가 없으면 다음 case로 넘어간다.
+
+```python
+data = {"name": "John", "age": 30, "role": "admin"}
+
+match data:
+    case {"name": name, "age": age}:   # 키 기반 분해
+        print(name, age)               # John 30
+    case _:
+        print("필수 키 누락")
+
+# 추가 키는 무시되고, 누락된 키만 매칭 실패한다 (JS 구조 분해와 비슷한 동작)
 ```
 
 ### 대안: dataclass나 Pydantic 사용

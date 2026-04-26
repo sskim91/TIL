@@ -418,7 +418,7 @@ students.sort((s1, s2) -> Integer.compare(s1.getScore(), s2.getScore()));
 | **함수형 인터페이스** | 없음 | 필수 (Function, Predicate 등) |
 | **문법** | `lambda x: x + 1` | `x -> x + 1` |
 | **변수 캡처** | 자유로움 | final 또는 effectively final만 |
-| **메서드 참조** | 없음 | `::` 연산자 지원 |
+| **메서드 참조** | 별도 연산자는 없지만 `str.capitalize`, `list.append`처럼 함수/메서드 객체를 그대로 전달 가능 | `::` 연산자 지원 (`String::toUpperCase`) |
 
 ## 6. Best Practices
 

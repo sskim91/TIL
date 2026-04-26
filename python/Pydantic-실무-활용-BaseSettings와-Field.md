@@ -181,15 +181,19 @@ class AppConfig(BaseSettings):
 from pydantic import Field
 from typing import Any
 
-# ❌ 잘못된 사용: mutable 객체를 default로
-class BadConfig(BaseSettings):
-    TAGS: list = Field(default=[])  # 위험! 모든 인스턴스가 같은 리스트 공유
+# ⚠️ 동작은 하지만 권장 X: mutable 리터럴을 default로
+class OkayButNotIdiomatic(BaseSettings):
+    TAGS: list = Field(default=[])
+    # Pydantic은 인스턴스 생성 시 default를 deepcopy하므로
+    # 일반 Python 함수 기본 인자와 달리 인스턴스 간에 공유되지 않는다.
+    # 다만 모듈 로드 시 list 객체가 한 번 생성되어 메모리에 상주하고,
+    # 동적 기본값을 만들 수 없다는 한계가 있다.
 
-# ✅ 올바른 사용: default_factory로
+# ✅ 권장: default_factory로
 class GoodConfig(BaseSettings):
-    TAGS: list = Field(default_factory=list)  # 매번 새 리스트 생성
+    TAGS: list = Field(default_factory=list)  # 인스턴스 생성 시점마다 새 리스트
 
-    # 함수로 복잡한 기본값 생성
+    # 함수로 복잡하거나 동적인 기본값 생성
     REDIS_OPTIONS: dict[str, Any] = Field(
         default_factory=lambda: {
             "max_connections": 20,
@@ -198,12 +202,14 @@ class GoodConfig(BaseSettings):
     )
 ```
 
+> **참고:** "mutable default = 공유 버그"는 [일반 Python 함수 기본 인자](https://docs.python.org/3/tutorial/controlflow.html#default-argument-values)에서 잘 알려진 함정이지만, Pydantic v2는 [`copy.deepcopy()`로 default를 복사](https://docs.pydantic.dev/latest/concepts/fields/#mutable-default-values)해 모델 인스턴스 간 공유를 방지한다. 그래도 `default_factory`가 권장되는 이유는 **(1)** 동적 기본값을 만들 수 있고 **(2)** 호출 시점에 평가되어 의도가 명확하며 **(3)** unhashable한 default로 발생하는 미묘한 비교/캐싱 문제를 피할 수 있기 때문이다.
+
 **언제 뭘 쓰나?**
 
 | 타입 | 사용 | 이유 |
 |------|------|------|
-| `str`, `int`, `bool` | `default=` | immutable이라 안전 |
-| `list`, `dict`, `set` | `default_factory=` | mutable이라 공유 위험 |
+| `str`, `int`, `bool` | `default=` | immutable, 단순함 |
+| `list`, `dict`, `set` | `default_factory=` | 의도가 명확하고 동적 생성 가능 (Pydantic이 deepcopy하므로 공유는 일어나지 않음) |
 | 복잡한 로직 | `default_factory=func` | 함수로 계산 |
 
 ### 검증 규칙 추가
@@ -270,7 +276,7 @@ print(config.REDIS_URL.path)    # "/0"
 
 ```python
 from pydantic import (
-    EmailStr,      # 이메일 형식 검증
+    EmailStr,      # 이메일 형식 검증 (별도 패키지 필요!)
     SecretStr,     # 비밀번호 (출력 시 마스킹)
     DirectoryPath, # 존재하는 디렉토리
     FilePath,      # 존재하는 파일
@@ -285,6 +291,13 @@ class AppConfig(BaseSettings):
     CONFIG_FILE: FilePath = "/etc/app/config.yaml"
     MAX_WORKERS: PositiveInt = 4
 ```
+
+> **⚠️ `EmailStr` 사용 시 추가 패키지 필요:** Pydantic 2.x에서 `EmailStr`은 [`email-validator`](https://github.com/JoshData/python-email-validator)를 optional dependency로 분리했다. `pip install pydantic`만 하면 import 시 `ImportError`가 발생한다. 다음 중 하나로 설치:
+> ```bash
+> pip install "pydantic[email]"      # extras로 설치
+> # 또는
+> pip install email-validator         # 직접 설치
+> ```
 
 **SecretStr 동작:**
 

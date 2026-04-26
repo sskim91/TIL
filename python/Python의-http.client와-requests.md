@@ -229,7 +229,7 @@ Installing collected packages: urllib3, certifi, charset-normalizer, idna, reque
 HTTP 프로토콜을 직접 다뤄야 할 때:
 - 커스텀 HTTP 메서드
 - 청크 전송 제어
-- 연결 풀링 직접 관리
+- Keep-Alive 단일 연결 직접 제어 (풀링이 필요하면 `urllib3` 또는 `requests.Session`을 써야 한다 — `http.client` 자체는 풀링을 제공하지 않는다)
 - HTTP/1.0 강제 사용
 
 ---

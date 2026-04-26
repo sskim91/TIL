@@ -21,10 +21,15 @@ import httpx
 response = httpx.get("https://api.example.com/users")
 print(response.json())
 
-# 비동기 스타일 (async/await)
-async with httpx.AsyncClient() as client:
-    response = await client.get("https://api.example.com/users")
-    print(response.json())
+# 비동기 스타일 (async/await) — 반드시 async 함수 안에서 호출해야 한다
+import asyncio
+
+async def main():
+    async with httpx.AsyncClient() as client:
+        response = await client.get("https://api.example.com/users")
+        print(response.json())
+
+asyncio.run(main())
 ```
 
 **Java로 비유하면:**
@@ -262,6 +267,12 @@ except httpx.HTTPStatusError as e:
 
 ## 6. HTTP/2 지원
 
+HTTP/2는 기본 설치에 포함되지 않는다. `h2` 패키지를 함께 설치해야 한다:
+
+```bash
+pip install "httpx[http2]"   # 또는: pip install h2
+```
+
 ```python
 # HTTP/2 활성화
 with httpx.Client(http2=True) as client:
@@ -269,10 +280,14 @@ with httpx.Client(http2=True) as client:
     print(response.http_version)  # "HTTP/2"
 ```
 
+> `h2`가 없으면 `http2=True`만 지정해도 평문/HTTP/1.1로 fallback되거나 import 단계에서 오류가 난다.
+
 **HTTP/2 장점:**
-- 멀티플렉싱 (하나의 연결로 여러 요청)
-- 헤더 압축
-- 서버 푸시
+- 멀티플렉싱 (하나의 TCP 연결에서 여러 요청을 동시 처리, head-of-line blocking 완화)
+- 헤더 압축 (HPACK)
+- 바이너리 프레이밍
+
+> **참고:** HTTP/2 Server Push는 RFC 7540에 정의되어 있지만 실무에서는 사실상 폐기됐다. Chrome은 106 버전(2022)부터 지원을 중단했고, 현재는 [HTTP 103 Early Hints](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/103)가 그 자리를 대체하고 있다.
 
 ## 7. requests에서 마이그레이션
 

@@ -892,13 +892,17 @@ def process_csv_file(filepath, output_path):
         logging.info(f"CSV 처리 시작: {filepath}")
 
         # 2. 파일 열기
+        # 주의: open()은 lazy 디코딩이라 호출만으로 UnicodeDecodeError가 안 난다.
+        # 실제 디코딩은 read()/iter 시점이므로 인코딩 검증을 먼저 해야 한다.
+        encoding = 'utf-8'
         try:
-            input_file = open(filepath, 'r', encoding='utf-8')
-            output_file = open(output_path, 'w', encoding='utf-8', newline='')
+            with open(filepath, 'r', encoding='utf-8') as probe:
+                probe.read()
         except UnicodeDecodeError:
-            # UTF-8 실패시 CP949 시도
-            input_file = open(filepath, 'r', encoding='cp949')
-            output_file = open(output_path, 'w', encoding='utf-8', newline='')
+            encoding = 'cp949'  # UTF-8 실패시 CP949 fallback
+
+        input_file = open(filepath, 'r', encoding=encoding)
+        output_file = open(output_path, 'w', encoding='utf-8', newline='')
 
         reader = csv.DictReader(input_file)
         writer = csv.DictWriter(

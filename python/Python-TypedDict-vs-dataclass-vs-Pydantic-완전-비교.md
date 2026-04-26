@@ -278,7 +278,8 @@ except ValidationError as e:
 ### 주요 특징
 
 ```python
-from pydantic import BaseModel, validator
+# Pydantic v2: @validator는 deprecated이고 @field_validator가 표준이다.
+from pydantic import BaseModel, field_validator
 
 class User(BaseModel):
     id: int
@@ -286,15 +287,17 @@ class User(BaseModel):
     email: str
     age: int
 
-    # 커스텀 검증
-    @validator('name')
-    def name_must_not_be_empty(cls, v):
+    # 커스텀 검증 (v2 표준)
+    @field_validator('name')
+    @classmethod
+    def name_must_not_be_empty(cls, v: str) -> str:
         if not v.strip():
             raise ValueError('이름은 비어있을 수 없습니다')
         return v
 
-    @validator('age')
-    def age_must_be_positive(cls, v):
+    @field_validator('age')
+    @classmethod
+    def age_must_be_positive(cls, v: int) -> int:
         if v < 0:
             raise ValueError('나이는 0 이상이어야 합니다')
         return v
@@ -990,30 +993,30 @@ def create_user(user: UserCreateRequest):
     return {"message": "User created"}
 
 
-# 2. 환경 변수 검증
-from pydantic_settings import BaseSettings
+# 2. 환경 변수 검증 (Pydantic v2 + pydantic-settings 2.x: SettingsConfigDict 사용)
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")  # v2 표준 (class Config는 deprecated)
+
     database_url: str
     api_key: str
     debug: bool = False
 
-    class Config:
-        env_file = ".env"
-
 settings = Settings()  # ✅ 환경 변수 자동 로드 + 검증
 
 
-# 3. 복잡한 데이터 변환
-from pydantic import validator
+# 3. 복잡한 데이터 변환 (Pydantic v2: @field_validator 사용)
+from pydantic import BaseModel, field_validator
 
 class UserData(BaseModel):
     name: str
     email: str
     age: int
 
-    @validator('email')
-    def email_must_be_valid(cls, v):
+    @field_validator('email')
+    @classmethod
+    def email_must_be_valid(cls, v: str) -> str:
         if '@' not in v:
             raise ValueError('유효한 이메일이 아닙니다')
         return v.lower()  # 소문자로 변환
@@ -1174,8 +1177,11 @@ from dataclasses import dataclass  # 가독성, IDE 지원
 # ✅ 외부 입력 검증
 from pydantic import BaseModel  # 안전, 자동 변환
 
-# ⚠️ LangChain 1.0+
-from typing import TypedDict  # 필수! (Pydantic/dataclass 지원 안됨)
+# ⚠️ LangChain/LangGraph 1.0+
+# - Pre-built Agent (create_agent 등): state_schema는 TypedDict만 지원
+# - Custom StateGraph: TypedDict / Pydantic / dataclass 모두 사용 가능,
+#   다만 리듀서 호환성·체크포인트 직렬화 안정성을 위해 TypedDict가 표준
+from typing import TypedDict
 ```
 
 ### 5. 학습 순서

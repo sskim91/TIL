@@ -114,7 +114,15 @@ print(list(result))
 
 튜플 언패킹으로 `i, value`로 받는 것이 일반적이다.
 
-**메모리 효율성**: `enumerate()`는 모든 쌍을 미리 생성하지 않고, 반복할 때마다 하나씩 생성한다(Lazy Evaluation). 수백만 개의 요소를 순회해도 메모리 점유율이 거의 늘어나지 않는다.
+**메모리 효율성**: `enumerate()`는 모든 `(index, value)` 쌍을 미리 만들지 않고 매 반복마다 하나씩 생성한다(lazy). 그래서 enumerate 자체가 추가로 쓰는 메모리는 iterable 크기와 무관한 **O(1) 상수**다 — 무한 generator나 파일 객체처럼 끝을 알 수 없는 iterable에도 그대로 적용할 수 있다. (단, 원본 iterable이 list라면 list 자체의 메모리는 그대로 든다.)
+
+```python
+# 파일 전체를 메모리에 올리지 않고 라인 번호만 붙여 처리
+with open("huge.log") as f:
+    for line_no, line in enumerate(f, start=1):
+        if "ERROR" in line:
+            print(line_no, line.rstrip())
+```
 
 ## 3. 실무 활용 패턴
 

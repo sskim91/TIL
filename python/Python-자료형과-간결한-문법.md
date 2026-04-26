@@ -615,14 +615,16 @@ json_str = json.dumps(user, ensure_ascii=False)
 # JSON 문자열 → 딕셔너리
 data = json.loads(json_str)
 
-# 파일로 저장
-with open("user.json", "w") as f:
+# 파일로 저장 — encoding="utf-8" 필수!
+with open("user.json", "w", encoding="utf-8") as f:
     json.dump(user, f, ensure_ascii=False, indent=2)
 
 # 파일에서 읽기
-with open("user.json") as f:
+with open("user.json", encoding="utf-8") as f:
     loaded_user = json.load(f)
 ```
+
+> **⚠️ 한글 데이터 함정:** `open(file, "w")`는 인코딩을 명시하지 않으면 OS 기본값을 사용한다. Linux/macOS는 보통 UTF-8이지만 **Windows는 cp949(EUC-KR)가 기본**이라 한글이 깨지거나 `UnicodeEncodeError`가 발생한다. `ensure_ascii=False`를 쓸 때는 반드시 `encoding="utf-8"`도 같이 지정해야 의미가 있다. (Python 3.15부터는 PEP 686에 따라 UTF-8 모드가 기본화될 예정.)
 
 ## 5. 비교표
 

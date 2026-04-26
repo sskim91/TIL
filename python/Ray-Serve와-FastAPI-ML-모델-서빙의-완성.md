@@ -12,12 +12,25 @@ from ray import serve
 
 app = FastAPI()
 
-@serve.deployment(num_replicas=3)  # 3개 복제본으로 자동 스케일링
+@serve.deployment(num_replicas=3)  # 복제본 3개 고정 — 자동 스케일링은 num_replicas="auto" 또는 autoscaling_config 사용
 @serve.ingress(app)
 class MLService:
     @app.post("/predict")
     async def predict(self, request: PredictRequest):
         return self.model.predict(request.data)
+
+
+# 자동 스케일링 예시 (트래픽에 따라 1~10개로 조절)
+@serve.deployment(
+    autoscaling_config={
+        "min_replicas": 1,
+        "max_replicas": 10,
+        "target_ongoing_requests": 5,
+    }
+)
+@serve.ingress(app)
+class AutoScalingMLService:
+    ...
 ```
 
 | 특성 | FastAPI 단독 | Ray Serve + FastAPI |
@@ -93,7 +106,7 @@ Java/Spring 세계에서 비유하면:
 | 다중 모델 + 스케일링 | Spring Cloud + K8s + 서비스 메시 |
 | Ray Serve | "ML 전용 Spring Cloud" |
 
-Spring Boot 하나로 시작했다가, MSA로 전환하면서 Eureka, Ribbon, Hystrix 등을 붙이는 것처럼, FastAPI도 규모가 커지면 뭔가가 필요하다. 그게 Ray Serve다.
+Spring Boot 하나로 시작했다가, MSA로 전환하면서 서비스 디스커버리(Eureka 또는 Spring Cloud LoadBalancer), 회로 차단기(Resilience4j — *Hystrix는 2018년부터, Ribbon은 2019년부터 maintenance mode*), 분산 트레이싱(Micrometer Tracing) 등을 붙이는 것처럼, FastAPI도 규모가 커지면 뭔가가 필요하다. 그게 Ray Serve다.
 
 ---
 

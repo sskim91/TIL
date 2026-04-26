@@ -350,14 +350,19 @@ responses = [
 ]
 has_error = has_any_error(responses)  # True
 
-# 빈 리스트 체크
+# truthy/falsy 판정 주의: 0, "", [], None은 모두 falsy
 numbers = [0, 0, 0]
-print(any(numbers))  # True (0이 아닌 값이 있는지)
-print(all(numbers))  # False (모두 True인지)
+print(any(numbers))  # False (truthy 값이 하나도 없음 — 0은 falsy)
+print(all(numbers))  # False (모든 값이 truthy여야 True)
 
+mixed = [0, 1, 0]
+print(any(mixed))    # True (1이 truthy)
+print(all(mixed))    # False (0이 섞임)
+
+# 공집합(빈 iterable)에 대한 vacuous truth 규칙
 empty = []
-print(any(empty))   # False
-print(all(empty))   # True (공집합은 all에서 True)
+print(any(empty))   # False (truthy가 하나도 없음)
+print(all(empty))   # True (반례가 하나도 없음 — 수학적 vacuous truth)
 ```
 
 **언제 사용?**

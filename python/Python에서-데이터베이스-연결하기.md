@@ -16,8 +16,8 @@ from sqlalchemy.orm import sessionmaker
 
 engine = create_engine(
     "postgresql://user:password@localhost:5432/mydb",
-    pool_size=10,           # HikariCP의 maximumPoolSize
-    max_overflow=20,        # 추가 연결 수
+    pool_size=10,           # 풀에 유지되는 기본(persistent) 연결 수
+    max_overflow=20,        # 일시 초과 허용 — 동시 연결 상한 = pool_size + max_overflow = 30 (HikariCP의 maximumPoolSize에 해당)
     pool_pre_ping=True      # 연결 유효성 검사
 )
 
@@ -99,15 +99,22 @@ conn.close()
 ### Context Manager 사용 (권장)
 
 ```python
-# ✅ 자동으로 연결 종료
-with psycopg2.connect(...) as conn:
-    with conn.cursor() as cursor:
-        cursor.execute("SELECT * FROM users")
-        results = cursor.fetchall()
-        for row in results:
-            print(row)
-# conn과 cursor 자동 close
+from contextlib import closing
+
+# ⚠️ psycopg2의 with conn은 트랜잭션(commit/rollback)만 처리하고 connection을 닫지 않는다.
+# 명시적으로 닫으려면 contextlib.closing()으로 감싼다.
+with closing(psycopg2.connect(...)) as conn:
+    with conn:                            # 트랜잭션 경계
+        with conn.cursor() as cursor:     # cursor만 자동 close
+            cursor.execute("SELECT * FROM users")
+            results = cursor.fetchall()
+            for row in results:
+                print(row)
+    # 트랜잭션 commit (예외 시 rollback)
+# connection close (closing 덕분에)
 ```
+
+> **참고:** 이는 [psycopg2 공식 문서에 명시된 동작](https://www.psycopg.org/docs/usage.html#with-statement)이다. **psycopg3** (2021년 출시)부터는 connection 자체도 컨텍스트 매니저로 동작해 `with psycopg.connect(...)`만으로 close된다.
 
 ## 3. SELECT 결과 받기 (중요!)
 
@@ -434,8 +441,8 @@ from sqlalchemy import create_engine, text
 # Engine 생성 (Connection Pool 자동 관리)
 engine = create_engine(
     "postgresql://user:password@localhost:5432/mydb",
-    pool_size=10,          # 기본 연결 수 (HikariCP의 maximumPoolSize)
-    max_overflow=20,       # 추가로 생성 가능한 연결 수
+    pool_size=10,          # 풀에 유지되는 기본 연결 수
+    max_overflow=20,       # 일시 초과 허용 — 동시 연결 상한 = pool_size + max_overflow = 30 (HikariCP의 maximumPoolSize에 해당)
     pool_timeout=30,       # 연결 대기 시간 (초)
     pool_pre_ping=True,    # 연결 유효성 검사
     pool_recycle=3600,     # 연결 재사용 시간 (초)
@@ -457,36 +464,32 @@ with engine.begin() as conn:
 
 ## 6. SQLAlchemy ORM (JPA/Hibernate 역할)
 
-### 모델 정의
+### 모델 정의 (SQLAlchemy 2.0+ 권장 스타일)
+
+> **⚠️ SQLAlchemy 2.0 (2023.01 GA) API 변경 주의:** `from sqlalchemy.ext.declarative import declarative_base`와 `session.query(...)` 패턴은 모두 **legacy**가 되었다. 신규 코드는 `DeclarativeBase` 상속 + `Mapped[...]` 타입 어노테이션 + `select() + session.execute()` 패턴을 권장한다.
 
 ```python
-from sqlalchemy import create_engine, Column, Integer, String
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, select, String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-# Base 클래스
-Base = declarative_base()
+# Base 클래스 (2.0 신규 스타일)
+class Base(DeclarativeBase):
+    pass
 
-# 모델 정의 (Java의 @Entity와 유사)
+# 모델 정의 — Mapped[T]로 타입 안전성 확보
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True)
-    username = Column(String(50), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True)
+    email: Mapped[str] = mapped_column(String(100), unique=True)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<User(id={self.id}, username={self.username})>"
 
-# Engine 생성
 engine = create_engine("sqlite:///mydb.db", echo=True)
-
-# 테이블 생성
 Base.metadata.create_all(engine)
-
-# Session 팩토리
 Session = sessionmaker(bind=engine)
-session = Session()
 ```
 
 ### CRUD 작업
@@ -661,7 +664,7 @@ class UserResponse(BaseModel):
 # CREATE
 @app.post("/users/", response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = User(**user.dict())
+    db_user = User(**user.model_dump())   # Pydantic v2 — .dict()는 deprecated
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

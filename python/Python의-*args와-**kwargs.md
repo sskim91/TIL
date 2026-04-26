@@ -270,27 +270,28 @@ print(merged)  # {'b': 2, 'c': 4, 'a': 1}
 
 ## 6. 타입 힌팅
 
-Python 3.5+ 에서는 타입 힌트를 추가할 수 있습니다:
+타입 힌트는 [PEP 484](https://peps.python.org/pep-0484/)로 Python 3.5에서 도입됐다. 다만 **빌트인 제네릭**(`list[int]`, `dict[str, Any]` 등)은 [PEP 585](https://peps.python.org/pep-0585/)로 **Python 3.9+에서만** 동작한다. 3.5–3.8에서는 `typing.Dict[str, Any]` 형태를 써야 한다.
 
 ```python
+# Python 3.9+ (빌트인 제네릭)
 from typing import Any
 
 def process_data(*args: int, **kwargs: str) -> dict[str, Any]:
-    """
-    타입 힌트 예시
+    return {"numbers": args, "options": kwargs}
 
-    Args:
-        *args: 정수 값들
-        **kwargs: 문자열 값들
-    """
-    return {
-        "numbers": args,
-        "options": kwargs
-    }
+
+# Python 3.5–3.8 호환 (typing 모듈 사용)
+from typing import Any, Dict
+
+def process_data_legacy(*args: int, **kwargs: str) -> Dict[str, Any]:
+    return {"numbers": args, "options": kwargs}
+
 
 # 사용
 result = process_data(1, 2, 3, name="test", mode="debug")
 ```
+
+> 타입 체커(mypy, pyright)는 `*args: int`를 "각 위치 인자가 `int`", `**kwargs: str`을 "각 키워드 인자 값이 `str`"로 해석한다. `args` 자체의 타입은 `tuple[int, ...]`, `kwargs`는 `dict[str, str]`이 된다.
 
 ## 7. 실전 예시: 유연한 로거
 
