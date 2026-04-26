@@ -156,7 +156,8 @@ AWS Security Group이나 GCP Firewall에서 자주 보는 설정:
 packet-beta
   0-3: "Version"
   4-7: "IHL"
-  8-15: "Type of Service"
+  8-13: "DSCP"
+  14-15: "ECN"
   16-31: "Total Length"
   32-47: "Identification"
   48-50: "Flags"
@@ -168,6 +169,8 @@ packet-beta
   128-159: "Destination IP Address (목적지)"
   160-191: "Data..."
 ```
+
+> **참고:** RFC 791(1981)의 원래 8비트 "Type of Service"(ToS) 필드는 RFC 2474(1998, DSCP)와 RFC 3168(2001, ECN)에 의해 재정의되어 현재는 **DSCP 6비트 + ECN 2비트**로 분할 사용된다. 옛 문서나 일부 도구는 여전히 "ToS"로 표기하기도 한다.
 
 | 필드 | 영어 | 의미 |
 |------|------|------|
