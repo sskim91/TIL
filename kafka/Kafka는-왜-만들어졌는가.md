@@ -388,7 +388,7 @@ Kafka도 만능이 아니다. 모든 기술에는 대가가 있다.
 
 > **참고: KRaft (ZooKeeper 제거)**
 >
-> Kafka 3.3(2022년)부터 ZooKeeper 없이 운영할 수 있는 KRaft 모드가 도입되었다. Kafka 4.0에서는 ZooKeeper가 완전히 제거될 예정이다. 하지만 프로덕션에서의 안정성 검증은 아직 진행 중이다.
+> KRaft(Kafka Raft) 모드는 Kafka 3.3(2022년 10월)부터 production-ready로 선언되었고, [Kafka 4.0(2025년 3월 18일 GA)에서 ZooKeeper 지원이 완전히 제거](https://kafka.apache.org/blog#apache_kafka_400_release_announcement)되어 **KRaft가 유일한 모드**가 되었다. 따라서 4.0 이상에서는 신규 클러스터든 기존 클러스터든 KRaft 사용이 강제되며, 3.x에서 4.0으로 업그레이드하려면 사전에 [ZooKeeper → KRaft 마이그레이션](https://kafka.apache.org/documentation/#kraft_zk_migration)을 완료해야 한다.
 
 운영팀이 없는 소규모 조직에서 Kafka를 직접 운영하는 건 **악몽** 이 될 수 있다. Confluent Cloud 같은 매니지드 서비스를 고려해야 하는 이유다.
 
