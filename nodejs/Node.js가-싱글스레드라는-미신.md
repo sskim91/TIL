@@ -120,7 +120,7 @@ crypto.pbkdf2('password', 'salt', 100000, 512, 'sha512', () => {
     console.log('2:', Date.now() - start, 'ms');
 });
 crypto.pbkdf2('password', 'salt', 100000, 512, 'sha512', () => {
-    console.log('3:', Date.now() - start, 'ms'));
+    console.log('3:', Date.now() - start, 'ms');
 });
 crypto.pbkdf2('password', 'salt', 100000, 512, 'sha512', () => {
     console.log('4:', Date.now() - start, 'ms');
@@ -317,14 +317,11 @@ fs.readFile('important.txt', callback);  // 1초 후에야 시작됨!
 ### 4.3 해결책: Thread Pool 크기 조절
 
 ```bash
-# Thread Pool 크기를 16개로 늘리기
+# Thread Pool 크기를 16개로 늘리기 — Node.js 프로세스 시작 전에 환경변수로 설정해야 한다
 UV_THREADPOOL_SIZE=16 node app.js
 ```
 
-```javascript
-// 또는 코드에서 (반드시 최상단에!)
-process.env.UV_THREADPOOL_SIZE = 16;
-```
+> **주의:** `process.env.UV_THREADPOOL_SIZE = 16` 처럼 **JS 코드 안에서 설정하는 방식은 공식 문서상 동작이 보장되지 않는다**. libuv는 첫 thread pool 작업이 큐잉되는 시점에 풀 크기를 고정하기 때문에, 그 전에 다른 모듈이 thread pool을 건드리면 무시된다. 반드시 [프로세스 시작 시점의 환경변수로 지정](https://nodejs.org/api/cli.html#uv_threadpool_sizesize)하는 방식이 안전하다.
 
 | 설정 | 최소 | 기본 | 최대 |
 |------|------|------|------|
@@ -435,8 +432,8 @@ const cluster = require('cluster');
 const http = require('http');
 const numCPUs = require('os').cpus().length;
 
-if (cluster.isMaster) {
-    // 마스터: 워커 생성
+if (cluster.isPrimary) {   // Node.js v16+ — cluster.isMaster는 deprecated alias
+    // 프라이머리: 워커 생성
     for (let i = 0; i < numCPUs; i++) {
         cluster.fork();
     }

@@ -48,7 +48,7 @@ flowchart LR
 | 보일러플레이트 | actions, reducers, types... | **create 하나** |
 | 학습 곡선 | 가파름 | **완만함** |
 | DevTools | ✅ 지원 | ✅ 지원 |
-| TypeScript | ✅ 지원 | ✅ **자동 추론** |
+| TypeScript | ✅ 지원 | ✅ 지원 (보통 `create<State>()(...)`로 상태 타입 명시 권장 — [공식 가이드](https://zustand.docs.pmnd.rs/guides/typescript)) |
 
 ---
 
@@ -402,13 +402,19 @@ flowchart TB
     style ZR1 fill:#2E7D32,color:#fff
 ```
 
-### 4.2 벤치마크 (2026년 기준)
+### 4.2 번들 사이즈 비교
 
-| 메트릭 | Zustand | Redux Toolkit | Context API |
-|--------|---------|---------------|-------------|
-| 단일 상태 업데이트 | 12ms | 18ms | 25ms+ |
-| 메모리 (1000개 구독) | 2.1MB | 3.2MB | 4.5MB+ |
-| 번들 파싱 시간 | 8ms | 34ms | 0ms (빌트인) |
+성능(렌더링 시간/메모리)은 앱 구조·구독 패턴·React 버전에 따라 크게 달라져 일반화된 수치를 제시하기 어렵다. 신뢰할 수 있는 객관적 지표는 **번들 사이즈**다([Bundlephobia](https://bundlephobia.com/) 기준, minified + gzipped):
+
+| 라이브러리 | 번들 사이즈 (gzip) | 비고 |
+|------------|-------------------|------|
+| Zustand | **약 1 KB** | 코어만 |
+| Redux 5.x (코어) | 약 1.6 KB | 코어만 — Provider, useSelector 등은 react-redux 별도 |
+| Redux Toolkit | 약 12–14 KB | RTK + Immer + Reselect 포함 |
+| react-redux | 약 6–7 KB | RTK와 함께 사용 시 합산 |
+| Context API | 0 KB | React 빌트인 |
+
+> **렌더링 성능 비교가 궁금하다면** 자신의 시나리오로 직접 측정하는 것이 가장 정확하다 — [react-state-bench](https://github.com/pmndrs/zustand#comparison-with-other-libraries) 공식 비교나 React DevTools Profiler를 활용하자. 일반화된 ms/MB 수치는 환경에 따라 수 배 이상 차이날 수 있다.
 
 ### 4.3 불필요한 리렌더링 방지: useShallow
 
@@ -429,7 +435,7 @@ const { user, settings } = useStore(
 )
 ```
 
-> **Note**: Zustand 5.0(2025년) 이전에는 `useStore(selector, shallow)` 형태로 두 번째 인자에 비교 함수를 넘겼지만, 5.0부터는 `useShallow` 훅으로 selector를 감싸는 방식으로 변경되었다.
+> **Note**: [Zustand 5.0(2024년 10월 14일 릴리스)](https://github.com/pmndrs/zustand/releases/tag/v5.0.0) 이전에는 `useStore(selector, shallow)` 형태로 두 번째 인자에 비교 함수를 넘겼지만, 5.0부터는 두 번째 인자가 제거되어 `useShallow` 훅으로 selector를 감싸는 방식만 지원한다.
 
 ---
 
