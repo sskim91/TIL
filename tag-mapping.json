@@ -185,5 +185,6 @@
   "피처-플래그": ["testing/feature-flag"],
 
   "KaTeX-Quirks-Mode-경고-해결": ["web/katex"],
-  "Server-Sent-Events-SSE": ["web/sse"]
+  "Server-Sent-Events-SSE": ["web/sse"],
+  "Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때": ["web/fetch", "web/cors"]
 }
