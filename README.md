@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **170개**
+- 총 TIL 개수: **173개**
 
 - 카테고리 수: **30개**
 
@@ -469,9 +469,15 @@
 
 ### web
 
+- [Fetch, AbortController, CORS — 백엔드 개발자가 브라우저 HTTP를 만날 때](web/Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때.md)
+
 - [KaTeX Quirks Mode 경고 해결](web/KaTeX-Quirks-Mode-경고-해결.md)
 
 - [Server-Sent Events (SSE)](web/Server-Sent-Events-SSE.md)
+
+- [브라우저는 어떻게 토큰을 받아오는가 — OAuth 2.1, PKCE, BFF의 시퀀스를 끝까지 따라가기](web/브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)
+
+- [토큰을 어디에 둘 것인가 — Cookie, Authorization Header, Storage 5종 완전 비교](web/토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)
 
 
 
