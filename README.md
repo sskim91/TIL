@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **173개**
+- 총 TIL 개수: **174개**
 
 - 카테고리 수: **30개**
 
@@ -474,6 +474,8 @@
 - [KaTeX Quirks Mode 경고 해결](web/KaTeX-Quirks-Mode-경고-해결.md)
 
 - [Server-Sent Events (SSE)](web/Server-Sent-Events-SSE.md)
+
+- [Web Crypto API와 Passkey, DPoP — 브라우저에서 진짜 보안이 필요할 때](web/Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때.md)
 
 - [브라우저는 어떻게 토큰을 받아오는가 — OAuth 2.1, PKCE, BFF의 시퀀스를 끝까지 따라가기](web/브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)
 
