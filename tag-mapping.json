@@ -186,5 +186,6 @@
 
   "KaTeX-Quirks-Mode-경고-해결": ["web/katex"],
   "Server-Sent-Events-SSE": ["web/sse"],
-  "Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때": ["web/fetch", "web/cors"]
+  "Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때": ["web/fetch", "web/cors"],
+  "Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때": ["web/passkey", "web/dpop"]
 }
