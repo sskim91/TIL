@@ -26,6 +26,7 @@
   "Multi-turn-Conversation-멀티턴-대화": ["ai/conversation"],
   "Synthetic-Data-AI-학습의-비밀-무기": ["ai/synthetic-data"],
   "Vector-DB-AI-시대에-갑자기-뜬-이유": ["ai/vector-db"],
+  "왜-RAG-검색은-BM25와-벡터-검색을-둘-다-돌릴까": ["ai/rag", "ai/search"],
   "효과적인-AI-Agent-구축하기-Anthropic-가이드": ["ai/agent"],
   "효과적인-에이전트-구축하기": ["ai/agent"],
   "컴퓨터에게-단어의-의미를-가르치는-법": ["ai/embedding"],
