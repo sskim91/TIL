@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **176개**
+- 총 TIL 개수: **177개**
 
 - 카테고리 수: **30개**
 
@@ -64,6 +64,8 @@
 - [로컬 LLM 추론 — Apple Silicon이 NVIDIA GPU를 이기는 순간](ai/로컬-LLM-추론-Apple-Silicon이-NVIDIA-GPU를-이기는-순간.md)
 
 - [왜 Elasticsearch는 TF-IDF 대신 BM25를 쓸까?](ai/왜-Elasticsearch는-TF-IDF-대신-BM25를-쓸까.md)
+
+- [왜 LLM API에는 temperature 같은 다이얼이 달려 있을까](ai/왜-LLM-API에는-temperature-같은-다이얼이-달려-있을까.md)
 
 - [왜 RAG 검색은 BM25와 벡터 검색을 둘 다 돌릴까?](ai/왜-RAG-검색은-BM25와-벡터-검색을-둘-다-돌릴까.md)
 
