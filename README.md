@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **177개**
+- 총 TIL 개수: **180개**
 
 - 카테고리 수: **30개**
 
@@ -331,6 +331,8 @@
 
 - [FastAPI: 왜 빠르고 왜 쓰는가](python/FastAPI-왜-빠르고-왜-쓰는가.md)
 
+- [gunicorn과 uvicorn은 경쟁자가 아니다](python/gunicorn과-uvicorn은-경쟁자가-아니다.md)
+
 - [httpx: 왜 requests 대신 쓰는가](python/httpx-왜-requests-대신-쓰는가.md)
 
 - [Pydantic 실무 활용: BaseSettings와 Field](python/Pydantic-실무-활용-BaseSettings와-Field.md)
@@ -430,6 +432,10 @@
 - [PII (Personally Identifiable Information)](security/PII-Personally-Identifiable-Information.md)
 
 - [SSH 터널링을 통한 안전한 데이터베이스 접속](security/SSH-터널링을-통한-안전한-데이터베이스-접속.md)
+
+- [왜 SHA-256으로 비밀번호를 저장하면 안 될까?](security/왜-SHA-256으로-비밀번호를-저장하면-안-될까.md)
+
+- [키 유도 함수(KDF)는 정확히 무엇이고 왜 필요할까?](security/키-유도-함수-KDF는-정확히-무엇이고-왜-필요할까.md)
 
 
 
