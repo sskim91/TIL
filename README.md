@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **180개**
+- 총 TIL 개수: **182개**
 
 - 카테고리 수: **30개**
 
@@ -118,6 +118,10 @@
 ### database
 
 - [MVCC와 MySQL의 Gap Lock](database/MVCC와-MySQL의-Gap-Lock.md)
+
+- [MySQL 복제는 어떻게 데이터를 보내는가 — Binlog와 ROW/STATEMENT/MIXED](database/MySQL-복제는-어떻게-데이터를-보내는가-Binlog와-ROW-STATEMENT-MIXED.md)
+
+- [PostgreSQL의 WAL은 어떻게 ACID와 복제를 동시에 책임지는가](database/PostgreSQL의-WAL은-어떻게-ACID와-복제를-동시에-책임지는가.md)
 
 - [Redis String vs Hash: 언제 무엇을 써야 하는가](database/Redis-String-vs-Hash-언제-무엇을-써야-하는가.md)
 
