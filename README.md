@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **182개**
+- 총 TIL 개수: **183개**
 
 - 카테고리 수: **30개**
 
@@ -486,6 +486,8 @@
 ### web
 
 - [Fetch, AbortController, CORS — 백엔드 개발자가 브라우저 HTTP를 만날 때](web/Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때.md)
+
+- [JWT는 어떻게 만들어지고 어떻게 깨지는가 -- 액세스 토큰, 리프레시 토큰, 그리고 알고리즘 함정](web/JWT는-어떻게-만들어지고-어떻게-깨지는가-액세스-리프레시-그리고-알고리즘-함정.md)
 
 - [KaTeX Quirks Mode 경고 해결](web/KaTeX-Quirks-Mode-경고-해결.md)
 
