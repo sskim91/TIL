@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **183개**
+- 총 TIL 개수: **184개**
 
 - 카테고리 수: **30개**
 
@@ -112,6 +112,8 @@
 - [동기-비동기, 블로킹-논블로킹](computer-science/동기-비동기-블로킹-논블로킹.md)
 
 - [비동기의 계층 구조 - async/await는 빙산의 일각](computer-science/비동기의-계층-구조-async-await는-빙산의-일각.md)
+
+- [빠른 Producer가 시스템을 죽인다 — Back Pressure](computer-science/빠른-Producer가-시스템을-죽인다-Back-Pressure.md)
 
 
 
