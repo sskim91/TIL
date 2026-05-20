@@ -9,9 +9,9 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **185개**
+- 총 TIL 개수: **186개**
 
-- 카테고리 수: **30개**
+- 카테고리 수: **31개**
 
 ## 📚 카테고리
 
@@ -330,6 +330,12 @@
 ### product-analytics
 
 - [왜 서비스 회사는 DAU/MAU 정의에 그토록 집착할까?](product-analytics/왜-서비스-회사는-DAU-MAU-정의에-그토록-집착할까.md)
+
+
+
+### proxy
+
+- [Forward Proxy와 Reverse Proxy — 누구의 대리인인가](proxy/Forward-Proxy와-Reverse-Proxy-누구의-대리인인가.md)
 
 
 
