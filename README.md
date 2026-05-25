@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **186개**
+- 총 TIL 개수: **190개**
 
 - 카테고리 수: **31개**
 
@@ -237,6 +237,12 @@
 
 ### kubernetes
 
+- [Harbor — 왜 회사들은 사내 컨테이너 레지스트리를 두는가](kubernetes/Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가.md)
+
+- [Helm — 쿠버네티스의 패키지 매니저는 왜 필요한가](kubernetes/Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md)
+
+- [Helm과 Harbor를 왜 같이 써야 하는가](kubernetes/Helm과-Harbor를-왜-같이-써야-하는가.md)
+
 - [Kubernetes ConfigMap & Secret](kubernetes/Kubernetes-ConfigMap-Secret.md)
 
 - [Kubernetes DaemonSet, Job, CronJob: 특수 목적 워크로드](kubernetes/Kubernetes-DaemonSet-Job-CronJob.md)
@@ -258,6 +264,8 @@
 - [Kubernetes StatefulSet](kubernetes/Kubernetes-StatefulSet.md)
 
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
+
+- [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
 
 
 
