@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **191개**
+- 총 TIL 개수: **192개**
 
 - 카테고리 수: **31개**
 
@@ -108,6 +108,8 @@
 - [DAG - 방향 비순환 그래프](computer-science/DAG-방향-비순환-그래프.md)
 
 - [Pub/Sub 패턴](computer-science/Pub-Sub-패턴.md)
+
+- [공변과 반공변은 제네릭 전용 문법이 아니다](computer-science/공변과-반공변은-제네릭-전용-문법이-아니다.md)
 
 - [동기-비동기, 블로킹-논블로킹](computer-science/동기-비동기-블로킹-논블로킹.md)
 
