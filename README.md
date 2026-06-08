@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **192개**
+- 총 TIL 개수: **193개**
 
 - 카테고리 수: **31개**
 
@@ -268,6 +268,8 @@
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
 
 - [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
+
+- [쿠버네티스는 GPU를 모른다 — nvidia-device-plugin은 어떻게 GPU를 자원으로 통역하는가](kubernetes/쿠버네티스는-GPU를-모른다-nvidia-device-plugin은-어떻게-GPU를-자원으로-통역하는가.md)
 
 
 
