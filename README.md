@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **194개**
+- 총 TIL 개수: **195개**
 
 - 카테고리 수: **31개**
 
@@ -126,6 +126,8 @@
 - [MVCC와 MySQL의 Gap Lock](database/MVCC와-MySQL의-Gap-Lock.md)
 
 - [MySQL 복제는 어떻게 데이터를 보내는가 — Binlog와 ROW/STATEMENT/MIXED](database/MySQL-복제는-어떻게-데이터를-보내는가-Binlog와-ROW-STATEMENT-MIXED.md)
+
+- [ORDS는 Oracle 26ai의 기능이 아니다 — SQL을 JSON으로 통역하는 별도의 Java 계층](database/ORDS는-Oracle-26ai의-기능이-아니다-SQL을-JSON으로-통역하는-별도의-Java-계층.md)
 
 - [PostgreSQL의 WAL은 어떻게 ACID와 복제를 동시에 책임지는가](database/PostgreSQL의-WAL은-어떻게-ACID와-복제를-동시에-책임지는가.md)
 
