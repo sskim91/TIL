@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **193개**
+- 총 TIL 개수: **194개**
 
 - 카테고리 수: **31개**
 
@@ -116,6 +116,8 @@
 - [비동기의 계층 구조 - async/await는 빙산의 일각](computer-science/비동기의-계층-구조-async-await는-빙산의-일각.md)
 
 - [빠른 Producer가 시스템을 죽인다 — Back Pressure](computer-science/빠른-Producer가-시스템을-죽인다-Back-Pressure.md)
+
+- [왜 가상머신에는 네트워크 모드가 4개나 있을까](computer-science/왜-가상머신에는-네트워크-모드가-4개나-있을까.md)
 
 
 
