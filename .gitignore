@@ -16,3 +16,9 @@ env/
 *.swp
 *.swo
 .antigravitycli/
+
+# OMO runtime
+.omo/
+
+# OMC runtime (oh-my-claudecode)
+.omc/
