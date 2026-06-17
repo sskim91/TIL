@@ -31,6 +31,15 @@
   "효과적인-에이전트-구축하기": ["ai/agent"],
   "컴퓨터에게-단어의-의미를-가르치는-법": ["ai/embedding"],
   "vLLM-GPU-위의-LLM은-누가-서빙하는가": ["ai/vllm"],
+  "Dense-Vector-검색은-왜-거리가-아니라-각도로-유사도를-잴까": ["ai/vector-db"],
+  "LLM-위키-LLM을-활용한-개인-지식-베이스-구축-패턴": ["ai/llm"],
+  "로컬-LLM-추론-Apple-Silicon이-NVIDIA-GPU를-이기는-순간": ["ai/inference"],
+  "왜-Elasticsearch는-TF-IDF-대신-BM25를-쓸까": ["ai/search"],
+  "왜-LLM-API에는-temperature-같은-다이얼이-달려-있을까": ["ai/llm"],
+  "왜-검색엔진은-아직도-동의어-사전을-손으로-관리할까": ["ai/search"],
+  "왜-빠른-검색-뒤에-느린-모델을-또-붙일까": ["ai/search"],
+  "왜-하이브리드-검색은-점수-대신-순위로-결과를-합칠까": ["ai/search"],
+  "프로덕션-LLM-서빙에서-FP32를-아무도-안-쓰는-이유": ["ai/quantization"],
 
   "boto3-Python으로-AWS-인프라-제어하기": ["aws/boto3"],
   "Terraform으로-AWS-인프라를-코드로-관리하기": ["aws/terraform"],
@@ -45,6 +54,9 @@
   "Pub-Sub-패턴": ["cs/pub-sub"],
   "동기-비동기-블로킹-논블로킹": ["cs/async"],
   "비동기의-계층-구조-async-await는-빙산의-일각": ["cs/async"],
+  "공변과-반공변은-제네릭-전용-문법이-아니다": ["cs/variance"],
+  "빠른-Producer가-시스템을-죽인다-Back-Pressure": ["cs/back-pressure"],
+  "왜-가상머신에는-네트워크-모드가-4개나-있을까": ["cs/virtualization"],
 
   "MVCC와-MySQL의-Gap-Lock": ["database/lock"],
   "Redis-String-vs-Hash-언제-무엇을-써야-하는가": ["database/redis"],
@@ -56,6 +68,9 @@
   "복합-인덱스와-컬럼-순서의-비밀": ["database/index"],
   "인덱스-설계-가이드라인": ["database/index"],
   "커버링-인덱스": ["database/index"],
+  "MySQL-복제는-어떻게-데이터를-보내는가-Binlog와-ROW-STATEMENT-MIXED": ["database/replication"],
+  "ORDS는-Oracle-26ai의-기능이-아니다-SQL을-JSON으로-통역하는-별도의-Java-계층": ["database/ords"],
+  "PostgreSQL의-WAL은-어떻게-ACID와-복제를-동시에-책임지는가": ["database/wal"],
 
   "Python-Factory-패턴": ["design-pattern/factory"],
 
@@ -110,10 +125,18 @@
   "Kubernetes-Service-ClusterIP-NodePort-LoadBalancer": ["kubernetes/service"],
   "Kubernetes-StatefulSet": ["kubernetes/statefulset"],
   "Kubernetes-Volume-PersistentVolume": ["kubernetes/volume"],
+  "Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가": ["kubernetes/harbor"],
+  "Helm-쿠버네티스의-패키지-매니저는-왜-필요한가": ["kubernetes/helm"],
+  "Helm과-Harbor를-왜-같이-써야-하는가": ["kubernetes/helm"],
+  "내-첫-Helm-Chart-helm-create부터-helm-install까지": ["kubernetes/helm"],
+  "쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까": ["kubernetes/ingress"],
+  "쿠버네티스는-GPU를-모른다-nvidia-device-plugin은-어떻게-GPU를-자원으로-통역하는가": ["kubernetes/gpu"],
 
   "C10K-문제의-역사와-해결": ["network/c10k"],
   "L4와-L7-로드밸런서의-차이": ["network/load-balancer"],
   "네트워크-방향-용어-정리-Upstream-Downstream-Ingress-Egress": ["network/terminology"],
+  "VPN은-어떻게-나를-회사망-안으로-데려가는가": ["network/vpn"],
+  "Forward-Proxy와-Reverse-Proxy-누구의-대리인인가": ["network/proxy"],
 
   "Node.js가-싱글스레드라는-미신": ["nodejs/event-loop"],
   "Zustand-Redux-보일러플레이트에-지쳤다면": ["frontend/zustand"],
@@ -150,6 +173,7 @@
   "Python의-self": ["python/oop"],
   "Python의-with-문-Context-Manager": ["python/context-manager"],
   "Ray-Serve와-FastAPI-ML-모델-서빙의-완성": ["python/ray-serve"],
+  "gunicorn과-uvicorn은-경쟁자가-아니다": ["python/deployment"],
 
   "TanStack-Query가-탄생한-이유": ["react/tanstack-query"],
 
@@ -162,10 +186,13 @@
   "Redis-Pub-Sub이-폐쇄망에서-죽는-이유": ["redis/pub-sub"],
   "Redis-Stream-Pub-Sub의-한계를-넘어선-영속적-메시징": ["redis/stream"],
   "Redis는-왜-쓰는가": ["redis/intro"],
+  "왜-XFetch는-락-없이도-캐시-스탬피드를-막을까": ["redis/cache"],
 
   "MITM-Man-In-The-Middle-중간자-공격": ["security/mitm"],
   "PII-Personally-Identifiable-Information": ["security/pii"],
   "SSH-터널링을-통한-안전한-데이터베이스-접속": ["security/ssh"],
+  "왜-SHA-256으로-비밀번호를-저장하면-안-될까": ["security/password"],
+  "키-유도-함수-KDF는-정확히-무엇이고-왜-필요할까": ["security/kdf"],
 
   "Spring-AI-Agentic-Patterns-Part1-Agent-Skills": ["spring/spring-ai"],
   "Spring-AI-Agentic-Patterns-Part2-AskUserQuestionTool": ["spring/spring-ai"],
@@ -188,5 +215,10 @@
   "KaTeX-Quirks-Mode-경고-해결": ["web/katex"],
   "Server-Sent-Events-SSE": ["web/sse"],
   "Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때": ["web/fetch", "web/cors"],
-  "Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때": ["web/passkey", "web/dpop"]
+  "Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때": ["web/passkey", "web/dpop"],
+  "JWT는-어떻게-만들어지고-어떻게-깨지는가-액세스-리프레시-그리고-알고리즘-함정": ["web/jwt"],
+  "브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기": ["web/oauth"],
+  "토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교": ["web/token-storage"],
+
+  "왜-서비스-회사는-DAU-MAU-정의에-그토록-집착할까": ["product-analytics/metrics"]
 }
