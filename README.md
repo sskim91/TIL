@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **196개**
+- 총 TIL 개수: **197개**
 
 - 카테고리 수: **31개**
 
@@ -106,6 +106,8 @@
 - [Concurrency와 Parallelism - 동시성과 병렬성](computer-science/Concurrency와-Parallelism-동시성과-병렬성.md)
 
 - [DAG - 방향 비순환 그래프](computer-science/DAG-방향-비순환-그래프.md)
+
+- [Git LFS는 왜 파일 대신 포인터를 커밋할까](computer-science/Git-LFS는-왜-파일-대신-포인터를-커밋할까.md)
 
 - [Pub/Sub 패턴](computer-science/Pub-Sub-패턴.md)
 
