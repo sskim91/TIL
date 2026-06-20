@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **197개**
+- 총 TIL 개수: **198개**
 
 - 카테고리 수: **31개**
 
@@ -120,6 +120,8 @@
 - [빠른 Producer가 시스템을 죽인다 — Back Pressure](computer-science/빠른-Producer가-시스템을-죽인다-Back-Pressure.md)
 
 - [왜 가상머신에는 네트워크 모드가 4개나 있을까](computer-science/왜-가상머신에는-네트워크-모드가-4개나-있을까.md)
+
+- [왜 은행은 JSON 대신 '전문(電文)'을 주고받을까](computer-science/왜-은행은-JSON-대신-전문을-주고받을까.md)
 
 
 
