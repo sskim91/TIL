@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **198개**
+- 총 TIL 개수: **199개**
 
 - 카테고리 수: **31개**
 
@@ -110,6 +110,8 @@
 - [Git LFS는 왜 파일 대신 포인터를 커밋할까](computer-science/Git-LFS는-왜-파일-대신-포인터를-커밋할까.md)
 
 - [Pub/Sub 패턴](computer-science/Pub-Sub-패턴.md)
+
+- [URN은 왜 '주소'가 아니라 '이름'일까?](computer-science/URN은-왜-주소가-아니라-이름일까.md)
 
 - [공변과 반공변은 제네릭 전용 문법이 아니다](computer-science/공변과-반공변은-제네릭-전용-문법이-아니다.md)
 
