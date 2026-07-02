@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **200개**
+- 총 TIL 개수: **201개**
 
 - 카테고리 수: **31개**
 
@@ -278,6 +278,8 @@
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
 
 - [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
+
+- [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](kubernetes/쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)
 
 - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까?](kubernetes/쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)
 
