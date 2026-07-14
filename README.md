@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **201개**
+- 총 TIL 개수: **202개**
 
 - 카테고리 수: **31개**
 
@@ -128,6 +128,8 @@
 
 
 ### database
+
+- [BigQuery는 왜 인덱스 없이 페타바이트를 스캔할까](database/BigQuery는-왜-인덱스-없이-페타바이트를-스캔할까.md)
 
 - [MVCC와 MySQL의 Gap Lock](database/MVCC와-MySQL의-Gap-Lock.md)
 
