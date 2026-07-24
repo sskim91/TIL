@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **203개**
+- 총 TIL 개수: **204개**
 
 - 카테고리 수: **31개**
 
@@ -280,6 +280,8 @@
 - [Kubernetes StatefulSet](kubernetes/Kubernetes-StatefulSet.md)
 
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
+
+- [Tekton의 Pipeline과 PipelineRun은 왜 따로 존재할까?](kubernetes/Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까.md)
 
 - [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
 
