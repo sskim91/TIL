@@ -723,6 +723,8 @@ StatefulSet만으로는 **DB 운영의 본질적인 문제** 를 해결하지 �
 
 **Operator**는 이런 "안 해주는 것"을 자동화한다. Kubernetes API를 확장해서 DB 운영 지식을 코드로 구현한 것이다.
 
+> **Operator가 "API를 확장한다"는 게 정확히 무슨 뜻인가?** CRD로 새 리소스 타입을 등록하고, 그 리소스를 감시하는 컨트롤러가 reconciliation loop를 돌리는 구조다. 그 메커니즘 자체는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)에서 다룬다. 이 절은 그 위에서 "DB에 적용하면 무엇이 좋아지는가"에 집중한다.
+
 ### 12.2 주요 Database Operators
 
 | DB | Operator | 특징 |

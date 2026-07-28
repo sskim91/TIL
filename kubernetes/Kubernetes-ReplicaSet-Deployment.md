@@ -62,7 +62,7 @@ spec:
 
 **문제 1: Pod가 죽으면 서비스도 죽는다**
 
-Pod는 자가 복구 능력이 없다. 노드 장애, OOM(Out of Memory), 애플리케이션 크래시 등으로 Pod가 죽으면 아무도 다시 살려주지 않는다.
+Pod는 자가 복구 능력이 없다. 단 여기서 두 층을 구분해야 한다. **컨테이너** 가 크래시하거나 OOM으로 죽는 것은 kubelet이 `restartPolicy`(기본 `Always`)에 따라 **같은 Pod 안에서** 다시 띄워준다. 그러나 **Pod 자체** 가 사라지는 경우 — 실수로 삭제했거나, 노드가 죽었거나, 자원 압박으로 축출(eviction)된 경우 — 는 이야기가 다르다. Pod를 대신 만들어 줄 컨트롤러가 없으면 **아무도 새 Pod를 세워주지 않는다.** 즉 부족한 것은 컨테이너 재시작이 아니라 **Pod를 대체해 줄 주체** 다.
 
 **문제 2: 스케일 아웃이 안 된다**
 
@@ -168,6 +168,8 @@ spec:
 **결과: 아무 일도 일어나지 않는다.**
 
 왜? ReplicaSet은 **Pod 수**만 관리하기 때문이다. 이미 3개의 Pod가 있으니 "할 일 없음"이다. 기존 Pod들은 여전히 `my-app:1.0`을 실행하고 있다.
+
+정확히 말하면 "영원히 아무 일도 없다"가 아니라 **기존 Pod가 자동으로 교체되지 않는다** 는 뜻이다. 누군가 Pod를 지우거나 노드 장애로 Pod가 사라지면, ReplicaSet은 개수를 맞추려고 새 Pod를 만들면서 그때는 **변경된 템플릿**(`my-app:2.0`)을 쓴다. 그래서 더 나쁘다 — 교체 시점이 사람의 의도가 아니라 우연에 좌우되고, 그 사이 클러스터에는 두 버전이 섞여 돈다. 배포를 "선언하고 관측할 수 있는 절차"로 만들어 주는 주체가 없다는 것이 ReplicaSet의 진짜 한계다.
 
 ### 3.2 새 버전을 배포하려면?
 
@@ -398,7 +400,7 @@ spec:
       maxUnavailable: 0    # 무중단 보장
 ```
 
-> **주의:** `maxSurge: 0`과 `maxUnavailable: 0`을 동시에 설정하면 **배포가 진행되지 않는다.** 새 Pod를 만들 수도 없고, 기존 Pod를 삭제할 수도 없기 때문이다.
+> **주의:** `maxSurge: 0`과 `maxUnavailable: 0`을 동시에 설정할 수는 **없다.** 논리적으로 새 Pod를 만들 수도 없고 기존 Pod를 지울 수도 없어 배포가 불가능한 조합이라, 쿠버네티스는 이를 런타임에 멈추게 두지 않고 **API 검증 단계에서 거부한다** — `apply` 자체가 실패한다. 즉 "배포가 조용히 멈춘다"가 아니라 "설정이 아예 받아들여지지 않는다"가 정확한 서술이다.
 
 ### 5.5 minReadySeconds: 배포 속도 제어
 
@@ -684,18 +686,37 @@ ownerReferences:
 
 ReplicaSet은 **selector와 일치하는 모든 Pod**를 관리하려고 한다. 이미 다른 소유자가 있으면 무시하지만, **소유자가 없는 고아 Pod**는 자동으로 인수한다.
 
-**문제 시나리오:**
+**문제 시나리오 — 단, ReplicaSet을 직접 만든 경우다:**
 
-```bash
-# 실수로 Pod를 직접 생성 (라벨이 Deployment와 동일)
-kubectl run my-app --image=nginx --labels="app=my-app"
-
-# 이 Pod가 Deployment의 ReplicaSet에 의해 인수됨!
-# → replicas: 3인데 4개가 되어버림
-# → ReplicaSet이 하나를 삭제함 (어떤 게 삭제될지 모름)
+```yaml
+# 직접 만든 ReplicaSet: selector가 app=my-app 하나뿐이다
+kind: ReplicaSet
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: my-app
 ```
 
-> **교훈:** 라벨을 함부로 붙이지 마라. 특히 Deployment가 사용하는 라벨과 동일한 라벨을 가진 Pod를 수동으로 만들면 예상치 못한 동작이 발생한다.
+```bash
+# 실수로 같은 라벨의 Pod를 직접 생성
+kubectl run my-app-oops --image=nginx --labels="app=my-app"
+
+# 이 Pod는 위 ReplicaSet의 selector와 일치하고 소유자가 없다 → 인수된다
+# → replicas: 3인데 4개가 되어버림
+# → ReplicaSet이 하나를 삭제한다 (어떤 게 삭제될지 예측하기 어렵다)
+```
+
+**그런데 Deployment를 쓰면 이 시나리오가 재현되지 않는다.** Deployment가 만든 ReplicaSet의 selector에는 `app=my-app` 외에 `pod-template-hash=<해시>`가 함께 들어 있기 때문이다. 위처럼 `app=my-app`만 붙인 수동 Pod는 그 해시 라벨이 없으니 selector와 일치하지 않고, 따라서 **인수되지 않는다.**
+
+```bash
+# Deployment가 만든 ReplicaSet의 실제 selector를 확인해 보면
+kubectl get rs my-app-7d9f8c6b4d -o jsonpath='{.spec.selector}'
+# {"matchLabels":{"app":"my-app","pod-template-hash":"7d9f8c6b4d"}}
+#                                 ^^^^^^^^^^^^^^^^^ 수동 Pod에는 없는 라벨
+```
+
+> **교훈:** 고아 Pod 인수는 **selector가 완전히 일치할 때만** 일어난다. 그래서 위험한 쪽은 selector를 손으로 좁게 정의한 ReplicaSet이고, Deployment는 `pod-template-hash`로 이 사고를 구조적으로 막아 준다. 그 장치가 왜 필요했고 롤링 업데이트에서 어떤 역할을 하는지는 바로 다음 9.3절에서 다룬다.
 
 ### 9.3 pod-template-hash: Deployment의 비밀 무기
 
@@ -747,6 +768,8 @@ selector가 변경되면 기존의 모든 ReplicaSet과 Pod가 **고아(orphan)*
 ### 10.1 HPA (Horizontal Pod Autoscaler) 와의 연동
 
 Deployment와 HPA를 함께 사용할 때 주의할 점이 있다.
+
+> **HPA가 참조하는 숫자는 어디서 오는가?** HPA는 Metrics API의 소비자이므로 `metrics-server`가 없으면 아예 동작하지 않고, 사용률은 절대 사용량이 아니라 **`requests` 대비 비율** 로 계산된다 — 즉 `requests`를 지정하지 않은 컨테이너는 HPA가 판단 근거를 갖지 못한다. 이 파이프라인은 [kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담](kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md)에서 다룬다.
 
 ```yaml
 apiVersion: autoscaling/v2
@@ -833,6 +856,8 @@ sequenceDiagram
 **Cluster Autoscaler와 PDB:**
 
 Cluster Autoscaler가 노드를 축소(scale-in)할 때도 PDB를 확인한다. PDB가 없으면 오토스케일러가 가용성을 고려하지 않고 노드를 제거할 수 있다. 특히 **비용 최적화를 위해 Spot/Preemptible 인스턴스**를 사용할 때 PDB는 필수다.
+
+> **다만 PDB로 막을 수 있는 것과 없는 것을 구분해야 한다.** PDB는 eviction API를 거치는 **voluntary disruption**(노드 drain, 오토스케일러의 scale-in)만 제어한다. 클라우드 제공자가 Spot 인스턴스를 **회수해 노드를 강제로 없애는 것** 은 involuntary disruption이므로 PDB가 막지 못한다. Spot을 쓸 때 PDB가 필수인 이유는 회수를 막기 때문이 아니라, 회수 통지를 받아 미리 Pod를 빼내는 과정(node termination handler가 유발하는 drain)이 안전하게 진행되도록 하기 때문이다. 회수 자체에 대비하려면 여러 AZ·인스턴스 타입 분산과 충분한 replica 수가 함께 필요하다.
 
 ---
 
@@ -1022,7 +1047,15 @@ kubectl rollout undo deployment/my-app --to-revision=1
 kubectl rollout restart deployment/my-app
 ```
 
-> **팁:** `kubectl rollout restart`는 이미지 변경 없이 모든 Pod를 점진적으로 재시작한다. **Deployment는 ConfigMap/Secret 변경을 감지해서 자동으로 롤아웃하지 않기 때문에**, 수동으로 재시작해야 변경 사항이 반영된다.
+> **팁:** `kubectl rollout restart`는 이미지 변경 없이 모든 Pod를 점진적으로 재시작한다. **Deployment는 ConfigMap/Secret이 바뀌었다는 이유만으로 새 ReplicaSet을 만들지 않는다** — Pod 템플릿이 변하지 않았으므로 교체할 이유가 없다고 판단한다. 다만 "그래서 항상 수동 재시작이 필요하다"는 아니고, 주입 방식에 따라 갈린다.
+>
+> | 주입 방식 | ConfigMap/Secret을 수정하면 |
+> |-----------|------------------------------|
+> | 환경변수(`env`, `envFrom`) | 반영되지 않는다 → **Pod 재시작 필요** |
+> | 볼륨 마운트(디렉토리) | kubelet이 파일 내용을 갱신한다 → 단, **앱이 그 파일을 다시 읽어야** 실제 동작에 반영된다 |
+> | 볼륨 마운트 + `subPath` | 파일이 갱신되지 않는다 → **Pod 재시작 필요** |
+>
+> 자세한 갱신 동작은 [Kubernetes ConfigMap & Secret](Kubernetes-ConfigMap-Secret.md)에서, 템플릿이 변하지 않으면 왜 아무 일도 일어나지 않는지는 [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)에서 다룬다.
 
 > **자동화 팁:** Helm이나 Kustomize를 사용하면 ConfigMap/Secret 데이터의 checksum을 Pod annotation에 추가하여, 설정이 변경될 때 자동으로 롤아웃을 트리거할 수 있다. 또는 [Reloader](https://github.com/stakater/Reloader) 같은 컨트롤러를 클러스터에 설치하면, CI/CD 파이프라인 수정 없이 ConfigMap/Secret 변경 시 관련 Deployment를 자동으로 재시작해준다.
 

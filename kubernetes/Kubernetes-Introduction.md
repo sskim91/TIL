@@ -334,6 +334,17 @@ Kubernetes의 승리는 기술적 우월성만으로 설명되지 않는다. 정
 | [Kubernetes StatefulSet](./Kubernetes-StatefulSet.md) | 상태를 가진 애플리케이션 |
 | [Kubernetes DaemonSet, Job, CronJob](./Kubernetes-DaemonSet-Job-CronJob.md) | 노드별 Pod, 배치 작업 |
 
+기본 리소스를 익힌 다음에는 **클러스터가 스스로를 확장하고 통제하는 층** 으로 넘어가면 좋다. 위의 리소스들이 "무엇을 배포하는가"라면, 아래는 "그 배포가 누구의 권한으로, 어떤 검문을 거쳐, 어떻게 관측되는가"를 다룬다.
+
+| 문서 | 설명 |
+|------|------|
+| [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까](./Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md) | ServiceAccount 신원과 RBAC — 인증과 인가 |
+| [쿠버네티스는 어떻게 자기 자신을 확장할까](./쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) | CRD, 컨트롤러의 reconciliation loop, Operator |
+| [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까](./내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md) | API 요청 수명주기와 Admission Webhook |
+| [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md) | 서비스 메시, 사이드카 프록시, mTLS |
+| [kubectl top의 숫자는 어디서 오는가](./kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md) | metrics-server, kube-state-metrics, Prometheus |
+| [rollout restart를 했는데 왜 예전 코드가 그대로 돌까](./rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md) | 이미지 태그와 digest, imagePullPolicy |
+
 ---
 
 ## 출처

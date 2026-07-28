@@ -143,9 +143,11 @@ Termination message is above max allowed size 4096, caused by large task result
 | 용도 | 커밋 해시, 태그, 짧은 문자열 | 소스 코드, 빌드 산출물, 캐시 |
 | 전달 범위 | Task → Task | Task ↔ Task (Pipeline 내 공유) |
 
-### 3.4 Retry·Timeout은 Step이 아니라 Task/PipelineRun 단위
+### 3.4 재시도는 Task 단위, Timeout은 여러 층에 걸린다
 
-실패했을 때 특정 Step만 골라 재시도할 수는 없다. **재시도(retry)는 Task 단위** 다. Pipeline에서 `retries: 2`를 주면 그 Task(=Pod) 전체가 다시 돈다. Timeout도 계층적으로 걸린다. PipelineRun의 `timeouts`가 최상위 제약이고, 개별 Task timeout이 이를 넘어서면 검증에서 거부된다.
+두 개를 섞어서 기억하면 안 된다. **재시도(retry)의 단위는 Task** 다. 실패했을 때 특정 Step만 골라 다시 돌릴 수는 없고, Pipeline에서 `retries: 2`를 주면 그 Task(=Pod) 전체가 처음부터 다시 돈다. 그래서 Task를 어떻게 쪼갰는지가 곧 "실패 시 어디까지 되돌아가는지"를 결정한다.
+
+반면 **timeout은 Step 수준까지 지정할 수 있다.** `steps[].timeout`으로 개별 Step에 상한을 걸 수 있고, 그 위로 Task·TaskRun·PipelineRun 수준의 timeout이 계층적으로 얹힌다. PipelineRun의 `timeouts`가 최상위 제약이고, 하위 값이 이를 넘어서면 검증에서 거부된다.
 
 ```yaml
 apiVersion: tekton.dev/v1
@@ -250,9 +252,12 @@ tkn pipelinerun logs -f       # 실행 로그 스트리밍
    - Java의 클래스(정의)와 인스턴스(`new`)의 관계와 같다. 설계도만 `apply`하면 아무 일도 안 일어난다. 실행은 오직 Run 오브젝트가 트리거하며, 이 분리 덕에 재사용·이력·재현성이 확보된다.
 
 2. **TaskRun = Pod, Step = Container라는 매핑이 모든 제약의 근원이다**
-   - 같은 Task의 Step들은 한 Pod 안이라 볼륨·환경을 공유하지만, 그 대가로 (a) Step은 순차 실행만 가능하고 (b) 컨테이너가 전부 동시에 떠서 리소스 예약과 (c) 4096 byte Result 한도에 물린다.
+   - 같은 Task의 Step들은 한 Pod 안이라 **네트워크 네임스페이스와 마운트된 볼륨** 을 공유한다(환경변수는 공유되지 않는다). 그 대가로 (a) Step은 순차 실행만 가능하고 (b) 컨테이너가 전부 동시에 떠서 리소스 예약과 (c) 4096 byte Result 한도에 물린다.
 
-3. **데이터 전달과 제어는 도구를 나눠 쓴다**
+3. **Tekton 리소스는 CRD로 정의된 Custom Resource다**
+   - Tekton을 설치하는 일의 실체는 `tasks.tekton.dev`·`pipelines.tekton.dev`·`pipelineruns.tekton.dev` 같은 **CRD를 등록하고 컨트롤러를 띄우는 것** 이다. 우리가 쓰는 `Task`·`Pipeline`·`PipelineRun`은 그 CRD가 정의한 **Custom Resource** 다. 그래서 `kubectl apply`로 다뤄지고 RBAC이 걸리며, `PipelineRun`을 만들면 컨트롤러가 그것을 감시해 `TaskRun`과 Pod로 펼친다. 이 확장 메커니즘 자체는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)에서 다룬다.
+
+4. **데이터 전달과 제어는 도구를 나눠 쓴다**
    - 작은 값은 **Result**(4096 byte 제한), 큰 덩어리는 **Workspace**(볼륨). Task 순서는 `runAfter`와 `results` 참조로, 병렬은 의존을 안 걸어서, 조건부는 `when`으로, 정리 작업은 `finally`로 제어한다.
 
 ---
