@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **205개**
+- 총 TIL 개수: **211개**
 
 - 카테고리 수: **31개**
 
@@ -261,6 +261,10 @@
 
 - [Helm과 Harbor를 왜 같이 써야 하는가](kubernetes/Helm과-Harbor를-왜-같이-써야-하는가.md)
 
+- [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](kubernetes/Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)
+
+- [kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담](kubernetes/kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md)
+
 - [Kubernetes ConfigMap & Secret](kubernetes/Kubernetes-ConfigMap-Secret.md)
 
 - [Kubernetes DaemonSet, Job, CronJob: 특수 목적 워크로드](kubernetes/Kubernetes-DaemonSet-Job-CronJob.md)
@@ -283,15 +287,23 @@
 
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
 
+- [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](kubernetes/Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md)
+
+- [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)
+
 - [Tekton의 Pipeline과 PipelineRun은 왜 따로 존재할까?](kubernetes/Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까.md)
 
 - [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
+
+- [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](kubernetes/내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)
 
 - [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](kubernetes/쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)
 
 - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까?](kubernetes/쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)
 
 - [쿠버네티스는 GPU를 모른다 — nvidia-device-plugin은 어떻게 GPU를 자원으로 통역하는가](kubernetes/쿠버네티스는-GPU를-모른다-nvidia-device-plugin은-어떻게-GPU를-자원으로-통역하는가.md)
+
+- [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러, 그리고 Operator](kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)
 
 
 
