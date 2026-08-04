@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **212개**
+- 총 TIL 개수: **213개**
 
 - 카테고리 수: **31개**
 
@@ -170,6 +170,8 @@
 ### devops
 
 - [ArgoCD가 Synced라고 하는데 왜 서비스는 죽어 있을까](devops/ArgoCD가-Synced라고-하는데-왜-서비스는-죽어-있을까.md)
+
+- [ArgoCD에 Rollout은 없다 — Argo Rollouts가 Deployment를 대체하는 이유](devops/ArgoCD에-Rollout은-없다-Argo-Rollouts가-Deployment를-대체하는-이유.md)
 
 - [GitOps: Git을 Single Source of Truth로 삼는 운영 모델](devops/GitOps-Git을-Single-Source-of-Truth로-삼는-운영-모델.md)
 
