@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **213개**
+- 총 TIL 개수: **216개**
 
 - 카테고리 수: **31개**
 
@@ -267,6 +267,10 @@
 
 - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](kubernetes/Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)
 
+- [Jenkins Job에서 Tekton EventListener로 webhook을 쏠 수 있을까?](kubernetes/Jenkins-Job에서-Tekton-EventListener로-webhook을-쏠-수-있을까.md)
+
+- [Jenkins가 있는데 왜 Tekton이 빌드할까?](kubernetes/Jenkins가-있는데-왜-Tekton이-빌드할까.md)
+
 - [kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담](kubernetes/kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md)
 
 - [Kubernetes ConfigMap & Secret](kubernetes/Kubernetes-ConfigMap-Secret.md)
@@ -294,6 +298,8 @@
 - [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](kubernetes/Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md)
 
 - [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)
+
+- [Tekton Triggers는 어떻게 git push를 PipelineRun으로 바꿀까?](kubernetes/Tekton-Triggers는-어떻게-git-push를-PipelineRun으로-바꿀까.md)
 
 - [Tekton의 Pipeline과 PipelineRun은 왜 따로 존재할까?](kubernetes/Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까.md)
 
