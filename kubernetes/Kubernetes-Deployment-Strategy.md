@@ -215,7 +215,9 @@ kubectl get deployment my-app -o jsonpath='{.status.conditions[?(@.type=="Progre
 # ProgressDeadlineExceeded
 ```
 
-> **중요:** `progressDeadlineSeconds` 초과해도 **자동 롤백되지 않는다.** 수동 조치가 필요하다. ArgoCD, Flux 같은 GitOps 도구를 사용하면 자동 롤백이 가능하다.
+> **중요:** `progressDeadlineSeconds` 초과해도 **자동 롤백되지 않는다.** 컨트롤러는 `Progressing` 컨디션에 `ProgressDeadlineExceeded`라고 적어둘 뿐이고, 트래픽은 그대로 흐른다. 되돌리려면 `kubectl rollout undo` 같은 별도 조치가 필요하다.
+>
+> **여기서 흔한 오해 하나.** "ArgoCD나 Flux 같은 GitOps 도구를 쓰면 자동 롤백된다"는 설명이 자주 보이는데 정확하지 않다. Argo **CD** 는 **Git에 적힌 것을 집행하는** 도구다. Git에 v2가 적혀 있는 한 v2를 유지하고, 손으로 되돌려도 다음 reconcile에 다시 v2로 끌려간다. 지표를 보고 자동으로 되돌리는 것은 Argo **Rollouts** 나 Flagger 같은 progressive delivery 도구의 일이다(8.3절). 이름이 비슷해 자주 뒤섞인다 — 자세한 구분은 [ArgoCD에 Rollout은 없다](../devops/ArgoCD에-Rollout은-없다-Argo-Rollouts가-Deployment를-대체하는-이유.md)에 정리했다.
 
 ---
 
@@ -328,15 +330,21 @@ kubectl patch service my-app -p '{"spec":{"selector":{"version":"blue"}}}'
 |------|------|
 | ✅ **즉시 롤백** 가능 | ❌ **리소스 2배** 필요 |
 | ✅ 전환 전 충분한 테스트 가능 | ❌ 수동 관리 필요 |
-| ✅ v1/v2 동시 실행 없음 | ❌ DB 스키마 변경 시 주의 |
+| ✅ v1/v2가 **사용자 트래픽을 동시에 받지 않음** | ❌ DB 스키마 변경 시 주의 |
+
+> **"동시 실행 없음"이 아니다 — 정확히 짚고 가자.** Blue/Green에서 두 버전의 **Pod는 분명히 동시에 떠 있다.** Green을 미리 띄워놓고 검증한 뒤 트래픽만 한 번에 넘기는 방식이고, 롤백에 대비해 전환 후에도 Blue를 한동안 살려둔다(3.6절). Canary와 다른 점은 **"사용자 트래픽을 두 버전이 나눠 받는 시점이 없다"** 는 것이지, 프로세스가 하나만 돈다는 뜻이 아니다.
+>
+> 이 구분이 실무에서 중요한 이유는, **트래픽 말고도 부작용을 내는 워크로드** 가 있기 때문이다. 배치 job, 메시지 컨슈머, 스케줄러, DB writer는 Service를 거치지 않고 스스로 일한다. 이런 컴포넌트는 Blue/Green을 써도 **두 버전이 동시에 같은 큐를 소비하고 같은 테이블에 쓴다.** 진짜로 하나만 돌아야 한다면 별도 대책이 필요하다 — 구버전 스케일 다운, 컨슈머 그룹 분리나 fencing, 리더 선출 같은 것들이다.
 
 > **DB 스키마 주의:** 롤백 시 v1(Blue)이 v2(Green)에서 변경한 DB 스키마와 호환되지 않을 수 있다. 안전한 롤백을 위해 DB 스키마는 **하위 호환성**을 유지해야 한다. (예: 컬럼 삭제 대신 nullable로 변경, 새 컬럼은 기본값 설정)
 
 ### 3.5 언제 사용하나?
 
 - **즉시 롤백이 중요**한 경우
-- **v1과 v2가 동시에 실행되면 안 되는** 경우 (호환성 문제)
+- **두 버전이 사용자 트래픽을 나눠 받으면 안 되는** 경우 — 버전 간 호환성이 없어 한 사용자가 v1과 v2를 오가면 깨지는 상황
 - 충분한 리소스가 있는 경우
+
+> 위 3.4의 단서가 여기에도 적용된다. Blue/Green이 보장하는 것은 **트래픽 분리** 지 프로세스 단일화가 아니다. 두 버전이 아예 같이 떠 있으면 안 되는 워크로드라면 Blue/Green만으로는 부족하다.
 
 ### 3.6 배포 후 정리 (Cleanup)
 
@@ -364,7 +372,7 @@ kubectl delete deployment my-app-blue
 flowchart TB
     subgraph "단계 1: 1% 트래픽"
         LB1[트래픽 100%]
-        LB1 -->|99%| V1_1[v1 Pod x 9]
+        LB1 -->|99%| V1_1[v1 Pod x 99]
         LB1 -->|1%| V2_1[v2 Pod x 1]
     end
 
@@ -457,9 +465,13 @@ spec:
 
 **한계:** Pod 수 비율 = 트래픽 비율이라 정밀한 제어가 어렵다. 1%를 하려면 100개 Pod 중 1개를 v2로 해야 한다.
 
-### 4.5 NGINX Ingress로 Canary 구현 (서비스 메시 없이)
+### 4.5 Ingress 계층에서 Canary 구현 (서비스 메시 없이)
 
-서비스 메시 없이도 **NGINX Ingress Controller의 어노테이션**으로 정밀한 트래픽 분배가 가능하다.
+서비스 메시를 깔지 않고도 **클러스터 진입점(Ingress/Gateway) 계층** 에서 정밀한 트래픽 분배가 가능하다. 오랫동안 이 자리의 표준 답은 NGINX Ingress의 어노테이션이었는데, 2026년에는 답이 둘로 갈린다.
+
+> **⚠️ 먼저 짚고 갈 것 (2026년 8월).** 아래 어노테이션 문법의 주인이었던 커뮤니티 **ingress-nginx는 2026년 3월 은퇴** 했다. 저장소는 아카이브되었고 보안 패치가 더 이상 나오지 않는다. **이미 쓰고 있다면** 아래 내용은 여전히 유효하니 그대로 읽으면 되고, **새로 만든다면** 4.5.2의 Gateway API 방식으로 가라. 배경은 [Kubernetes Ingress 12절](Kubernetes-Ingress.md#12-2026년-현재--ingress-nginx-은퇴와-gateway-api)에 정리했다.
+
+#### 4.5.1 NGINX Ingress 어노테이션 방식 (기존 클러스터)
 
 ```yaml
 # 기존 Ingress (Stable)
@@ -513,7 +525,75 @@ spec:
 | `canary-by-header: "X-Canary"` | 특정 헤더가 있으면 Canary로 |
 | `canary-by-cookie: "canary"` | 특정 쿠키가 있으면 Canary로 |
 
-> **장점:** Istio나 Argo Rollouts 없이도 정밀한 가중치 기반 Canary가 가능하다. 이미 NGINX Ingress를 사용 중이라면 추가 설치 없이 바로 활용할 수 있다.
+> **장점:** Istio나 Argo Rollouts 없이도 정밀한 가중치 기반 Canary가 가능하다. **이미** NGINX Ingress를 사용 중이라면 추가 설치 없이 바로 활용할 수 있다.
+>
+> **한계:** 이 문법은 **표준이 아니라 특정 컨트롤러의 확장** 이다. 컨트롤러를 바꾸면 통째로 다시 써야 하고, 그 컨트롤러가 은퇴하면 갈 곳이 없어진다 — 실제로 그 일이 일어났다. 이 이식성 문제가 다음 절의 존재 이유다.
+
+#### 4.5.2 Gateway API 방식 (신규 클러스터의 표준)
+
+Gateway API는 앞 절이 어노테이션으로 떠넘기던 가중치 분배를 **표준 스키마 필드** 로 끌어올렸다. `HTTPRoute`의 `backendRefs`에 `weight`를 주면 끝이다.
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-app-canary
+spec:
+  parentRefs:
+  - name: prod-gateway
+  hostnames:
+  - "app.example.com"
+  rules:
+  # 규칙 1: 내부 테스터는 헤더로 무조건 Canary
+  - matches:
+    - headers:
+      - name: X-Canary
+        value: "true"
+    backendRefs:
+    - name: my-app-canary
+      port: 80
+
+  # 규칙 2: 나머지 트래픽은 90:10 분배
+  - backendRefs:
+    - name: my-app-stable
+      port: 80
+      weight: 90
+    - name: my-app-canary
+      port: 80
+      weight: 10
+```
+
+여기서 `weight`의 의미를 정확히 알아둘 필요가 있다. **퍼센트가 아니다.** 각 백엔드가 받는 비율은 `weight / (그 목록의 weight 총합)` 으로 계산된다. 위 예시가 10%가 되는 건 총합이 우연히 100이라서지, `10`이 곧 10%라서가 아니다. `weight: 3`과 `weight: 1`이면 75:25가 된다. 총합을 100으로 맞춰 쓰는 관행이 널리 퍼진 이유가 이 혼동을 줄이기 위해서다.
+
+`weight: 0`은 "트래픽 없음"이고, 값을 생략하면 기본값은 `1`이다.
+
+**트래픽을 점진적으로 옮기는 것은 이 숫자만 바꾸는 일이다:**
+
+```bash
+# 10% → 25%로 확대
+kubectl patch httproute my-app-canary --type=json \
+  -p '[{"op":"replace","path":"/spec/rules/1/backendRefs/0/weight","value":75},
+       {"op":"replace","path":"/spec/rules/1/backendRefs/1/weight","value":25}]'
+
+# 문제 발생 시 즉시 롤백 (100:0)
+kubectl patch httproute my-app-canary --type=json \
+  -p '[{"op":"replace","path":"/spec/rules/1/backendRefs/0/weight","value":100},
+       {"op":"replace","path":"/spec/rules/1/backendRefs/1/weight","value":0}]'
+```
+
+**두 방식 비교:**
+
+| | NGINX Ingress 어노테이션 | Gateway API `HTTPRoute` |
+|---|---|---|
+| 표현 위치 | `metadata.annotations`의 문자열 | `spec`의 타입 있는 필드 |
+| 이식성 | ❌ 컨트롤러 고유 | ✅ 표준 — 구현체를 바꿔도 유지 |
+| 검증 | 문자열이라 오타가 런타임까지 감 | API 서버가 스키마 검증 |
+| 헤더/쿠키 라우팅 | 어노테이션으로 지원 | `matches`로 지원 |
+| 구현체 | ❌ ingress-nginx 은퇴 | Envoy Gateway, Traefik, Cilium, Istio 등 |
+
+> **주의:** Gateway API는 **규격** 이고, 가중치 분배를 실제로 수행하는 건 설치한 구현체다. `weight` 필드는 Standard Channel의 표준 필드지만, 지원 수준은 구현체마다 확인해야 한다.
+
+여기까지가 **수동** Canary다. 가중치를 사람이 올리고, 지표도 사람이 본다. 이걸 자동화하는 것이 다음 절이다.
 
 ### 4.6 실제로는 전용 도구 사용
 
@@ -711,19 +791,29 @@ Rolling Update 중 **Kubernetes Readiness**와 **Cloud Load Balancer 헬스체�
 sequenceDiagram
     participant K8s as Kubernetes
     participant ALB as AWS ALB
-    participant Pod as New Pod
+    participant New as New Pod
+    participant Old as Old Pod
 
-    K8s->>Pod: Readiness Probe 성공
-    K8s->>K8s: Service Endpoint 추가
-    Note over K8s: 트래픽 전송 시작
+    K8s->>New: Readiness Probe 성공
+    Note over K8s: K8s는 New를 Ready로 판단
 
-    ALB->>Pod: Health Check (30초 간격)
-    Note over ALB: 아직 Healthy 판정 안 됨
+    K8s->>ALB: New Pod를 Target Group에 등록
+    Note over ALB: 상태 = initial<br>아직 라우팅 대상 아님
 
-    K8s->>Pod: 트래픽 전송
-    ALB->>Pod: 트래픽 전송 (unhealthy 타겟으로)
-    Note over Pod: ❌ 일부 요청 실패
+    K8s->>Old: Old Pod 종료 시작
+    Note over ALB: healthy 타겟 수 감소
+
+    ALB->>New: Health Check (기본 30초 간격)
+    Note over ALB: 연속 성공 횟수를 채워야<br>healthy로 승격
+
+    rect rgba(244, 67, 54, 0.15)
+        Note over ALB,Old: ⚠️ 용량 공백 구간<br>New는 아직 healthy 아님 + Old는 이미 사라짐<br>→ 503 또는 남은 타겟에 과부하
+    end
+
+    ALB->>New: healthy 승격 후 비로소 라우팅
 ```
+
+> **오해 주의.** ALB는 **healthy로 판정되지 않은 타겟에 트래픽을 보내지 않는다.** 문제의 실체는 "unhealthy 타겟으로 요청이 간다"가 아니라, **쿠버네티스와 ALB가 서로 다른 시계를 본다** 는 것이다. K8s는 Readiness Probe만 보고 "새 Pod 준비 완료"라 판단해 구 Pod를 줄이는데, ALB 입장에서 새 타겟은 아직 `initial` 상태라 라우팅 대상이 아니다. 그 사이 **받아줄 healthy 타겟이 부족해져** 503이 나거나 남은 타겟에 부하가 몰린다.
 
 ### 7.2 AWS EKS: Target Group 헬스체크 튜닝
 
@@ -909,7 +999,8 @@ flowchart LR
 |----------|---------------|------------|--------|
 | **롤백 속도** | 느림 (재배포) | **즉시** | 빠름 |
 | **리소스 비용** | 낮음 | **2배** | 중간 |
-| **v1/v2 공존** | ⚠️ 있음 | ❌ 없음 | ⚠️ 있음 |
+| **v1/v2 Pod 공존** | ⚠️ 있음 (전환 중) | ⚠️ 있음 (의도적) | ⚠️ 있음 |
+| **v1/v2 트래픽 분산** | ⚠️ 있음 | ❌ **없음** (한 번에 전환) | ✅ 있음 (의도적, 가중치 제어) |
 | **위험 분산** | 중간 | 낮음 | **최소** |
 | **복잡도** | ⭐ | ⭐⭐ | ⭐⭐⭐ |
 | **K8s 기본 지원** | ✅ | 수동 | ❌ (도구 필요) |
@@ -920,7 +1011,7 @@ flowchart LR
 |------|----------|
 | 일반적인 배포, 특별한 요구사항 없음 | **Rolling Update** |
 | 즉시 롤백이 중요, 리소스 여유 있음 | **Blue/Green** |
-| v1/v2 호환성 문제, 동시 실행 불가 | **Blue/Green** |
+| v1/v2 호환성 문제로 트래픽을 나눠 받으면 안 됨 | **Blue/Green** |
 | 대규모 서비스, 위험 최소화 필요 | **Canary** |
 | A/B 테스트, 점진적 기능 출시 | **Canary** |
 
@@ -957,3 +1048,12 @@ flowchart TB
 - [Istio - Traffic Management](https://istio.io/latest/docs/concepts/traffic-management/) - Istio 공식 문서
 - [Martin Fowler - BlueGreenDeployment](https://martinfowler.com/bliki/BlueGreenDeployment.html)
 - [Martin Fowler - CanaryRelease](https://martinfowler.com/bliki/CanaryRelease.html)
+
+**4.5절 근거 (ingress-nginx 은퇴와 Gateway API)**
+
+- [Ingress NGINX: Statement from the Kubernetes Steering and Security Response Committees (2026-01-29)](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement) — **1차 출처.** 2026년 3월 은퇴, 이후 릴리스·버그 수정·보안 패치 없음, 드롭인 대체제 없음
+- [Gateway API — HTTP traffic splitting](https://gateway-api.sigs.k8s.io/guides/user-guides/traffic-splitting/) — `backendRefs`의 `weight`로 가중치 분배하는 공식 가이드
+- [Gateway API — HTTPRoute API Reference](https://gateway-api.sigs.k8s.io/reference/api-types/httproute/) — `weight`는 퍼센트가 아니라 `weight/(총합)` 비율, 기본값 `1`, `0`이면 트래픽 없음
+- [ingress2gateway](https://github.com/kubernetes-sigs/ingress2gateway) — Ingress → Gateway API 공식 변환 도구
+
+> 📖 관련 문서: [Kubernetes Ingress](Kubernetes-Ingress.md) 12절에 ingress-nginx 은퇴 배경과 이전 경로를 자세히 정리했다.

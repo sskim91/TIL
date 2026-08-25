@@ -148,13 +148,21 @@ spec:
 
 ### 2.3 Ingress Controller 종류
 
-| Controller | 특징 | 환경 |
-|------------|------|------|
-| **Nginx Ingress** | 가장 대중적, 기능 풍부 | 모든 환경 |
-| **Traefik** | 가벼움, 자동 설정 | 모든 환경 |
-| **AWS ALB** | AWS 네이티브, ALB 자동 생성 | AWS |
-| **GKE Ingress** | GCP 네이티브 | GCP |
-| **Istio Gateway** | 서비스 메시 연동 | Istio 사용 시 |
+> **⚠️ 먼저 알아야 할 것 (2026년 8월 기준).** 오랫동안 "일단 이거"였던 커뮤니티 **ingress-nginx** 는 **2026년 3월에 은퇴** 했다. 저장소는 아카이브되어 읽기 전용이고, 버그 수정도 보안 패치도 더 이상 없다. 신규 도입 대상에서 빼야 한다. 자세한 배경과 이전 경로는 [12절](#12-2026년-현재--ingress-nginx-은퇴와-gateway-api)에 정리했다.
+
+| Controller | 특징 | 환경 | 상태 |
+|------------|------|------|------|
+| ~~**ingress-nginx**~~ | 커뮤니티 프로젝트. 과거 사실상의 표준 | — | ❌ **2026-03 은퇴, 아카이브** |
+| **Traefik** | 가벼움, 자동 설정. Ingress·Gateway API 동시 지원 | 모든 환경 | ✅ 유지보수 중 |
+| **Envoy Gateway** | Gateway API 네이티브, 스펙 준수도 높음 | 모든 환경 | ✅ 유지보수 중 |
+| **Cilium** | CNI와 통합된 단일 네트워킹 스택. 양쪽 API 지원 | 모든 환경 | ✅ 유지보수 중 |
+| **NGINX Gateway Fabric** | F5/NGINX의 Gateway API 구현체 | 모든 환경 | ✅ 유지보수 중 |
+| **F5 NGINX Ingress Controller** | 이름이 비슷하나 **위 ingress-nginx와 다른 프로젝트** | 모든 환경 | ✅ 유지보수 중 |
+| **AWS ALB** | AWS 네이티브, ALB 자동 생성 | AWS | ✅ 유지보수 중 |
+| **GKE Ingress** | GCP 네이티브 | GCP | ✅ 유지보수 중 |
+| **Istio Gateway** | 서비스 메시 연동 | Istio 사용 시 | ✅ 유지보수 중 |
+
+> **이름 함정 하나.** `ingress-nginx`(쿠버네티스 커뮤니티, 은퇴)와 `nginx-ingress`(F5/NGINX Inc., 유지보수 중)는 **하이픈 순서만 다른 별개 프로젝트** 다. 은퇴한 것은 앞의 것이다. 그리고 웹 서버 NGINX 자체는 이 일과 **아무 관계가 없다** — 은퇴한 것은 쿠버네티스 컨트롤러 하나지 NGINX 생태계가 아니다.
 
 > **서비스 메시를 쓰는 클러스터에서는 `Ingress` 리소스가 아예 없을 수 있다.** 메시의 게이트웨이가 Ingress Controller 역할을 대신하고, 라우팅 규칙은 `Ingress`가 아니라 메시 자신의 커스텀 리소스에 적히기 때문이다. `kubectl get ingress`가 비어 있는데 서비스는 정상 응답하는 상황을 만나면 [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)을 보라. 아래 6절에서 다루는 annotation 확장이 왜 생겼고 메시는 그것을 어떻게 1급 필드로 바꿨는지도 함께 다룬다.
 
@@ -398,6 +406,10 @@ flowchart LR
 
 Ingress Controller마다 **annotations**로 세부 설정을 한다.
 
+> **이 절을 읽는 법 (2026년 8월).** 아래 `nginx.ingress.kubernetes.io/*` annotation들은 **은퇴한 커뮤니티 ingress-nginx의 문법** 이다([12절](#12-2026년-현재--ingress-nginx-은퇴와-gateway-api)). 지금도 이 절이 유효한 이유는 두 가지다 — 이미 돌아가는 클러스터를 **읽고 이해하려면** 필요하고, Gateway API로 **이전할 때 무엇을 다시 설계해야 하는지** 목록이 바로 이 annotation들이기 때문이다. 반대로 **신규 클러스터를 구성한다면 이 문법을 그대로 쓰면 안 된다.** 고른 컨트롤러의 자체 문법이나 Gateway API 표준 필드로 옮겨야 한다.
+>
+> 그리고 annotation이 이렇게 컨트롤러마다 제각각이라는 사실 자체가, Gateway API가 헤더 매칭·트래픽 가중치를 **표준 스키마 필드로 끌어올린** 이유다.
+
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -470,7 +482,7 @@ spec:
 - `(/|$)` → `$1`: `/` 또는 문자열 끝 매칭
 - `(.*)` → `$2`: 나머지 경로 캡처 (이것을 `rewrite-target`에서 사용)
 
-> 📖 자세한 내용은 [Nginx Ingress Rewrite 문서](https://kubernetes.github.io/ingress-nginx/examples/rewrite/)를 참고하라.
+> 📖 자세한 내용은 [Nginx Ingress Rewrite 문서](https://kubernetes.github.io/ingress-nginx/examples/rewrite/)를 참고하라. ⚠️ 이 문서는 **2026년 3월 아카이브** 되어 더 이상 갱신되지 않는다 — 기존 설정을 해석하는 용도로만 쓰라.
 
 ### 6.3 자주 쓰는 Nginx Annotations
 
@@ -516,6 +528,8 @@ flowchart TB
 ---
 
 ## 8. 실전 예시: 전체 구성
+
+> **이 예시의 유효 범위.** 아래 구성은 `ingressClassName: nginx`와 `nginx.ingress.kubernetes.io/*` annotation을 쓴다. **이미 ingress-nginx가 돌고 있는 클러스터를 읽고 이해하는 용도** 로는 그대로 유효하다. 반면 **2026년에 새로 구성한다면 그대로 복사하면 안 된다** — ingress-nginx는 은퇴했다([12절](#12-2026년-현재--ingress-nginx-은퇴와-gateway-api)). 유지보수되는 컨트롤러를 고른 뒤 `ingressClassName`과 annotation을 그 구현체의 것으로 바꾸거나, Gateway API의 `Gateway` + `HTTPRoute`로 설계하라. Ingress 리소스의 **구조 자체**(Service → Ingress → TLS → 라우팅 규칙)는 어느 쪽이든 그대로 배울 가치가 있다.
 
 ```yaml
 ---
@@ -1015,7 +1029,134 @@ kubectl get secret my-tls-secret
 
 ---
 
-## 12. 정리
+## 12. 2026년 현재 — ingress-nginx 은퇴와 Gateway API
+
+지금까지 이 문서가 설명한 Ingress의 문법과 동작은 그대로 유효하다. 그런데 2026년에 이 문서를 읽는 사람은 **"그래서 어떤 Controller를 깔지"** 에서 예전과 다른 답을 받아야 한다. 가장 흔한 답이었던 것이 사라졌기 때문이다.
+
+### 12.1 무슨 일이 있었나
+
+2025년 11월 12일, 커뮤니티 **ingress-nginx** 메인테이너들이 프로젝트 은퇴를 발표했고 **2026년 3월 실제로 은퇴** 했다. 저장소는 아카이브되어 읽기 전용이 됐다. 이후로는 릴리스도, 버그 수정도, **보안 패치도 없다.**
+
+쿠버네티스 Steering Committee와 Security Response Committee가 공동 성명까지 낸 이유는 규모 때문이다. 이 컨트롤러는 **클라우드 네이티브 환경의 약 절반** 이 쓰고 있었는데, 실제 유지보수는 **자원봉사자 한두 명이 여가 시간에** 감당하고 있었다. 기여자를 찾는 공개 호소가 몇 년간 응답을 받지 못했고, 결정타는 2025년 3월 공개된 **IngressNightmare(CVE-2025-1974)** 였다 — 클러스터 전체를 장악당할 수 있는 치명적 취약점이, 고칠 사람이 사실상 없는 컴포넌트에서 나온 것이다.
+
+기술적 배경도 있다. ingress-nginx의 최대 장점이던 유연성 — 특히 `configuration-snippet` annotation으로 **임의의 NGINX 설정을 주입** 할 수 있던 기능 — 이 그대로 보안 부채가 됐다. 설계 자체가 문제라서 메인테이너가 늘어난다고 고칠 수 있는 성질이 아니었다. 후계자로 시작했던 **InGate** 프로젝트도 성숙 단계에 이르지 못하고 함께 접혔다.
+
+```mermaid
+timeline
+    title ingress-nginx의 마지막 1년
+    2025-03 : IngressNightmare(CVE-2025-1974) 공개
+    2025-11 : 은퇴 발표 (11월 12일)
+    2026-01 : Steering·Security 위원회 공동 성명
+    2026-03 : 은퇴 완료, 저장소 아카이브
+```
+
+### 12.2 오해하면 안 되는 것 두 가지
+
+여기서 범위를 정확히 잡는 게 중요하다. 은퇴한 것은 **컨트롤러 구현체 하나** 지, 그 위나 아래가 아니다.
+
+| 오해 | 실제 |
+|------|------|
+| "Ingress API가 없어진다" | ❌ **Ingress API는 GA로 남아 있고 제거 계획이 없다.** 다만 **feature-frozen** — 새 기능이 추가되지 않을 뿐 |
+| "NGINX를 쓰면 안 된다" | ❌ 웹 서버 **NGINX 자체는 무관하다.** 은퇴한 건 쿠버네티스 컨트롤러 하나 |
+| "nginx-ingress도 죽었다" | ❌ **F5/NGINX Inc.의 `nginx-ingress`는 별개 프로젝트** 이고 유지보수 중 |
+| "당장 안 고치면 서비스가 멈춘다" | ❌ 기존 배포는 계속 **동작한다.** 문제는 조용히 동작한다는 것 — 새 취약점이 나와도 영원히 패치되지 않는다 |
+
+마지막 항목이 위원회 성명이 가장 강조한 지점이다. 멈추지 않기 때문에 **당한 뒤에야 알게 된다.**
+
+### 12.3 내 클러스터가 해당되는지 확인하기
+
+```bash
+# 위원회 성명이 제시한 확인 명령 (클러스터 관리자 권한 필요)
+kubectl get pods --all-namespaces \
+  --selector app.kubernetes.io/name=ingress-nginx
+
+# IngressClass 쪽에서도 확인
+kubectl get ingressclass -o custom-columns=NAME:.metadata.name,CONTROLLER:.spec.controller
+```
+
+`CONTROLLER` 컬럼에 `k8s.io/ingress-nginx`가 보이면 해당된다.
+
+### 12.4 어디로 갈 것인가
+
+위원회가 못박은 전제가 하나 있다. **드롭인 대체제는 없다.** 어느 길을 골라도 실제 설계와 검증이 필요하다.
+
+| 경로 | 언제 | 비용 |
+|------|------|------|
+| **Gateway API로 이전** | 신규 설계, 장기적으로 옳은 방향 | 리소스 모델을 새로 배워야 함 |
+| **양쪽 지원 컨트롤러로 교체** (Traefik, Cilium) | 기존 Ingress 자산이 많을 때 | `ingressClassName`만 먼저 바꾸고, 이후 천천히 이전 |
+| **다른 Ingress 컨트롤러로 교체** | 당장 Ingress를 유지해야 할 때 | annotation이 컨트롤러별로 달라 재작성 필요 |
+
+장기 목적지는 **Gateway API** 다. 쿠버네티스 프로젝트가 지정한 Ingress의 후계 표준이고, 위원회 성명도 이쪽을 먼저 지목했다. Ingress가 컨트롤러별 annotation으로 떠넘기던 것들 — 헤더 매칭, 트래픽 가중치 — 을 **표준 스키마 필드** 로 올렸고, 리소스를 역할별로 나눈다.
+
+| Ingress 세계 | Gateway API 세계 | 소유자 |
+|---|---|---|
+| `IngressClass` (`spec.controller`로 구현체 지정) | `GatewayClass` (`spec.controllerName`로 구현체 지정) | 인프라 제공자 |
+| **대응 리소스 없음** — 진입점 설정이 Controller의 Service/LB와 `Ingress`의 `tls`·`host` 필드로 흩어져 있었다 | `Gateway` — listener(포트·프로토콜·TLS)를 한곳에 명시하는 진입점 리소스 | 클러스터 운영자 |
+| `Ingress`의 `rules` (라우팅 규칙) | `HTTPRoute` | 애플리케이션 개발자 |
+
+가운데 줄이 이 표의 핵심이다. Gateway API는 Ingress 리소스를 셋으로 **이름만 바꿔 쪼갠 게 아니라**, 원래 없던 층을 하나 만들었다. Ingress에서는 "이 클러스터의 진입점은 443 포트로 이 인증서를 쓴다"는 운영자의 결정과 "`/api`는 api-svc로 보낸다"는 개발자의 결정이 **같은 리소스에 섞여** 있었다. 이걸 `Gateway`와 `HTTPRoute`로 분리했기 때문에, 개발자가 라우팅 규칙을 바꾸려고 클러스터 전체 진입점 설정을 건드릴 필요가 없어진다. 반대로 운영자는 인증서를 교체하면서 개발자의 라우팅 규칙을 건드릴 위험이 없다.
+
+```yaml
+# Ingress로 쓰던 것을
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: my-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: app.example.com
+    http:
+      paths:
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: api-svc
+            port:
+              number: 80
+---
+# HTTPRoute로 옮기면
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: my-route
+spec:
+  parentRefs:
+  - name: prod-gateway        # Gateway 리소스를 참조
+  hostnames:
+  - "app.example.com"
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /api
+    backendRefs:
+    - name: api-svc
+      port: 80
+```
+
+손으로 다 옮길 필요는 없다. 공식 변환 도구 **`ingress2gateway`** 가 기존 `Ingress` 리소스를 Gateway API 리소스로 상당 부분 자동 변환해준다.
+
+```bash
+# 기존 Ingress를 Gateway API 리소스로 변환해 출력
+ingress2gateway print --namespace=default
+```
+
+> **주의:** 자동 변환은 표준 필드까지다. 컨트롤러별 annotation으로 구현했던 것(rewrite, rate limit, 인증 등 — 이 문서 6절의 내용)은 **대상 구현체의 방식으로 직접 다시 설계해야 한다.** 여기가 이전 작업의 실제 비용이 발생하는 지점이다.
+
+### 12.5 그래서 지금 무엇을 해야 하나
+
+기존 Ingress를 쓰는 클러스터라면 서두를 필요는 없되 방치하면 안 된다. 순서는 이렇다.
+
+1. `kubectl`로 ingress-nginx 사용 여부를 **확인** 한다 (12.3)
+2. 쓰고 있다면 유지보수되는 컨트롤러로 **교체 계획** 을 세운다 — 인터넷에 노출된 워크로드가 우선순위다
+3. 신규 라우팅 규칙은 **Gateway API로 먼저 검토** 한다
+4. 기존 Ingress 리소스 자체는 급히 걷어낼 필요 없다 — API는 살아 있다
+
+---
+
+## 13. 정리
 
 ```mermaid
 flowchart TB
@@ -1056,18 +1197,29 @@ flowchart TB
 4. **TLS** 인증서를 한 곳에서 관리
 5. 백엔드 Service는 **ClusterIP** 로 충분
 6. 클라우드별 **네이티브 LB** 통합: AWS ALB, GKE GCE, Azure App Gateway
+7. **커뮤니티 ingress-nginx는 2026년 3월 은퇴** 했다. Ingress **API** 는 멀쩡히 살아 있고(feature-frozen일 뿐) 새 표준은 **Gateway API** 다
 
 > 📖 관련 문서:
 > - [Kubernetes Service](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
 > - [Kubernetes Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md)
+> - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) — Ingress의 반대 방향과 Gateway API 전망
+> - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md) — 서비스 메시가 Ingress를 대체하는 경우
 
 ---
 
 ## 출처
 
 - [Kubernetes Documentation - Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) - 공식 문서
-- [Kubernetes Documentation - Ingress Controllers](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) - 공식 문서
-- [Nginx Ingress Controller Documentation](https://kubernetes.github.io/ingress-nginx/) - Nginx Ingress 공식
+- [Kubernetes Documentation - Ingress Controllers](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) - 공식 문서. 유지보수되는 컨트롤러 목록
+
+**ingress-nginx 은퇴 (12절 근거)**
+
+- [Ingress NGINX: Statement from the Kubernetes Steering and Security Response Committees (2026-01-29)](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement) — **1차 출처.** 2026년 3월 은퇴, 이후 릴리스·버그 수정·보안 패치 없음, 클라우드 네이티브 환경의 약 50%가 사용, 드롭인 대체제 없음, 확인용 `kubectl` 명령
+- [CVE-2025-1974 — IngressNightmare](https://nvd.nist.gov/vuln/detail/CVE-2025-1974) — 은퇴 결정을 앞당긴 치명적 취약점
+- [Gateway API](https://gateway-api.sigs.k8s.io/) — 위원회가 지목한 후계 표준. `GatewayClass`/`Gateway`/`HTTPRoute` 역할 분리
+- [Gateway API — HTTP traffic splitting](https://gateway-api.sigs.k8s.io/guides/user-guides/traffic-splitting/) — `backendRefs`의 `weight`로 가중치 분배
+- [ingress2gateway](https://github.com/kubernetes-sigs/ingress2gateway) — Ingress → Gateway API 공식 변환 도구
+- [~~Nginx Ingress Controller Documentation~~](https://kubernetes.github.io/ingress-nginx/) — ⚠️ **2026년 3월 아카이브됨.** 본문 6절 annotation 설명의 원 출처이나 더 이상 유지보수되지 않는다
 - [AWS Load Balancer Controller - Ingress Annotations](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/ingress/annotations/) - AWS 공식
 - [GKE Container-Native Load Balancing](https://cloud.google.com/kubernetes-engine/docs/how-to/container-native-load-balancing) - GCP 공식
 - [Azure Application Gateway Ingress Controller](https://learn.microsoft.com/en-us/azure/application-gateway/ingress-controller-overview) - Azure 공식

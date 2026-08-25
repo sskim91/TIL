@@ -989,8 +989,12 @@ flowchart LR
 **설치 및 사용:**
 
 ```bash
-# Controller 설치
-kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.24.0/controller.yaml
+# Controller 설치 (버전을 고정하지 않고 최신 릴리스를 받는다)
+kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/latest/download/controller.yaml
+
+# 운영 환경이라면 버전을 명시적으로 고정하는 편이 낫다 — 아래에서 최신 태그를 확인하고
+#   https://github.com/bitnami-labs/sealed-secrets/releases
+# kubectl apply -f https://github.com/bitnami-labs/sealed-secrets/releases/download/vX.Y.Z/controller.yaml
 
 # kubeseal CLI 설치 (Mac)
 brew install kubeseal

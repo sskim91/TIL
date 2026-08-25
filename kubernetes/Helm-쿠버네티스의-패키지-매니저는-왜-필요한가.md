@@ -329,7 +329,7 @@ Go template은 강력하지만, if/range/with 같은 제어 구조가 YAML 들�
 
 2026년 현재 업계가 도달한 합의는 **둘을 같이 쓴다**는 쪽이다.
 
-- **서드파티 제품 설치는 Helm**: cert-manager, Prometheus, NGINX Ingress, Harbor 자체. 벤더가 Chart로 패키징해서 배포하므로 그대로 받아 쓰면 된다. 버전과 URL만 GitOps 레포에 적어두면 재현 가능한 인프라가 된다.
+- **서드파티 제품 설치는 Helm**: cert-manager, Prometheus, Traefik, Harbor 자체. 벤더가 Chart로 패키징해서 배포하므로 그대로 받아 쓰면 된다. 버전과 URL만 GitOps 레포에 적어두면 재현 가능한 인프라가 된다.
 - **사내 애플리케이션은 Kustomize**: 환경별로 자주 바뀌고, 내부 팀이 직접 다루므로 평이한 YAML이 유지보수에 유리하다. 템플릿 추상화를 깔 만큼 복잡하지 않은 경우가 많다.
 
 ArgoCD나 Flux 같은 GitOps 도구는 두 방식을 모두 네이티브로 다룬다. "Helm 차트로 설치한 리소스를 Kustomize로 패치"하는 하이브리드도 흔한 패턴이 되었다 — Helm의 **Post-Rendering** 기능을 쓰면 서드파티 Chart의 원본을 포크하지 않고도 렌더링 결과 위에 Kustomize 오버레이를 얹을 수 있다.
