@@ -7,8 +7,17 @@ TIL -> Obsidian 동기화 스크립트
   python sync-to-obsidian.py --diff   # 변경분만 동기화 (커밋 후)
 
 ■ 동작 방식 (Additive only — 삭제 없음):
-  전체 모드: 모든 .md 파일을 Obsidian에 upsert
-  diff 모드: 마지막 커밋에서 변경된 .md 파일만 upsert (빠름)
+  전체 모드: 모든 .md 파일을 Obsidian에 반영
+  diff 모드: 마지막 커밋에서 변경된 .md 파일만 반영 (빠름)
+
+■ Wiki 수정 보호:
+  Wiki가 정본이다. Wiki에서 직접 고친 노트는 TIL이 덮어쓰지 않는다.
+  - Wiki에 없는 노트 → 새로 만든다
+  - Wiki 노트가 마지막 동기화 때 쓴 내용 그대로 → TIL 변경을 반영한다
+  - Wiki 노트가 그 뒤 수정됨(또는 동기화 기록이 없음) → 건너뛴다
+  마지막 동기화 내용의 해시는 Wiki/.til-sync-state.json에 둔다
+  (iCloud로 여러 Mac이 같은 기록을 본다).
+  Wiki에서 병합·이름 변경으로 정리된 TIL 원본은 SKIP_NAMES로 다시 만들지 않는다.
 
   Wiki는 TIL 외 개인 노트도 들어있는 공유 폴더이므로
   이 스크립트는 절대 파일을 삭제하지 않는다.
@@ -24,6 +33,7 @@ TIL -> Obsidian 동기화 스크립트
 """
 
 import argparse
+import hashlib
 import json
 import re
 import subprocess
@@ -37,6 +47,17 @@ from pathlib import Path
 TIL_PATH = Path(__file__).parent.parent
 OBSIDIAN_PATH = Path.home() / "Library/Mobile Documents/iCloud~md~obsidian/Documents/Note/Wiki"
 TAG_MAPPING_PATH = TIL_PATH / "tag-mapping.json"
+SYNC_STATE_PATH = OBSIDIAN_PATH / ".til-sync-state.json"
+
+# Wiki에서 다른 노트로 병합했거나 이름을 바꾼 TIL 원본 (다시 만들지 않는다)
+SKIP_NAMES = {
+    "LLM-Agent란-무엇인가",
+    "LLM-위키-LLM을-활용한-개인-지식-베이스-구축-패턴",
+    "효과적인-에이전트-구축하기",
+    "Python-컬렉션-타입-비교:-list[tuple]-vs-list[dict]",
+    "Python은-Call-by-Value?-Call-by-Reference?",
+    "Python의-*args와-**kwargs",
+}
 
 # 제외할 파일/폴더
 EXCLUDE_FILES = {"README.md", "CLAUDE.md", "GEMINI.md"}
@@ -214,6 +235,74 @@ def get_changed_md_files() -> list[Path]:
 
 
 # ============================================================
+# Wiki 수정 보호
+# ============================================================
+
+def _nfc(text: str) -> str:
+    return unicodedata.normalize("NFC", text)
+
+
+def content_hash(text: str) -> str:
+    return hashlib.sha256(_nfc(text).encode("utf-8")).hexdigest()
+
+
+def load_sync_state() -> dict[str, str]:
+    if SYNC_STATE_PATH.exists():
+        return json.loads(SYNC_STATE_PATH.read_text(encoding="utf-8"))
+    return {}
+
+
+def save_sync_state(state: dict[str, str]) -> None:
+    SYNC_STATE_PATH.write_text(
+        json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
+    )
+
+
+def write_if_safe(filename: str, content: str, state: dict[str, str]) -> str:
+    """Wiki에서 수정되지 않은 경우에만 쓴다.
+
+    반환값: created / updated / unchanged / edited(건너뜀) / retired(건너뜀)
+    """
+    name = _nfc(filename)
+    if name in SKIP_NAMES:
+        return "retired"
+
+    dest_path = OBSIDIAN_PATH / f"{filename}.md"
+    new_hash = content_hash(content)
+    existed = dest_path.exists()
+    if existed:
+        current_hash = content_hash(dest_path.read_text(encoding="utf-8"))
+        if current_hash == new_hash:
+            state[name] = new_hash
+            return "unchanged"
+        if state.get(name) != current_hash:
+            return "edited"
+
+    dest_path.write_text(content, encoding="utf-8")
+    state[name] = new_hash
+    return "updated" if existed else "created"
+
+
+def print_summary(results: dict[str, list[str]], verbose: bool) -> None:
+    written = len(results["created"]) + len(results["updated"])
+    print(f"✅ Obsidian 동기화 완료: 새로 만듦 {len(results['created'])}, 갱신 {len(results['updated'])}, 변경 없음 {len(results['unchanged'])}")
+    if results["edited"]:
+        print(f"🛡️  Wiki에서 수정된 노트 {len(results['edited'])}개는 덮어쓰지 않음")
+        if verbose:
+            for name in results["edited"]:
+                print(f"    - {name}")
+    if verbose:
+        for name in results["created"] + results["updated"]:
+            print(f"  📄 {name}.md")
+    if written == 0 and not results["edited"] and verbose:
+        print("📝 반영할 변경 없음")
+
+
+def _new_results() -> dict[str, list[str]]:
+    return {k: [] for k in ("created", "updated", "unchanged", "edited", "retired")}
+
+
+# ============================================================
 # 동기화 함수들
 # ============================================================
 
@@ -230,7 +319,8 @@ def sync_diff():
         print("📝 변경된 .md 파일 없음")
         return
 
-    synced_count = 0
+    state = load_sync_state()
+    results = _new_results()
     for src_path in changed_files:
         # 제외 파일/폴더 체크
         if src_path.name in EXCLUDE_FILES:
@@ -242,14 +332,12 @@ def sync_diff():
         topic = parent_name.capitalize()
         try:
             filename, content = process_file(src_path, topic)
-            dest_path = OBSIDIAN_PATH / f"{filename}.md"
-            dest_path.write_text(content, encoding="utf-8")
-            synced_count += 1
-            print(f"  📄 {filename}.md")
+            results[write_if_safe(filename, content, state)].append(filename)
         except Exception as e:
             print(f"  ⚠️  {src_path.name} 처리 실패: {e}")
 
-    print(f"✅ Obsidian 동기화 완료: {synced_count}개 변경")
+    save_sync_state(state)
+    print_summary(results, verbose=True)
 
 
 def sync_full():
@@ -260,7 +348,8 @@ def sync_full():
     """
     OBSIDIAN_PATH.mkdir(parents=True, exist_ok=True)
 
-    synced_count = 0
+    state = load_sync_state()
+    results = _new_results()
     for item in TIL_PATH.iterdir():
         if item.is_dir() and item.name not in EXCLUDE_DIRS:
             topic = item.name.capitalize()
@@ -268,13 +357,12 @@ def sync_full():
                 if md_file.name not in EXCLUDE_FILES:
                     try:
                         filename, content = process_file(md_file, topic)
-                        dest_path = OBSIDIAN_PATH / f"{filename}.md"
-                        dest_path.write_text(content, encoding="utf-8")
-                        synced_count += 1
+                        results[write_if_safe(filename, content, state)].append(filename)
                     except Exception as e:
                         print(f"  ⚠️  {md_file.name} 처리 실패: {e}")
 
-    print(f"✅ Obsidian 동기화 완료: {synced_count}개 문서")
+    save_sync_state(state)
+    print_summary(results, verbose=False)
 
 
 # ============================================================
