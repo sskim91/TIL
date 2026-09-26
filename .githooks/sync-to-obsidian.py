@@ -3,366 +3,352 @@
 TIL -> Obsidian 동기화 스크립트
 
 ■ 사용법:
-  python sync-to-obsidian.py          # 전체 동기화 (처음 설정, pull 후)
-  python sync-to-obsidian.py --diff   # 변경분만 동기화 (커밋 후)
+  python sync-to-obsidian.py                 # 전체 동기화 (pull 후)
+  python sync-to-obsidian.py --diff          # 변경분만 동기화 (커밋 후)
+  python sync-to-obsidian.py --dry-run       # 판정만 하고 아무것도 쓰지 않음
+  python sync-to-obsidian.py --verbose       # 생성·갱신한 노트 이름도 출력
 
-■ 동작 방식 (Additive only — 삭제 없음):
-  전체 모드: 모든 .md 파일을 Obsidian에 반영
-  diff 모드: 마지막 커밋에서 변경된 .md 파일만 반영 (빠름)
+■ 역할 분담:
+  이 스크립트는 파일 탐색·git diff·파일 쓰기만 담당한다.
+  노트 생성과 Wiki 문서와의 필드 단위 병합 판정은 vaultkit.tilsync가,
+  새 노트의 MOC 등록은 vaultkit.register가 한다
+  (~/.dotfiles/vault, spec: docs/superpowers/specs/2026-09-26-vault-policy-design.md 5절).
+  vaultkit을 import하지 못하면 경고만 출력하고 동기화를 건너뛴다.
 
-■ Wiki 수정 보호:
-  Wiki가 정본이다. Wiki에서 직접 고친 노트는 TIL이 덮어쓰지 않는다.
-  - Wiki에 없는 노트 → 새로 만든다
-  - Wiki 노트가 마지막 동기화 때 쓴 내용 그대로 → TIL 변경을 반영한다
-  - Wiki 노트가 그 뒤 수정됨(또는 동기화 기록이 없음) → 건너뛴다
-  마지막 동기화 내용의 해시는 Wiki/.til-sync-state.json에 둔다
-  (iCloud로 여러 Mac이 같은 기록을 본다).
-  Wiki에서 병합·이름 변경으로 정리된 TIL 원본은 SKIP_NAMES로 다시 만들지 않는다.
-
-  Wiki는 TIL 외 개인 노트도 들어있는 공유 폴더이므로
-  이 스크립트는 절대 파일을 삭제하지 않는다.
-  TIL에서 삭제한 파일은 Obsidian에서 수동으로 정리한다.
+■ 병합 원칙 (노트별, Wiki/.til-sync-state.json 기준):
+  - title·source·본문·topics·tags는 TIL 값, related_notes·created는 Wiki 값을 유지한다.
+  - Wiki 본문이 마지막 동기화 이후 수정됐으면 본문은 두고 frontmatter만 병합하고
+    "이관 필요"로 보고한다.
+  - Wiki에서 지운 노트(state: synced, Wiki 파일 없음)는 retired로 기록하고
+    다시 만들지 않는다.
+  - Wiki 전용 노트와 이름이 겹치거나(대소문자만 다른 경우 포함) TIL 여러 폴더에 같은 이름이
+    있으면 쓰지 않고 충돌로 보고한다.
+  - 기존 Wiki 파일을 덮기 전에 <백업 루트>/til-sync-<시각>/에 복사하고, 쓰기는 같은 폴더
+    임시 파일 + os.replace로 원자적으로 한다(백업 루트: VAULTKIT_BACKUP_DIR 또는
+    ~/.local/state/vaultkit/backups).
+  - 파일 삭제는 절대 하지 않는다 (Wiki는 TIL 외 개인 노트도 있는 공유 폴더).
+  - 상태 파일이 없으면(이관 전) --dry-run만 허용한다.
 
 ■ Hook 구성:
   post-commit → --diff 모드 (내가 커밋할 때, 변경분만)
   post-merge  → 전체 모드 (pull 받을 때, 전체 동기화)
 
-■ 태그 매핑:
-  tag-mapping.json이 있으면 domain/topic 형식 태그를 사용한다.
-  매핑에 없는 파일은 기존 방식(디렉토리명)으로 폴백한다.
+■ 환경변수 (테스트용 덮어쓰기):
+  TIL_PATH, OBSIDIAN_PATH(Wiki 폴더), VAULTKIT_PATH(기본 ~/.dotfiles/vault),
+  VAULTKIT_POLICY(vault-policy.json 경로), SYNC_STATE_PATH(기본 OBSIDIAN_PATH/.til-sync-state.json),
+  VAULTKIT_BACKUP_DIR(백업 루트, 기본 ~/.local/state/vaultkit/backups)
 """
 
 import argparse
-import hashlib
+import contextlib
 import json
-import re
+import os
+import shutil
 import subprocess
+import sys
+import tempfile
 import unicodedata
+from collections import defaultdict
+from datetime import date
 from pathlib import Path
 
 # ============================================================
 # 설정
 # ============================================================
 
-TIL_PATH = Path(__file__).parent.parent
-OBSIDIAN_PATH = Path.home() / "Library/Mobile Documents/iCloud~md~obsidian/Documents/Note/Wiki"
+TIL_PATH = Path(os.environ.get("TIL_PATH") or Path(__file__).resolve().parent.parent)
+OBSIDIAN_PATH = Path(
+    os.environ.get("OBSIDIAN_PATH")
+    or Path.home() / "Library/Mobile Documents/iCloud~md~obsidian/Documents/Note/Wiki"
+)
+VAULTKIT_PATH = Path(os.environ.get("VAULTKIT_PATH") or Path.home() / ".dotfiles/vault")
+VAULTKIT_POLICY = os.environ.get("VAULTKIT_POLICY")
+SYNC_STATE_PATH = Path(os.environ.get("SYNC_STATE_PATH") or OBSIDIAN_PATH / ".til-sync-state.json")
 TAG_MAPPING_PATH = TIL_PATH / "tag-mapping.json"
-SYNC_STATE_PATH = OBSIDIAN_PATH / ".til-sync-state.json"
-
-# Wiki에서 다른 노트로 병합했거나 이름을 바꾼 TIL 원본 (다시 만들지 않는다)
-SKIP_NAMES = {
-    "LLM-Agent란-무엇인가",
-    "LLM-위키-LLM을-활용한-개인-지식-베이스-구축-패턴",
-    "효과적인-에이전트-구축하기",
-    "Python-컬렉션-타입-비교:-list[tuple]-vs-list[dict]",
-    "Python은-Call-by-Value?-Call-by-Reference?",
-    "Python의-*args와-**kwargs",
-}
 
 # 제외할 파일/폴더
-EXCLUDE_FILES = {"README.md", "CLAUDE.md", "GEMINI.md"}
+EXCLUDE_FILES = {"README.md", "CLAUDE.md", "GEMINI.md", "AGENTS.md"}
 EXCLUDE_DIRS = {".git", ".github", ".githooks", ".claude", "scripts", ".reviews"}
 
-# 정규식 패턴 (컴파일)
-INTERNAL_LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(\./?([\w\-]+)\.md\)")
+ACTIONS = ("create", "update", "frontmatter-only", "unchanged", "conflict", "retire", "skip-retired")
+WRITE_ACTIONS = {"create", "update", "frontmatter-only"}
 
-
-# ============================================================
-# 태그 매핑
-# ============================================================
-
-def load_tag_mapping() -> dict[str, list[str]]:
-    """tag-mapping.json 로드. 없으면 빈 dict 반환."""
-    if TAG_MAPPING_PATH.exists():
-        return json.loads(TAG_MAPPING_PATH.read_text(encoding="utf-8"))
-    return {}
-
-
-TAG_MAPPING = load_tag_mapping()
-
-
-# ============================================================
-# 추출 함수들
-# ============================================================
-
-def extract_title(content: str) -> str:
-    """첫 번째 # 제목 추출"""
-    match = re.search(r"^# (.+)$", content, re.MULTILINE)
-    return match.group(1).strip() if match else "Untitled"
-
-
-def extract_sources(content: str) -> list[str]:
-    """## 출처 섹션에서 URL 추출"""
-    sources = []
-    match = re.search(r"## 출처\s*\n([\s\S]*?)(?=\n## |\Z)", content)
-    if match:
-        section = match.group(1)
-        urls = re.findall(r"\[.*?\]\((https?://[^\)]+)\)", section)
-        sources.extend(urls)
-    return sources
-
-
-def extract_related_notes(content: str) -> list[str]:
-    """문서 전체에서 내부 링크를 추출하여 Obsidian 형식으로 변환"""
-    links = INTERNAL_LINK_PATTERN.findall(content)
-
-    # 중복 제거하면서 순서 유지
-    seen = set()
-    notes = []
-    for _, filename in links:
-        if filename not in seen:
-            seen.add(filename)
-            notes.append(f"[[{filename}]]")
-    return notes
-
-
-# ============================================================
-# 변환 함수들
-# ============================================================
-
-def convert_internal_links(content: str) -> str:
-    """문서 내 상대 링크를 Obsidian 형식으로 변환
-    [제목](./파일명.md) -> [[파일명|제목]]
-    """
-    def replace_link(match):
-        title = match.group(1)
-        filename = match.group(2)
-        return f"[[{filename}|{title}]]"
-
-    return INTERNAL_LINK_PATTERN.sub(replace_link, content)
-
-
-def generate_frontmatter(
-    title: str,
-    sources: list[str],
-    topic: str,
-    related_notes: list[str],
-    custom_tags: list[str] | None = None,
-) -> str:
-    """Frontmatter YAML 생성
-
-    custom_tags가 있으면 domain/topic 형식 태그를 사용하고,
-    없으면 기존 방식(디렉토리명 소문자)으로 폴백한다.
-    """
-    lines = ["---"]
-    lines.append(f'title: "{title}"')
-
-    if sources:
-        if len(sources) == 1:
-            lines.append(f"source: {sources[0]}")
-        else:
-            lines.append("source:")
-            for src in sources:
-                lines.append(f"  - {src}")
-
-    lines.append("topics:")
-    lines.append(f"  - {topic}")
-
-    if related_notes:
-        lines.append("related_notes:")
-        for note in related_notes:
-            lines.append(f'  - "{note}"')
-
-    lines.append("tags:")
-    if custom_tags:
-        for tag in custom_tags:
-            lines.append(f"  - {tag}")
-    else:
-        lines.append(f"  - {topic.lower()}")
-    lines.append("  - til")
-
-    lines.append("---")
-    lines.append("")
-    return "\n".join(lines)
-
-
-def process_file(src_path: Path, topic: str) -> tuple[str, str]:
-    """파일 처리: frontmatter 추가 및 링크 변환"""
-    content = src_path.read_text(encoding="utf-8")
-
-    # 기존 frontmatter 제거
-    if content.startswith("---"):
-        end_match = re.search(r"\n---\n", content[3:])
-        if end_match:
-            content = content[3 + end_match.end():]
-
-    # 정보 추출
-    title = extract_title(content)
-    sources = extract_sources(content)
-    related_notes = extract_related_notes(content)
-
-    # 본문에서 첫 번째 # 제목 제거 (frontmatter에 title 있으므로 중복)
-    content = re.sub(r"^# .+\n+", "", content, count=1, flags=re.MULTILINE)
-
-    # 내부 링크 변환
-    content = convert_internal_links(content)
-
-    # 태그 매핑 조회 (macOS glob은 NFD를 반환하므로 NFC로 정규화)
-    custom_tags = TAG_MAPPING.get(unicodedata.normalize("NFC", src_path.stem))
-
-    # Frontmatter 생성 및 결합
-    frontmatter = generate_frontmatter(title, sources, topic, related_notes, custom_tags)
-    return src_path.stem, frontmatter + content
-
-
-# ============================================================
-# Git 연동
-# ============================================================
-
-def get_changed_md_files() -> list[Path]:
-    """마지막 커밋에서 변경된 .md 파일 목록 반환
-
-    git diff-tree 명령어로 HEAD 커밋에서 변경된 파일 목록을 가져온다.
-    --no-commit-id: 커밋 ID 출력 안 함
-    --name-only: 파일 이름만 출력
-    -r: 하위 디렉토리까지 재귀 탐색
-    """
-    result = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
-        capture_output=True,
-        text=True,
-        cwd=TIL_PATH,
-    )
-
-    changed = []
-    for line in result.stdout.strip().split("\n"):
-        if line and line.endswith(".md"):
-            file_path = TIL_PATH / line
-            # 파일이 존재하면 추가 (삭제된 파일은 제외)
-            if file_path.exists():
-                changed.append(file_path)
-    return changed
-
-
-# ============================================================
-# Wiki 수정 보호
-# ============================================================
 
 def _nfc(text: str) -> str:
     return unicodedata.normalize("NFC", text)
 
 
-def content_hash(text: str) -> str:
-    return hashlib.sha256(_nfc(text).encode("utf-8")).hexdigest()
+# ============================================================
+# 탐색
+# ============================================================
 
-
-def load_sync_state() -> dict[str, str]:
-    if SYNC_STATE_PATH.exists():
-        return json.loads(SYNC_STATE_PATH.read_text(encoding="utf-8"))
-    return {}
-
-
-def save_sync_state(state: dict[str, str]) -> None:
-    SYNC_STATE_PATH.write_text(
-        json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
+def _is_note(path: Path) -> bool:
+    """TIL_PATH/<폴더>/<이름>.md 형식의 동기화 대상인지."""
+    try:
+        rel = path.relative_to(TIL_PATH)
+    except ValueError:
+        return False
+    return (
+        len(rel.parts) == 2
+        and path.suffix == ".md"
+        and rel.parts[0] not in EXCLUDE_DIRS
+        and path.name not in EXCLUDE_FILES
     )
 
 
-def write_if_safe(filename: str, content: str, state: dict[str, str]) -> str:
-    """Wiki에서 수정되지 않은 경우에만 쓴다.
-
-    반환값: created / updated / unchanged / edited(건너뜀) / retired(건너뜀)
-    """
-    name = _nfc(filename)
-    if name in SKIP_NAMES:
-        return "retired"
-
-    dest_path = OBSIDIAN_PATH / f"{filename}.md"
-    new_hash = content_hash(content)
-    existed = dest_path.exists()
-    if existed:
-        current_hash = content_hash(dest_path.read_text(encoding="utf-8"))
-        if current_hash == new_hash:
-            state[name] = new_hash
-            return "unchanged"
-        if state.get(name) != current_hash:
-            return "edited"
-
-    dest_path.write_text(content, encoding="utf-8")
-    state[name] = new_hash
-    return "updated" if existed else "created"
+def scan_til() -> dict[str, list[Path]]:
+    """TIL 전체 노트 {NFC stem: [경로...]} (같은 stem이 여러 폴더에 있으면 여러 개)."""
+    index: dict[str, list[Path]] = defaultdict(list)
+    for folder in sorted(TIL_PATH.iterdir()):
+        if not folder.is_dir() or folder.name in EXCLUDE_DIRS:
+            continue
+        for md in sorted(folder.glob("*.md")):
+            if _is_note(md):
+                index[_nfc(md.stem)].append(md)
+    return dict(index)
 
 
-def print_summary(results: dict[str, list[str]], verbose: bool) -> None:
-    written = len(results["created"]) + len(results["updated"])
-    print(f"✅ Obsidian 동기화 완료: 새로 만듦 {len(results['created'])}, 갱신 {len(results['updated'])}, 변경 없음 {len(results['unchanged'])}")
-    if results["edited"]:
-        print(f"🛡️  Wiki에서 수정된 노트 {len(results['edited'])}개는 덮어쓰지 않음")
-        if verbose:
-            for name in results["edited"]:
-                print(f"    - {name}")
-    if verbose:
-        for name in results["created"] + results["updated"]:
-            print(f"  📄 {name}.md")
-    if written == 0 and not results["edited"] and verbose:
-        print("📝 반영할 변경 없음")
+def scan_wiki() -> dict[str, Path]:
+    """Wiki 루트의 노트 {NFC stem: 실제 경로} (디스크 파일명은 NFD일 수 있다)."""
+    return {_nfc(p.stem): p for p in OBSIDIAN_PATH.glob("*.md")}
 
 
-def _new_results() -> dict[str, list[str]]:
-    return {k: [] for k in ("created", "updated", "unchanged", "edited", "retired")}
+def get_changed_md_files() -> list[Path]:
+    """HEAD 커밋에서 추가·변경된 .md 파일 (삭제된 파일은 제외)."""
+    result = subprocess.run(
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "HEAD"],
+        capture_output=True,
+        text=True,
+        cwd=TIL_PATH,
+    )
+    changed = []
+    for line in result.stdout.split("\0"):
+        if line.endswith(".md"):
+            path = TIL_PATH / line
+            if path.exists() and _is_note(path):
+                changed.append(path)
+    return changed
+
+
+def load_tag_mapping() -> dict[str, list[str]]:
+    if TAG_MAPPING_PATH.exists():
+        raw = json.loads(TAG_MAPPING_PATH.read_text(encoding="utf-8"))
+        return {_nfc(k): v for k, v in raw.items()}
+    return {}
+
+
+def state_ready() -> bool:
+    """v2 상태 파일이 있는지. 없거나 구버전(v1: {stem: hash})이면 이관 전으로 본다."""
+    try:
+        data = json.loads(SYNC_STATE_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return False
+    except (OSError, json.JSONDecodeError):
+        return True  # 손상은 load_state가 오류로 보고한다
+    return not (isinstance(data, dict) and "version" not in data)
 
 
 # ============================================================
-# 동기화 함수들
+# 쓰기
 # ============================================================
 
-def sync_diff():
-    """변경분만 동기화 (post-commit용, 빠름)
+def write_note(path: Path, text: str) -> None:
+    """같은 폴더 임시 파일에 쓴 뒤 ``os.replace``로 교체한다(중간에 실패해도 원본 유지).
 
-    마지막 커밋에서 변경/추가된 .md 파일만 Obsidian에 upsert한다.
-    파일 삭제는 절대 수행하지 않는다 (Wiki는 공유 폴더).
+    생성된 줄 끝을 그대로 쓴다. 쓰기 금지된 기존 파일은 덮지 않는다.
+    실패하면 예외를 올린다(호출자가 state 미갱신).
     """
-    OBSIDIAN_PATH.mkdir(parents=True, exist_ok=True)
+    exists = path.exists()
+    if exists and not os.access(path, os.W_OK):
+        raise PermissionError(f"쓰기 금지된 파일: {path}")
+    if exists:
+        mode = path.stat().st_mode & 0o7777
+    else:
+        umask = os.umask(0)
+        os.umask(umask)
+        mode = 0o666 & ~umask
+    # 임시 이름에 원래 이름을 넣지 않는다: 이름 한도(255)에 가까운 노트에 접두·접미사가
+    # 붙으면 ENAMETOOLONG으로 쓰기 실패한다
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".til-sync-", suffix=".tmp")
+    try:
+        try:
+            fh = os.fdopen(fd, "w", encoding="utf-8", newline="")
+        except BaseException:
+            os.close(fd)
+            raise
+        with fh:
+            fh.write(text)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)  # path는 디스크 이름(NFD일 수 있음) 그대로
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
 
-    changed_files = get_changed_md_files()
-    if not changed_files:
-        print("📝 변경된 .md 파일 없음")
+
+class Backup:
+    """덮어쓸 기존 Wiki 파일을 <루트>/til-sync-<시각>/에 복사한다(첫 복사 때 디렉터리 생성)."""
+
+    def __init__(self, new_backup_dir, root: Path) -> None:
+        self._new_backup_dir = new_backup_dir
+        self._root = root
+        self.dir: Path | None = None
+
+    def save(self, path: Path) -> None:
+        if not path.exists():
+            return
+        if self.dir is None:
+            self.dir = self._new_backup_dir(self._root, prefix="til-sync-")
+            print(f"💾 백업 위치: {self.dir}", flush=True)
+        shutil.copy2(path, self.dir / path.name)
+
+
+# ============================================================
+# 동기화
+# ============================================================
+
+def sync(mode: str, dry_run: bool, verbose: bool) -> None:
+    try:
+        sys.path.insert(0, str(VAULTKIT_PATH))
+        from vaultkit import tilsync
+        from vaultkit.apply import backup_root, new_backup_dir
+        from vaultkit.policy import load_policy
+        from vaultkit.register import register_note
+    except Exception as exc:  # ImportError 외 import 중 오류도 hook을 깨뜨리지 않는다
+        print("⚠️ vaultkit 없음 — 동기화 건너뜀")
+        print(f"  {type(exc).__name__}: {exc}")
         return
 
-    state = load_sync_state()
-    results = _new_results()
-    for src_path in changed_files:
-        # 제외 파일/폴더 체크
-        if src_path.name in EXCLUDE_FILES:
-            continue
-        parent_name = src_path.parent.name
-        if parent_name in EXCLUDE_DIRS:
-            continue
+    ready = state_ready()
+    if not ready and not dry_run:
+        print("⚠️ state 없음 — 이관(Task 8) 전에는 --dry-run만 허용")
+        return
 
-        topic = parent_name.capitalize()
+    try:
+        policy = load_policy(Path(VAULTKIT_POLICY) if VAULTKIT_POLICY else None)
+        state = tilsync.load_state(SYNC_STATE_PATH)
+        mapping = load_tag_mapping()
+    except Exception as exc:  # PolicyError, ValueError(손상된 state), JSON 오류
+        print(f"⚠️ 동기화 건너뜀: {exc}")
+        return
+    notes_state: dict = state["notes"]
+
+    label = mode + (", dry-run" if dry_run else "")
+    print(f"🔄 TIL → Obsidian 동기화 ({label})")
+    if not ready:
+        print("  (state 없음 — 판정만 표시)")
+
+    til_index = scan_til()
+    wiki_index = scan_wiki() if OBSIDIAN_PATH.is_dir() else {}
+    # APFS는 대소문자를 구분하지 않아, 대소문자만 다른 새 이름으로 만들면 기존 파일을 덮는다
+    wiki_folded = {stem.casefold(): path for stem, path in wiki_index.items()}
+    backup = Backup(new_backup_dir, backup_root())
+    if mode == "diff":
+        targets = {_nfc(p.stem) for p in get_changed_md_files()}
+    else:
+        targets = set(til_index)
+
+    today = date.today().isoformat()
+    results: dict[str, list[str]] = {a: [] for a in ACTIONS}
+    migrate: list[tuple[str, str]] = []
+    conflicts: list[tuple[str, str]] = []
+    unclassified: list[str] = []
+    failures: list[tuple[str, str]] = []
+    register_skipped: list[str] = []
+
+    for stem in sorted(targets):
+        paths = til_index.get(stem, [])
+        if len(paths) > 1:
+            folders = ", ".join(p.parent.name for p in paths)
+            results["conflict"].append(stem)
+            conflicts.append((stem, f"TIL 여러 폴더에 같은 이름({folders}) → 동기화하지 않음"))
+            continue
+        if not paths:
+            continue
+        src = paths[0]
+        wiki_path = wiki_index.get(stem)
         try:
-            filename, content = process_file(src_path, topic)
-            results[write_if_safe(filename, content, state)].append(filename)
-        except Exception as e:
-            print(f"  ⚠️  {src_path.name} 처리 실패: {e}")
+            gen = tilsync.build_note(src, src.parent.name, policy, mapping)
+            existing = wiki_path.read_text(encoding="utf-8") if wiki_path else None
+            decision = tilsync.merge(gen, existing, notes_state.get(stem), today, policy=policy)
+        except Exception as exc:
+            failures.append((stem, f"처리 실패: {exc}"))
+            continue
 
-    save_sync_state(state)
-    print_summary(results, verbose=True)
+        if decision.action == "create" and stem.casefold() in wiki_folded:
+            other = wiki_folded[stem.casefold()]
+            results["conflict"].append(stem)
+            conflicts.append((stem, f"대소문자만 다른 Wiki 노트({_nfc(other.name)})가 있음 → 쓰지 않음"))
+            continue
 
+        dest = wiki_path or OBSIDIAN_PATH / src.name
+        if decision.text is not None and decision.action in WRITE_ACTIONS and not dry_run:
+            try:
+                backup.save(dest)
+                write_note(dest, decision.text)
+            except OSError as exc:
+                failures.append((stem, f"쓰기 실패: {exc}"))
+                continue
+        results[decision.action].append(stem)
+        # 쓰기 실패한 노트는 실패 목록에만 남도록, 쓰기 뒤에 분류한다
+        if decision.action == "conflict":
+            conflicts.append((stem, decision.message))
+        elif decision.action == "frontmatter-only":
+            migrate.append((stem, decision.message))
 
-def sync_full():
-    """전체 동기화 (post-merge용, 처음 설정용)
+        if decision.entry is not None and not dry_run:
+            notes_state[stem] = decision.entry
 
-    TIL의 모든 .md 파일을 Obsidian에 upsert한다.
-    파일 삭제는 절대 수행하지 않는다 (Wiki는 공유 폴더).
-    """
-    OBSIDIAN_PATH.mkdir(parents=True, exist_ok=True)
+        if decision.action == "create":
+            if dry_run:
+                register_skipped.append(stem)
+            else:
+                try:
+                    reg = register_note(dest, policy)
+                except Exception as exc:
+                    failures.append((stem, f"MOC 등록 실패: {exc}"))
+                else:
+                    if reg.status == "unclassified":
+                        unclassified.append(stem)
 
-    state = load_sync_state()
-    results = _new_results()
-    for item in TIL_PATH.iterdir():
-        if item.is_dir() and item.name not in EXCLUDE_DIRS:
-            topic = item.name.capitalize()
-            for md_file in item.glob("*.md"):
-                if md_file.name not in EXCLUDE_FILES:
-                    try:
-                        filename, content = process_file(md_file, topic)
-                        results[write_if_safe(filename, content, state)].append(filename)
-                    except Exception as e:
-                        print(f"  ⚠️  {md_file.name} 처리 실패: {e}")
+    til_deleted: list[str] = []
+    if mode == "full":
+        til_deleted = sorted(
+            s for s, e in notes_state.items()
+            if isinstance(e, dict) and e.get("status") == "synced" and s not in til_index
+        )
 
-    save_sync_state(state)
-    print_summary(results, verbose=False)
+    if not dry_run:
+        try:
+            tilsync.save_state(SYNC_STATE_PATH, state)
+        except OSError as exc:
+            failures.append((SYNC_STATE_PATH.name, f"state 저장 실패: {exc}"))
+
+    # ---------------- 보고 ----------------
+    for action in ACTIONS:
+        print(f"  {action}: {len(results[action])}")
+    if verbose:
+        for action in ("create", "update"):
+            for stem in results[action]:
+                print(f"  📄 {action} {stem}")
+    if register_skipped:
+        print(f"  (dry-run: create {len(register_skipped)}건의 MOC 등록 판정은 생략 — 파일 미생성)")
+
+    def _list(header: str, items: list[tuple[str, str]]) -> None:
+        if items:
+            print(f"{header} ({len(items)})")
+            for stem, message in items:
+                print(f"  - {stem}: {message}")
+
+    _list("⚠️ 이관 필요(Wiki 본문 수정됨)", migrate)
+    _list("⚠️ 충돌", conflicts)
+    _list("📋 MOC 미분류", [(s, "MOC 절을 찾지 못함 → 수동 등록 필요") for s in unclassified])
+    _list("⚠️ TIL에서 삭제됨", [(s, "state에 synced, TIL 원본 없음 → Wiki에서 수동 정리") for s in til_deleted])
+    _list("❌ 실패", failures)
+    if backup.dir is not None:
+        print(f"💾 백업: {backup.dir}")
 
 
 # ============================================================
@@ -375,21 +361,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 예시:
-  python sync-to-obsidian.py          # 전체 동기화
-  python sync-to-obsidian.py --diff   # 변경분만 동기화
-        """
+  python sync-to-obsidian.py                    # 전체 동기화
+  python sync-to-obsidian.py --diff             # 변경분만 동기화
+  python sync-to-obsidian.py --dry-run --verbose
+        """,
     )
-    parser.add_argument(
-        "--diff",
-        action="store_true",
-        help="변경된 파일만 동기화 (post-commit용)"
-    )
+    parser.add_argument("--diff", action="store_true", help="HEAD 커밋에서 변경된 파일만 동기화 (post-commit용)")
+    parser.add_argument("--dry-run", action="store_true", help="판정만 하고 파일·상태를 쓰지 않음")
+    parser.add_argument("--verbose", action="store_true", help="생성·갱신한 노트 이름 출력")
     args = parser.parse_args()
 
-    if args.diff:
-        sync_diff()
-    else:
-        sync_full()
+    sync("diff" if args.diff else "full", args.dry_run, args.verbose)
 
 
 if __name__ == "__main__":
