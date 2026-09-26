@@ -631,6 +631,10 @@ helm install external-secrets external-secrets/external-secrets \
   -n external-secrets --create-namespace
 ```
 
+> [!note] API 버전
+> ESO v0.17.0(2025-05)부터 `external-secrets.io/v1beta1`은 더 이상 serving되지 않는다. 아래 예시처럼 `external-secrets.io/v1`을 쓴다. ([v0.17.0 릴리스 노트](https://github.com/external-secrets/external-secrets/releases/tag/v0.17.0))
+> 2026-09 기준 최신은 v2.11.0(2026-09-18)이다. v2.0.0(2026-02-06)의 breaking change는 유지보수되지 않던 Alibaba·Device42 provider 제거이고, 이 절의 AWS·Azure·GCP 예시가 쓰는 `v1` 필드는 그대로다. ([v2.0.0 릴리스 노트](https://github.com/external-secrets/external-secrets/releases/tag/v2.0.0))
+
 ### 7.2 AWS EKS + Secrets Manager
 
 AWS에서는 **IRSA(IAM Roles for Service Accounts)** 또는 **Pod Identity** 로 인증한다.
@@ -657,9 +661,10 @@ AWS에서는 **IRSA(IAM Roles for Service Accounts)** 또는 **Pod Identity** �
 
 ```bash
 # Service Account에 IAM Role 연결
+# SecretStore(namespaced)의 serviceAccountRef는 SecretStore와 같은 네임스페이스의 SA를 가리킨다
 eksctl create iamserviceaccount \
   --name external-secrets-sa \
-  --namespace external-secrets \
+  --namespace default \
   --cluster my-cluster \
   --attach-policy-arn arn:aws:iam::123456789:policy/SecretsManagerReadOnly \
   --approve
@@ -668,7 +673,7 @@ eksctl create iamserviceaccount \
 **Step 3: SecretStore 생성**
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: SecretStore
 metadata:
   name: aws-secrets-manager
@@ -687,7 +692,7 @@ spec:
 **Step 4: ExternalSecret 생성**
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: my-app-secret
@@ -708,6 +713,8 @@ spec:
 ```
 
 > **IRSA vs Pod Identity:** IRSA는 Service Account 토큰을 사용하고, Pod Identity(신규)는 EKS가 직접 IAM Role을 Pod에 할당한다. 신규 클러스터에서는 Pod Identity를 권장한다.
+>
+> **ESO에서 Pod Identity를 쓸 때 주의 (ESO v2.11 문서 기준, 2026-09):** 위 예시의 `auth.jwt.serviceAccountRef`는 IRSA 전용이다. Pod Identity는 ESO **컨트롤러** Service Account(예: `external-secrets` 네임스페이스의 `external-secrets`)에 `aws eks create-pod-identity-association`으로 Role을 연결하고, SecretStore에는 `auth` 섹션을 **아예 쓰지 않는다**. ESO는 Pod Identity로 Role이 묶인 SA를 가장(impersonate)할 수 없어서 `serviceAccountRef`와 함께 쓰면 `an IAM role must be associated with service account` 오류가 난다. ([ESO — AWS Access](https://external-secrets.io/latest/provider/aws-access/))
 
 ### 7.3 Azure AKS + Key Vault
 
@@ -742,7 +749,7 @@ az keyvault set-policy \
 **Step 3: SecretStore 생성**
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: SecretStore
 metadata:
   name: azure-keyvault
@@ -760,7 +767,7 @@ spec:
 **Step 4: ExternalSecret 생성**
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: my-app-secret
@@ -805,13 +812,17 @@ gcloud projects add-iam-policy-binding my-project \
 gcloud iam service-accounts add-iam-policy-binding \
   external-secrets-sa@my-project.iam.gserviceaccount.com \
   --role="roles/iam.workloadIdentityUser" \
-  --member="serviceAccount:my-project.svc.id.goog[external-secrets/external-secrets-sa]"
+  --member="serviceAccount:my-project.svc.id.goog[default/external-secrets-sa]"
+
+# KSA(SecretStore와 같은 네임스페이스)에 GSA 연결 annotation
+kubectl annotate serviceaccount external-secrets-sa -n default \
+  iam.gke.io/gcp-service-account=external-secrets-sa@my-project.iam.gserviceaccount.com
 ```
 
 **Step 3: SecretStore 생성**
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: SecretStore
 metadata:
   name: gcp-secret-manager
@@ -831,7 +842,7 @@ spec:
 **Step 4: ExternalSecret 생성**
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: my-app-secret
@@ -845,9 +856,11 @@ spec:
   data:
   - secretKey: DB_PASSWORD
     remoteRef:
-      key: projects/my-project/secrets/database-password
+      key: database-password             # Secret 이름만 (projectID는 SecretStore에서)
       version: latest
 ```
+
+> ESO는 `projects/{projectID}/secrets/{key}/versions/{version}` 경로를 직접 조립하므로 `key`에 전체 리소스 경로를 넣으면 경로가 중복돼 조회에 실패한다. ([ESO GCP provider 소스](https://github.com/external-secrets/external-secrets/blob/main/providers/v1/gcp/secretmanager/client.go), [ESO — Google Secret Manager](https://external-secrets.io/latest/provider/google-secrets-manager/))
 
 ### 7.5 클라우드 비교
 

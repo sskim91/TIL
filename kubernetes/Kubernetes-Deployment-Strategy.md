@@ -117,6 +117,8 @@ spec:
 
 ### 2.5 실무 설정: maxSurge와 maxUnavailable
 
+> [!note] 자세한 내용은 [Kubernetes-ReplicaSet-Deployment](./Kubernetes-ReplicaSet-Deployment.md) 참고
+
 이 두 파라미터가 배포 속도와 안정성을 결정한다. **상황에 따라 다르게 설정해야 한다.**
 
 ```yaml
@@ -160,6 +162,8 @@ flowchart LR
 - 최대 Pod 수: 4 + 1 = **5개** (maxSurge)
 
 ### 2.6 minReadySeconds: 배포 속도 제어
+
+> [!note] 자세한 내용은 [Kubernetes-ReplicaSet-Deployment](./Kubernetes-ReplicaSet-Deployment.md) 참고
 
 **새 Pod가 Ready 후 얼마나 기다렸다가 다음 Pod를 교체할지** 결정한다.
 
@@ -363,6 +367,8 @@ kubectl delete deployment my-app-blue
 ---
 
 ## 4. Canary 배포: 일부만 먼저 배포
+
+> [!note] 자세한 내용은 [카나리-배포](../testing/카나리-배포.md) 참고
 
 ### 4.1 동작 원리
 
@@ -595,7 +601,40 @@ kubectl patch httproute my-app-canary --type=json \
 
 여기까지가 **수동** Canary다. 가중치를 사람이 올리고, 지표도 사람이 본다. 이걸 자동화하는 것이 다음 절이다.
 
+> [!warning] ingress-nginx 은퇴 (2026-03)
+> Kubernetes 커뮤니티의 ingress-nginx 컨트롤러는 2026-03에 은퇴했다. 이후 버그·보안 수정 릴리스가 없다(기존 배포는 계속 동작). 신규 구성이라면 Gateway API(`HTTPRoute`의 `backendRefs` weight)로 가중치 분배를 하고, 기존 Ingress는 `ingress2gateway` 도구로 옮기는 것이 공식 권장 경로다. ([Kubernetes 블로그, 2025-11-11](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/))
+
+**Gateway API로 같은 90:10 Canary 구성하기 (2026-09 기준):**
+
+```yaml
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: myapp-route
+spec:
+  parentRefs:
+  - name: prod-web-gw          # 트래픽을 받는 Gateway
+  hostnames:
+  - myapp.example.com
+  rules:
+  - backendRefs:
+    - name: myapp-stable       # v1 Service
+      port: 8080
+      weight: 90
+    - name: myapp-canary       # v2 Service
+      port: 8080
+      weight: 10
+```
+
+- `weight`는 퍼센트가 아니라 **비율**이다. 같은 rule 안 weight의 합이 분모가 된다(90/100, 10/100). 생략하면 기본값은 1이다.
+- 전환을 마치려면 stable을 `weight: 0`, canary를 `weight: 1`로 바꾼다. Canary Ingress를 따로 둘 필요 없이 한 리소스 안에서 비율만 조정한다.
+- 헤더 기반 Canary는 `matches.headers`를 가진 rule을 따로 추가해 표현한다.
+
+출처: [Gateway API — HTTP traffic splitting](https://gateway-api.sigs.k8s.io/guides/traffic-splitting/)
+
 ### 4.6 실제로는 전용 도구 사용
+
+> [!note] 자세한 내용은 [ArgoCD에-Rollout은-없다-Argo-Rollouts가-Deployment를-대체하는-이유](../devops/ArgoCD에-Rollout은-없다-Argo-Rollouts가-Deployment를-대체하는-이유.md) 참고
 
 정밀한 Canary 배포를 위해서는 트래픽 라우팅 도구가 필요하다:
 
@@ -627,7 +666,7 @@ spec:
       # 문제 없으면 100%로 자동 진행
 ```
 
-### 4.6 장단점
+### 4.7 장단점
 
 | 장점 | 단점 |
 |------|------|
