@@ -9,7 +9,7 @@ Redis는 **인메모리 데이터 구조 저장소** 로, 단순한 캐시가 �
 ```mermaid
 flowchart LR
     S["Single<br>(단일 인스턴스)"]
-    R["Replica<br>(Master-Slave)"]
+    R["Replica<br>(Master-Replica)"]
     SE["Sentinel<br>(자동 장애 복구)"]
     C["Cluster<br>(샤딩 + HA)"]
 
@@ -29,6 +29,10 @@ flowchart LR
 | **Replica** | SPOF, 읽기 분산 | 수동 Failover |
 | **Sentinel** | 자동 Failover | 쓰기 확장 불가, 메모리 한계 |
 | **Cluster** | 수평 확장 (샤딩) | 운영 복잡도 증가 |
+
+> [!note] 라이선스: Redis 8(2025-05 GA)부터 AGPLv3가 라이선스 옵션으로 추가되었고, 무료 배포판 명칭이 Redis Community Edition에서 Redis Open Source로 바뀌었다.
+>
+> Valkey: 2024-03-28 Linux Foundation이 Redis Inc.의 라이선스 변경에 대응해 오픈소스 포크 Valkey를 발표했다. 기존 Redis 메인테이너·기여자들이 Redis 7.2.4를 기반으로 BSD 라이선스로 개발을 이어간다. Valkey 공식 문서도 Replication·Sentinel·Cluster를 같은 구조로 다룬다. ([Linux Foundation 발표](https://www.linuxfoundation.org/press/linux-foundation-launches-open-source-valkey-community), [Valkey Sentinel](https://valkey.io/topics/sentinel/), [Valkey Cluster](https://valkey.io/topics/cluster-tutorial/))
 
 ## 1. Redis는 대체 뭐야?
 
@@ -141,9 +145,9 @@ flowchart TB
 
 이 문제들을 해결하기 위해 레플리카 구조가 등장했다.
 
-### 2.2 Replica (Master-Slave) — 데이터를 복제하자
+### 2.2 Replica (Master-Replica) — 데이터를 복제하자
 
-Master에 쓰고, Slave(Replica)에서 읽는 구조다. Master의 데이터가 Replica로 **비동기 복제** 된다.
+Master에 쓰고, Replica에서 읽는 구조다(Redis 5부터 공식 용어는 slave 대신 replica이며, `SLAVEOF` 대신 `REPLICAOF`를 쓴다). Master의 데이터가 Replica로 **비동기 복제** 된다.
 
 ```mermaid
 flowchart TB
@@ -222,6 +226,8 @@ flowchart TB
 **남아있는 문제:** Sentinel은 **HA(고가용성)** 를 해결하지만, **수평 확장** 문제는 해결하지 못한다. 데이터는 여전히 하나의 Master에 모두 저장된다. Master의 메모리가 64GB라면, 그 이상의 데이터를 저장할 방법이 없다. 쓰기 트래픽도 Master 한 대가 모두 감당해야 한다.
 
 ### 2.4 Cluster — 데이터를 나눠 담자 (샤딩)
+
+> [!note] 자세한 내용은 [Redis-Cluster의-내부-동작과-Hash-Slot-Rebalancing](./Redis-Cluster의-내부-동작과-Hash-Slot-Rebalancing.md) 참고
 
 Redis Cluster는 데이터를 여러 노드에 **자동으로 분산** 하여 저장한다. 이것이 **샤딩(Sharding)** 이다. 각 노드가 전체 데이터의 일부만 담당하므로, 노드를 추가하면 전체 용량과 처리량이 선형으로 늘어난다.
 

@@ -597,6 +597,28 @@ flowchart TB
 | `debug` | `{type, timestamp, payload}` | 디버깅 | 느림 |
 | `custom` | `{개발자 정의}` | 진행률, 중간결과 | 가변 |
 
+### 8.1 v2 출력 형식과 이벤트 스트리밍 (2026-09 기준)
+
+위 예제는 기본(v1) 출력 형식 기준이다. 최근 버전에는 두 가지 선택지가 더 있다.
+
+- **`version="v2"` (langgraph v1.1)**: `stream()`/`astream()`에 넘기면 모드와 관계없이 모든 chunk가 `type`, `ns`, `data` 키를 가진 `StreamPart`로 통일된다. 모드별 `TypedDict`는 `langgraph.types`에서 가져올 수 있다. opt-in이라 기존 코드는 그대로 동작한다.
+
+```python
+for part in graph.stream(inputs, stream_mode=["updates", "custom"], version="v2"):
+    print(part["type"], part["ns"], part["data"])  # 튜플 언패킹 대신 키로 접근
+```
+
+- **이벤트 스트리밍 (langgraph v1.2, beta)**: `stream_events(..., version="v3")`는 하나의 이벤트 흐름 위에 타입이 있는 projection을 제공한다. `stream.messages`(토큰 델타), `stream.values`(상태 스냅샷), `stream.output`(최종 출력), `stream.subgraphs`(중첩 실행 탐색), `stream.interrupts` 등을 여러 소비자가 동시에 읽어도 서로 이벤트를 소모하지 않는다. 5장처럼 namespace 튜플을 직접 파싱하는 대신 `stream.subgraphs`를 쓰는 것이 공식 권장이다.
+
+```python
+stream = graph.stream_events(inputs, version="v3")
+for message in stream.messages:
+    for token in message.text:
+        print(token, end="", flush=True)
+```
+
+`stream_mode` 기반 스트리밍은 저수준 접근이 필요할 때, 이벤트 스트리밍은 애플리케이션 코드에서 타입 있는 projection이 편할 때 쓴다. 출처: [LangGraph changelog](https://docs.langchain.com/oss/python/langgraph/changelog-py), [Event streaming](https://docs.langchain.com/oss/python/langgraph/event-streaming)
+
 ## 9. 정리
 
 **Streaming** 은 LangGraph 애플리케이션의 사용자 경험을 크게 향상시킨다.
@@ -625,6 +647,6 @@ flowchart TB
 
 ## 출처
 
-- [LangGraph Documentation - Streaming](https://langchain-ai.github.io/langgraph/concepts/streaming/) - 공식 문서
-- [LangGraph How-to Guides - Streaming](https://langchain-ai.github.io/langgraph/how-tos/#streaming)
-- [LangGraph API Reference](https://langchain-ai.github.io/langgraph/reference/)
+- [LangGraph Documentation - Streaming](https://docs.langchain.com/oss/python/langgraph/streaming) - 공식 문서
+- [LangGraph How-to Guides - Streaming](https://docs.langchain.com/oss/python/langgraph/streaming)
+- [LangGraph API Reference](https://reference.langchain.com/python/langgraph/)

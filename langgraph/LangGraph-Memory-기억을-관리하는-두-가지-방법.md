@@ -682,6 +682,6 @@ store.search(namespace)
 
 ## 출처
 
-- [LangGraph Documentation - Memory](https://langchain-ai.github.io/langgraph/concepts/memory/) - 공식 문서
-- [LangGraph Documentation - Persistence](https://langchain-ai.github.io/langgraph/concepts/persistence/)
+- [LangGraph Documentation - Memory](https://docs.langchain.com/oss/python/langgraph/memory) - 공식 문서
+- [LangGraph Documentation - Persistence](https://docs.langchain.com/oss/python/langgraph/persistence)
 - [LangGraph Store Package](https://github.com/langchain-ai/langgraph/tree/main/libs/store)

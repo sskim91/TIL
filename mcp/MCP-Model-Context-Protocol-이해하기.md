@@ -440,6 +440,9 @@ async def main():
 
 원격 서버에 접속할 때는 `mcp.client.streamable_http.streamablehttp_client`로 transport만 교체하면 동일한 `ClientSession` 인터페이스로 사용할 수 있다.
 
+> [!note] 2026-09 기준 스펙 변경
+> MCP 스펙 2026-07-28 개정판부터 프로토콜이 stateless가 되어 `initialize`/`notifications/initialized` 핸드셰이크가 제거됐다. 버전·capability는 매 요청의 `_meta`에 실리고, 서버는 `server/discover` RPC로 지원 버전을 알린다. 위 SDK 코드의 `session.initialize()`는 SDK 레벨 API로 여전히 존재하지만, 와이어 레벨에서 "3) 핸드셰이크"는 2025-11-25 이전 개정판 기준 설명이다. ([changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog))
+
 ### 4.2 MCP Gateway/Proxy 구축 시
 
 여러 MCP Server를 하나로 묶는 Gateway를 만들 때 Client가 필요하다.
@@ -585,9 +588,27 @@ After MCP:
 2. **Claude Desktop에 연결**: 설정 파일에 서버 등록
 3. **실제 사용**: 자연어로 도구 사용해보기
 
+## 8. 2026-07-28 스펙의 핵심 변화
+
+2026-09 기준 current 스펙은 2026-07-28 개정판이다. 직전 개정판(2025-11-25)까지의 핸드셰이크·세션 모델이 크게 바뀌었다.
+
+| 변화 | 내용 |
+|------|------|
+| Stateless | `initialize`/`notifications/initialized` 핸드셰이크 제거. 매 요청의 `_meta`에 프로토콜 버전(`io.modelcontextprotocol/protocolVersion`)과 client capabilities를 싣는다 |
+| 세션 제거 | Streamable HTTP의 `Mcp-Session-Id` 헤더와 프로토콜 레벨 세션 제거. 호출 간 상태가 필요하면 서버가 발급한 핸들을 일반 tool 인자로 주고받는다. SSE resumability(`Last-Event-ID`)도 제거 |
+| `server/discover` | 서버가 반드시 구현해야 하는 RPC. 지원 프로토콜 버전·capability·서버 정보를 알린다. 클라이언트는 첫 요청 전에 호출해 버전을 고를 수 있다 |
+| MRTR | Multi Round-Trip Requests. 서버가 `roots/list`, `sampling/createMessage`, `elicitation/create` 같은 요청을 직접 보내는 대신 `resultType: "input_required"` 결과로 필요한 입력을 요구하고, 클라이언트는 원래 요청을 `inputResponses`와 함께 재시도한다. 모든 결과에 `resultType` 필드가 필수가 됐다 |
+| `subscriptions/listen` | HTTP GET 엔드포인트와 `resources/subscribe`/`unsubscribe`를 대체하는 단일 장기 스트림. 클라이언트가 `toolsListChanged` 등 받을 알림 종류를 골라 구독한다 |
+| Tasks extension | 실험적 tasks가 코어에서 빠져 공식 extension(`io.modelcontextprotocol/tasks`)이 됐다. `tasks/result` 대신 `tasks/get` 폴링, `tasks/update` 추가, `tasks/list` 제거 |
+| 제거 | `ping`, `logging/setLevel`, `notifications/roots/list_changed`. 로그 레벨은 요청별 `_meta`로 지정 |
+
+**Deprecated**(스펙에는 남아 있지만 신규 구현에서 쓰지 말 것): Roots, Sampling, Logging 기능, HTTP+SSE transport(2025-03-26부터 deprecated), Sampling의 `includeContext: "thisServer"/"allServers"`, OAuth Dynamic Client Registration(Client ID Metadata Documents 권장). 대안으로는 Roots 대신 서버 설정, Sampling 대신 LLM provider API 직접 호출, Logging 대신 stderr나 OpenTelemetry를 쓰라고 안내한다.
+
+출처: [MCP 2026-07-28 Key Changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Deprecated features](https://modelcontextprotocol.io/specification/2026-07-28/deprecated)
+
 ## 출처
 
 - [Model Context Protocol Documentation](https://modelcontextprotocol.io/docs) - 공식 문서
-- [FastMCP GitHub](https://github.com/jlowin/fastmcp) - FastMCP 프레임워크
-- [MCP Specification](https://spec.modelcontextprotocol.io/) - MCP 스펙 문서
+- [FastMCP GitHub](https://github.com/PrefectHQ/fastmcp) - FastMCP 프레임워크
+- [MCP Specification](https://modelcontextprotocol.io/specification/latest) - MCP 스펙 문서 (2026-09 기준 current: 2026-07-28)
 - [Anthropic MCP Announcement](https://www.anthropic.com/news/model-context-protocol) - Anthropic 공식 발표

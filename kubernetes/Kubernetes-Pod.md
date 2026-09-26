@@ -550,9 +550,9 @@ Native Sidecar는 기존 sidecar 패턴의 문제점을 해결하기 위해 추�
 
 - **v1.28**: Alpha 도입 (`SidecarContainers` feature gate 수동 활성화 필요)
 - **v1.29**: **Beta로 승격, 기본 활성화** (대부분의 클러스터에서 별도 설정 없이 사용 가능)
-- **v1.33**: **Stable(GA)**, 기본 활성화. `SidecarContainers` feature gate는 GA 상태로 유지됨 (feature gate 자체가 완전히 사라진 것은 아님)
+- **v1.33**: **Stable(GA)**, 기본 활성화. `SidecarContainers` feature gate는 GA 상태로 유지됨 (feature gate 자체가 완전히 사라진 것은 아니지만 locked 상태라, 값을 지정해도 무시되고 끌 수 없다 — [공식 문서](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/))
 
-즉 2026년 4월 현재 시점 기준으로는 대부분의 클러스터(v1.29 이상)에서 바로 쓸 수 있고, v1.33+ 클러스터에서는 공식 GA 기능이다.
+즉 2026-09 기준(최신 minor v1.37)으로는 대부분의 클러스터(v1.29 이상)에서 바로 쓸 수 있고, v1.33+ 클러스터에서는 공식 GA 기능이다.
 
 **기존 방식의 문제:**
 
@@ -881,6 +881,22 @@ resources:
 | 일반 서비스 | **Burstable** | 유연한 리소스 사용 |
 | 개발/테스트 | Burstable 또는 BestEffort | 리소스 효율성 |
 | Batch Job | **Burstable** | CPU burst 허용 |
+
+### 6.5 In-place Pod Resize: 재생성 없이 requests/limits 바꾸기
+
+예전에는 Pod의 CPU·메모리를 바꾸려면 Pod를 새로 만들어야 했다. In-place Pod Resize(In-Place Pod Vertical Scaling)는 실행 중인 Pod의 컨테이너 리소스를 `resize` 서브리소스로 직접 수정한다. v1.27 alpha → v1.33 beta를 거쳐 **v1.35에서 Stable(GA)** 이 됐고, `InPlacePodVerticalScaling` feature gate는 잠겨 끌 수 없다 (2026-09 기준, 최신 v1.37).
+
+```bash
+# kubectl 클라이언트 v1.32 이상 필요
+kubectl patch pod resize-demo --subresource resize --patch \
+  '{"spec":{"containers":[{"name":"app","resources":{"requests":{"cpu":"800m"},"limits":{"cpu":"800m"}}}]}}'
+```
+
+- 컨테이너별 `resizePolicy`로 리소스마다 재시작 여부를 정한다. 예: CPU는 `NotRequired`(재시작 없음), 메모리는 `RestartContainer`.
+- 진행 상태는 Pod condition `PodResizePending`·`PodResizeInProgress`로 확인한다. 노드 여유가 없으면 Pending으로 남는다.
+- Deployment가 관리하는 Pod를 직접 resize해도 템플릿은 바뀌지 않으므로, 다음 롤아웃에서 원래 값으로 돌아간다. 영구 변경은 템플릿에서 한다.
+
+출처: [Kubernetes Blog — v1.35 In-Place Pod Resize GA](https://kubernetes.io/blog/2025/12/19/kubernetes-v1-35-in-place-pod-resize-ga/), [Resize CPU and Memory Resources assigned to Containers](https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/)
 
 ---
 

@@ -6,7 +6,7 @@ SPA가 백엔드 없이 토큰을 받아오는 과정은 단순한 리다이렉�
 
 **브라우저의 OAuth는 "client_secret을 안전하게 보관할 수 없다"는 단 한 가지 사실에서 모든 것이 파생된다.** SPA는 본질적으로 Public Client다. 그리고 Public Client는 PKCE 없이는 안전한 인가 코드 교환이 불가능하다. PKCE가 주는 것은 "client_secret의 흉내"가 아니라, **"같은 디바이스 안에서 인가 코드를 가로챌 수 있는 자도 토큰까지는 가져갈 수 없게" 만드는 보호막**이다.
 
-이 보호막을 어디에 둘 것인가에 따라 [draft-ietf-oauth-browser-based-apps-26](https://datatracker.ietf.org/doc/draft-ietf-oauth-browser-based-apps/)는 세 가지 패턴을 보안 강도 순으로 정렬한다.
+이 보호막을 어디에 둘 것인가에 따라 [RFC 10017 (OAuth 2.0 for Browser-Based Applications, BCP, 2026-08)](https://www.rfc-editor.org/rfc/rfc10017)은 세 가지 패턴을 보안 강도 순으로 정렬한다.
 
 ```mermaid
 flowchart TD
@@ -37,7 +37,7 @@ flowchart TD
 
 ## 1. 왜 OAuth 2.1인가 — 사라진 두 가지 길
 
-OAuth 2.0은 2012년 [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749)로 표준화됐다. 그때의 명세는 네 가지 grant type을 늘어놓고 "용도에 맞게 골라 쓰라"고 했다. **Authorization Code, Implicit, Resource Owner Password Credentials(ROPC), Client Credentials.** 그런데 2026년의 [draft-ietf-oauth-v2-1-15](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/)에는 두 개가 사라져 있다. Implicit과 ROPC가 그것이다.
+OAuth 2.0은 2012년 [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749)로 표준화됐다. 그때의 명세는 네 가지 grant type을 늘어놓고 "용도에 맞게 골라 쓰라"고 했다. **Authorization Code, Implicit, Resource Owner Password Credentials(ROPC), Client Credentials.** 그런데 [draft-ietf-oauth-v2-1-16](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/)(2026-09 기준 최신, 아직 RFC 전)에는 두 개가 사라져 있다. Implicit과 ROPC가 그것이다.
 
 이 두 grant가 사라진 이유는 OAuth 2.1을 "이전과 호환되지 않는 새 프로토콜"이 아니라 **"OAuth 2.0이 10년간 학습한 보안 베스트 프랙티스의 응축본"** 으로 만들기 위해서다. 사라진 자리에 새로운 것이 들어온 것이 아니라, **위험하다고 누적적으로 판명된 길이 닫혔을 뿐**이다.
 
@@ -64,7 +64,7 @@ ROPC는 더 단순한 죽음을 맞았다. **"클라이언트가 사용자의 �
 
 ### 1.3 결과 — 모든 길은 Authorization Code + PKCE로 모인다
 
-사라진 둘을 빼고 나면 SPA·모바일·데스크톱 어디서든 단 하나의 길이 남는다. **Authorization Code Grant + PKCE.** 그리고 PKCE의 위치는 OAuth 2.0 시절의 "권장"에서 분명히 끌어올려졌다. [RFC 9700 §2.1.1](https://www.rfc-editor.org/rfc/rfc9700#section-2.1.1)은 **Public Client에 PKCE를 MUST**, **Confidential Client에는 RECOMMENDED**로 둔다. 단 하나의 예외는 OAuth 2.1 [§7.5.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-15#section-7.5.1)이 정의하는데, **Confidential Client이고 인가 서버가 그 클라이언트의 OIDC `nonce` 구현을 신뢰할 수 있을 때**에 한해 PKCE를 생략할 수 있다(그래도 RECOMMENDED). 이 글이 다루는 SPA는 모두 Public Client이거나 BFF의 Confidential Client이므로, 어느 경로에서든 PKCE는 사실상 항상 켜져 있는 모습으로 등장한다.
+사라진 둘을 빼고 나면 SPA·모바일·데스크톱 어디서든 단 하나의 길이 남는다. **Authorization Code Grant + PKCE.** 그리고 PKCE의 위치는 OAuth 2.0 시절의 "권장"에서 분명히 끌어올려졌다. [RFC 9700 §2.1.1](https://www.rfc-editor.org/rfc/rfc9700#section-2.1.1)은 **Public Client에 PKCE를 MUST**, **Confidential Client에는 RECOMMENDED**로 둔다. 단 하나의 예외는 OAuth 2.1 [§7.5.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16#section-7.5.1)이 정의하는데, **Confidential Client이고 인가 서버가 그 클라이언트의 OIDC `nonce` 구현을 신뢰할 수 있을 때**에 한해 PKCE를 생략할 수 있다(그래도 RECOMMENDED). 이 글이 다루는 SPA는 모두 Public Client이거나 BFF의 Confidential Client이므로, 어느 경로에서든 PKCE는 사실상 항상 켜져 있는 모습으로 등장한다.
 
 ## 2. Public vs Confidential — 모든 결정의 출발
 
@@ -163,7 +163,7 @@ PKCE는 일회용 비밀과 그 해시 한 쌍을 사용한다.
 | 누가 검증하나? | 인가 서버 | 인가 서버 |
 | 누출되면? | **모든 미래 흐름이 위험** | **그 한 번의 흐름만 위험** |
 
-PKCE는 client_secret을 흉내낸 것이 아니라, **"흉내낼 수 없는 환경(브라우저)에서도 일회성 흐름의 무결성은 지킬 수 있게" 만든 별개의 도구**다. 그래서 보호 범위도 자연스럽게 Public Client 너머로 확장됐다. **[RFC 9700 §2.1.1](https://www.rfc-editor.org/rfc/rfc9700#section-2.1.1)** 은 Public Client에 PKCE를 MUST, **Confidential Client에는 RECOMMENDED**로 두고 OIDC `nonce` 대안을 MAY로 허용한다. **[OAuth 2.1 draft-15 §7.5.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-15#section-7.5.1)** 은 그보다 강하게, "Confidential Client이고 인가 서버가 그 클라이언트의 OIDC `nonce` 구현을 신뢰할 수 있을 때"라는 좁은 예외를 빼면 PKCE를 기본 요구사항으로 둔다. client_secret이 영구 비밀을 책임진다면, PKCE는 한 흐름의 무결성을 책임진다. 둘은 보호 영역이 다르다.
+PKCE는 client_secret을 흉내낸 것이 아니라, **"흉내낼 수 없는 환경(브라우저)에서도 일회성 흐름의 무결성은 지킬 수 있게" 만든 별개의 도구**다. 그래서 보호 범위도 자연스럽게 Public Client 너머로 확장됐다. **[RFC 9700 §2.1.1](https://www.rfc-editor.org/rfc/rfc9700#section-2.1.1)** 은 Public Client에 PKCE를 MUST, **Confidential Client에는 RECOMMENDED**로 두고 OIDC `nonce` 대안을 MAY로 허용한다. **[OAuth 2.1 draft-16 §7.5.1](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16#section-7.5.1)** 은 그보다 강하게, "Confidential Client이고 인가 서버가 그 클라이언트의 OIDC `nonce` 구현을 신뢰할 수 있을 때"라는 좁은 예외를 빼면 PKCE를 기본 요구사항으로 둔다. client_secret이 영구 비밀을 책임진다면, PKCE는 한 흐름의 무결성을 책임진다. 둘은 보호 영역이 다르다.
 
 > **SPA에서만 부각되는 기술적 전제 하나.** 인가 요청과 토큰 교환 사이에 브라우저는 인가 서버로 한 번 이탈했다 돌아온다. 그 사이 페이지는 사라지고 메모리도 초기화된다. 그래서 `code_verifier`(와 `state`/`nonce`)는 인가 요청 직전에 생성하더라도 **탭 단위 임시 저장소(예: `sessionStorage`)에 명시적으로 보관**해 두었다가 콜백 페이지에서 다시 꺼내야 한다(이 부분은 PKCE의 표준 요구가 아니라 SPA 구현이 흐름의 중간 상태를 어디에 둘지에 대한 선택이다). 메모리 변수에만 두면 콜백에서 verifier가 사라진 채 토큰 교환이 실패한다. 굳이 `sessionStorage`인 이유는 두 가지다 — `localStorage`와 달리 **탭(top-level browsing context)별로 격리**되므로 사용자가 여러 탭에서 동시에 로그인 흐름을 진행해도 verifier/state가 서로 덮어쓰이지 않고, 탭이 닫히면 자동으로 폐기되어 흐름이 미완료로 남았을 때의 잔류물이 줄어든다. 이 자리는 [2-1편](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)에서 본 "토큰의 영구 저장소"가 아니라 **흐름 한 번을 잇는 일회용 저장소**다. 토큰 교환 직후 즉시 삭제하면 노출 표면은 한 번 흐름의 길이로 닫힌다. (참고: 인가 흐름이 새 창/팝업으로 열리는 SDK 패턴이라면 `sessionStorage`가 탭 단위라 부모 탭의 verifier에 닿지 못한다 — 이 경우 `BroadcastChannel`이나 `postMessage`로 두 컨텍스트를 잇는 별도 코드가 필요하다.)
 
@@ -264,7 +264,7 @@ OIDC ID Token은 받았다고 끝이 아니다. 다섯 가지를 검증해야 �
 `redirect_uri`의 검증 자리는 OAuth 2.0과 OAuth 2.1에서 다르다.
 
 - **OAuth 2.0 ([RFC 6749 §4.1.3](https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.3))**: 인가 요청과 토큰 요청 양쪽에 `redirect_uri`가 실리고, 인가 서버는 두 값이 일치하는지 비교했다. 코드 인젝션을 막기 위한 장치였다.
-- **OAuth 2.1 ([draft-15 §10.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-15#section-10.2))**: 토큰 요청의 `redirect_uri` 파라미터가 **제거됐다.** 같은 보호를 PKCE의 `code_verifier`가 더 강하게 제공하므로 더 보낼 이유가 없다. 인가 서버는 OAuth 2.0 클라이언트와의 호환을 위해 들어오면 받아서 RFC 6749대로 매칭해야 하지만, **OAuth 2.1만 따르는 클라이언트는 그 파라미터를 보내지 않는다.**
+- **OAuth 2.1 ([draft-16 §10.2](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-v2-1-16#section-10.2))**: 토큰 요청의 `redirect_uri` 파라미터가 **제거됐다.** 같은 보호를 PKCE의 `code_verifier`가 더 강하게 제공하므로 더 보낼 이유가 없다. 인가 서버는 OAuth 2.0 클라이언트와의 호환을 위해 들어오면 받아서 RFC 6749대로 매칭해야 하지만, **OAuth 2.1만 따르는 클라이언트는 그 파라미터를 보내지 않는다.**
 
 남는 검증은 인가 요청 단계 한 곳뿐이고, 그 자리가 강해졌다. RFC 9700과 OAuth 2.1은 인가 서버가 인가 요청의 `redirect_uri`를 클라이언트가 등록해 둔 값과 **exact string matching**으로 비교하도록 의무화했다(loopback IP의 포트만 예외). 인가 서버는 발급한 인가 코드에 그 `redirect_uri`를 묶어 두므로, 토큰 요청 단계에서 굳이 한 번 더 확인하지 않아도 코드 인젝션은 PKCE 검증으로 닫힌다. 이 정확 매칭이 왜 그토록 중요한지는 다음 절에서 본다.
 
@@ -320,7 +320,7 @@ Authorization Code Flow는 보통 `query`를 쓴다(코드가 서버에 보내�
 
 ## 6. Browser-only vs BFF — 같은 시퀀스의 분기
 
-지금까지의 시퀀스는 **"클라이언트가 누구인가"** 라는 자리에 SPA를 그대로 넣어도, BFF의 백엔드를 넣어도 똑같이 동작한다. 그러나 [draft-ietf-oauth-browser-based-apps-26](https://datatracker.ietf.org/doc/draft-ietf-oauth-browser-based-apps/)은 두 길을 명확히 구분한다.
+지금까지의 시퀀스는 **"클라이언트가 누구인가"** 라는 자리에 SPA를 그대로 넣어도, BFF의 백엔드를 넣어도 똑같이 동작한다. 그러나 [RFC 10017](https://www.rfc-editor.org/rfc/rfc10017)은 두 길을 명확히 구분한다.
 
 ```mermaid
 sequenceDiagram
@@ -567,7 +567,7 @@ Spring Authorization Server에서는 public client든 confidential client든 `re
 - 그래서 SPA가 직접 OAuth를 하면 **Public Client**가 되고, **PKCE가 의무**가 된다(RFC 9700·OAuth 2.1).
 - PKCE는 client_secret을 흉내내는 것이 아니라, **인가 코드 가로채기로부터 한 흐름의 무결성을 보호**한다. plain은 사실상 deprecated, S256만이 답이다.
 - Authorization Code Flow의 한 줄 한 줄은 다른 위협을 막는다. **state는 CSRF, nonce는 ID Token replay, aud는 token substitution, redirect_uri exact match는 Open Redirect 코드 탈취.** 어느 한 줄도 장식이 아니다.
-- 토큰을 받아온 뒤가 더 큰 결정이다. **Browser-only는 [2-1편](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)의 저장소 문제 직격**, **BFF는 토큰을 브라우저 밖에 두어 그 문제를 구조적으로 닫는다.** 그래서 [draft-ietf-oauth-browser-based-apps-26](https://datatracker.ietf.org/doc/draft-ietf-oauth-browser-based-apps/)는 BFF를 1순위로 명문화했다.
+- 토큰을 받아온 뒤가 더 큰 결정이다. **Browser-only는 [2-1편](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)의 저장소 문제 직격**, **BFF는 토큰을 브라우저 밖에 두어 그 문제를 구조적으로 닫는다.** 그래서 [RFC 10017](https://www.rfc-editor.org/rfc/rfc10017)은 BFF를 1순위로 명문화했다.
 - Spring 환경에서 이 결정은 **`spring-boot-starter-oauth2-client` + 세션 + Spring Cloud Gateway `TokenRelay`** 의 조합으로 정확히 BFF가 된다. PKCE 강제는 `OAuth2AuthorizationRequestCustomizers.withPkce()` 한 줄이 책임지고, 자체 IdP라면 Spring Authorization Server의 `requireProofKey(true)`가 그 자리를 받는다.
 
 [1편](Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때.md)이 "브라우저 HTTP는 왜 다른가"를 닫고, [2-1편](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)이 "토큰을 어디에 둘 것인가"를 닫았다면, 이 2-2편은 그 사이에 놓여 있던 **"그래서 그 토큰이 어떻게 도착하는가"** 의 시퀀스를 닫는다. 다음 2-3편은 한 발 더 깊이 들어간다. **브라우저에서 진짜 보안이 필요할 때, Web Crypto API와 Passkey가 어떻게 토큰의 책임을 디바이스 안의 키로 옮겨가는가.**
@@ -576,9 +576,9 @@ Spring Authorization Server에서는 public client든 confidential client든 `re
 
 **1차 — IETF / OpenID 표준**
 
-- [draft-ietf-oauth-v2-1-15: The OAuth 2.1 Authorization Framework (2026)](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/)
+- [draft-ietf-oauth-v2-1-16: The OAuth 2.1 Authorization Framework (2026-09)](https://datatracker.ietf.org/doc/draft-ietf-oauth-v2-1/)
 - [RFC 9700: Best Current Practice for OAuth 2.0 Security (2025-01)](https://datatracker.ietf.org/doc/rfc9700/)
-- [draft-ietf-oauth-browser-based-apps-26: OAuth 2.0 for Browser-Based Applications (2025-12-04)](https://datatracker.ietf.org/doc/draft-ietf-oauth-browser-based-apps/)
+- [RFC 10017: OAuth 2.0 for Browser-Based Applications (BCP, 2026-08, 구 draft-ietf-oauth-browser-based-apps)](https://www.rfc-editor.org/rfc/rfc10017)
 - [RFC 7636: Proof Key for Code Exchange by OAuth Public Clients](https://datatracker.ietf.org/doc/html/rfc7636)
 - [RFC 6749: The OAuth 2.0 Authorization Framework](https://datatracker.ietf.org/doc/html/rfc6749)
 - [RFC 8414: OAuth 2.0 Authorization Server Metadata](https://datatracker.ietf.org/doc/html/rfc8414)

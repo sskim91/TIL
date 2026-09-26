@@ -116,6 +116,43 @@ with closing(psycopg2.connect(...)) as conn:
 
 > **참고:** 이는 [psycopg2 공식 문서에 명시된 동작](https://www.psycopg.org/docs/usage.html#with-statement)이다. **psycopg3** (2021년 출시)부터는 connection 자체도 컨텍스트 매니저로 동작해 `with psycopg.connect(...)`만으로 close된다.
 
+### psycopg 3 (psycopg2의 후속)
+
+새 프로젝트라면 psycopg 3을 쓰는 편이 낫다. 패키지 이름은 `psycopg`(숫자 없음)이고, 2026-09 기준 최신은 3.3.6(Python >= 3.10)이다. psycopg2와 달라진 점:
+
+- **설치**: `pip install "psycopg[binary]"` (C 확장과 libpq가 포함된 바이너리 배포, 대부분에게 권장). 풀은 `psycopg[pool]` 또는 `psycopg_pool` 패키지.
+- **connection 컨텍스트 매니저**: 블록을 나가면 commit(예외 시 rollback) 후 connection까지 닫는다. 위의 `closing()` 감싸기가 필요 없다.
+- **row factory**: `RealDictCursor` 대신 `row_factory=dict_row`, DTO는 `class_row(User)`로 받는다(3장의 방법 2·3에 해당).
+- **server-side binding**: 쿼리와 파라미터를 서버에 따로 보낸다. 파라미터는 값에만 쓸 수 있고 테이블명 같은 구문 요소는 `psycopg.sql`로 조립해야 한다. `SET`, `NOTIFY`, DDL에는 파라미터 바인딩이 안 되므로 `set_config()`/`pg_notify()`나 `ClientCursor`를 쓴다.
+- **async 내장**: 별도 드라이버 없이 `psycopg.AsyncConnection`을 쓴다.
+
+```python
+from dataclasses import dataclass
+import psycopg
+from psycopg.rows import dict_row, class_row
+
+@dataclass
+class User:
+    id: int
+    username: str
+
+with psycopg.connect("dbname=test user=app", row_factory=dict_row) as conn:
+    row = conn.execute("SELECT id, username FROM users WHERE id = %s", (1,)).fetchone()
+    # {'id': 1, 'username': 'hong'}
+
+    with conn.cursor(row_factory=class_row(User)) as cur:
+        users = cur.execute("SELECT id, username FROM users").fetchall()
+        # [User(id=1, username='hong'), ...]
+# commit + connection close
+
+from psycopg_pool import ConnectionPool
+pool = ConnectionPool("dbname=test user=app", open=True)   # HikariCP에 해당. open 기본값은 향후 False로 바뀔 예정이라 명시
+with pool.connection() as conn:                 # 블록을 나가면 풀에 반환
+    conn.execute("SELECT 1")
+```
+
+출처: [Differences from psycopg2](https://www.psycopg.org/psycopg3/docs/basic/from_pg2.html), [Row factories](https://www.psycopg.org/psycopg3/docs/api/rows.html), [Connection pool](https://www.psycopg.org/psycopg3/docs/api/pool.html), [PyPI psycopg](https://pypi.org/project/psycopg/)
+
 ## 3. SELECT 결과 받기 (중요!)
 
 ### Java와 비교
@@ -587,7 +624,7 @@ settings = Settings()
 ```python
 # database.py
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base  # 2.0+: sqlalchemy.ext.declarative 경로는 deprecated
 from sqlalchemy.orm import sessionmaker
 from config import settings
 

@@ -186,6 +186,9 @@ flowchart LR
 
 현실의 요구는 그보다 넓었고, Ingress Controller들은 이를 **annotation** 으로 채웠다. 타임아웃은 `nginx.ingress.kubernetes.io/proxy-read-timeout`, 헬스 체크는 `alb.ingress.kubernetes.io/healthcheck-path` 같은 식이다(구체적인 목록은 [Kubernetes Ingress](Kubernetes-Ingress.md)의 annotation 섹션에 정리돼 있다). 결과는 예상 가능하다 — **같은 기능을 컨트롤러마다 다른 문자열로 외워야 하고, 컨트롤러를 바꾸면 매니페스트를 다시 써야 한다.** annotation은 스키마 검증도 받지 못하는 문자열이라 오타가 조용히 무시된다.
 
+> [!warning] ingress-nginx 은퇴 (2026-03)
+> 위 예시의 `nginx.ingress.kubernetes.io/*` 어노테이션을 쓰는 Kubernetes 커뮤니티 컨트롤러 `ingress-nginx`는 2026-03에 은퇴했다. 이후 버그·보안 수정 릴리스가 없다(기존 배포와 설치 아티팩트는 그대로 남음). 공식 권장 경로는 Gateway API로의 이전이고, 기존 Ingress 리소스 변환에는 `ingress2gateway` 도구를 쓴다. Ingress API를 계속 써야 한다면 유지보수되는 다른 Ingress Controller로 교체한다. ([Kubernetes 블로그, 2025-11-11](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/), [Steering·SRC 성명, 2026-01-29](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/))
+
 메시의 라우팅 CRD는 이것들을 **1급 필드** 로 가진다. 그래서 가중치 기반 배포가 annotation 조합이 아니라 스펙의 일부가 된다.
 
 ```yaml

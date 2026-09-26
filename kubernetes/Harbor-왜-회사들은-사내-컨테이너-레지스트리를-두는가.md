@@ -35,7 +35,7 @@ timeline
 
 Docker Hub는 컨테이너 시대의 Maven Central이다. 무료고, 거의 모든 공식 이미지가 거기 있고, `docker pull nginx`만 치면 작동한다. 그런데 2020년부터 Docker Inc.는 운영비 부담을 이유로 **풀 요청에 제한**을 걸기 시작했다.
 
-**현재 적용 정책** (2026-05 기준, Docker 공식 발표)
+**현재 적용 정책** (2026-09 기준, [Docker 공식 문서](https://docs.docker.com/docker-hub/usage/))
 
 | 계정 유형 | 풀 제한 |
 |----------|---------|
@@ -47,9 +47,11 @@ Docker Hub는 컨테이너 시대의 Maven Central이다. 무료고, 거의 모�
 
 | 시점 | 익명 풀 제한 | 인증된 풀 제한 | 결과 |
 |------|-------------|---------------|------|
-| 2024-12-10 발표 | 시간당 10회 | 시간당 40회 | 2025-04-08 Docker가 철회, 기존 100/200 유지 발표 |
+| 2024-12 발표(날짜 확인 필요), 2025-04-01 시행 예정 | 시간당 10회 (수치 확인 필요) | 시간당 40회 (수치 확인 필요) | 2025-04-08 Docker가 "2025-04-01 예정 변경을 시행하지 않았다"고 공지, 기존 6시간당 100/200 유지. 향후 시행은 최소 6개월 전 예고 |
 
-현재 적용 중인 6시간당 100회만 해도 CI/CD 파이프라인을 운영해 본 사람은 즉시 알 것이다. 빌드 컨테이너가 베이스 이미지를 받아오고, 의존성 단계마다 풀이 일어나며, **단일 NAT 게이트웨이 뒤에서 동작하는 사내 CI 환경에서는 익명 풀의 경우 IP 하나로 모든 빌드가 합산**된다 (인증된 풀은 IP가 아닌 계정 기준으로 카운트되지만, 익명 풀이 발생하는 경로가 하나라도 있으면 NAT IP가 통째로 차감된다). 멀티 스테이지 빌드 한 번에 베이스 이미지 여러 장이 풀되는 경우도 흔하므로, 사내 빌드가 활발하면 6시간당 100회를 빠르게 소진하고 `429 Too Many Requests`를 마주친다. 2024년 12월의 "시간당 10회" 강화안이 결국 철회된 것도 업계 반발이 그만큼 컸기 때문이다 — 정책이 한 번 강화 시도됐다는 사실 자체가 **"Docker Hub 의존은 언제든 끊길 수 있는 리스크"** 임을 모두에게 학습시켰고, 이것이 사내 레지스트리 채택을 가속화한 결정적 사건이었다.
+> 2025-04-01 시행 예정 변경이 있었고 시행되지 않았다는 사실은 [Docker 블로그(2025-02-21 게시, 2025-04-08 업데이트)](https://www.docker.com/blog/revisiting-docker-hub-policies-prioritizing-developer-experience/)로 확인된다. 다만 원 발표의 정확한 날짜와 "시간당 10/40회" 수치는 Docker 1차 출처에서 확인하지 못했다(2026-09 기준).
+
+현재 적용 중인 6시간당 100회만 해도 CI/CD 파이프라인을 운영해 본 사람은 즉시 알 것이다. 빌드 컨테이너가 베이스 이미지를 받아오고, 의존성 단계마다 풀이 일어나며, **단일 NAT 게이트웨이 뒤에서 동작하는 사내 CI 환경에서는 익명 풀의 경우 IP 하나로 모든 빌드가 합산**된다 (인증된 풀은 IP가 아닌 계정 기준으로 카운트되지만, 익명 풀이 발생하는 경로가 하나라도 있으면 NAT IP가 통째로 차감된다). 멀티 스테이지 빌드 한 번에 베이스 이미지 여러 장이 풀되는 경우도 흔하므로, 사내 빌드가 활발하면 6시간당 100회를 빠르게 소진하고 `429 Too Many Requests`를 마주친다. 2024년 12월에 예고된 강화안("시간당 10회", 수치 확인 필요)이 결국 시행되지 않은 것도 업계 반발이 그만큼 컸기 때문이다 — 정책이 한 번 강화 시도됐다는 사실 자체가 **"Docker Hub 의존은 언제든 끊길 수 있는 리스크"** 임을 모두에게 학습시켰고, 이것이 사내 레지스트리 채택을 가속화한 결정적 사건이었다.
 
 ```mermaid
 flowchart LR
@@ -162,6 +164,23 @@ flowchart LR
 결과적으로 Docker Hub로의 풀은 **동일 아키텍처/동일 digest 기준 캐시 히트인 한 사내에 처음 들어올 때 한 번만** 일어난다. 모든 CI runner와 K8s 노드가 같은 이미지를 받아도 Hub 카운터는 1만 증가한다 (멀티 아키텍처 이미지는 arch별 manifest가 별도로 카운트될 수 있다). 단 캐시 미스 시점에는 Harbor의 아웃바운드 IP 기준으로 여전히 Docker Hub의 rate limit를 소모한다는 점은 알아두자 — 캐시가 무한히 안전망이 되는 것은 아니다.
 
 > ⚠️ **Proxy Cache 프로젝트의 제약**: 이 프로젝트는 외부 레지스트리의 **읽기 전용(pull-only) 미러**로만 동작한다. 사용자가 사내 빌드 이미지를 여기에 직접 푸시할 수 없다. 따라서 실무에서는 외부 캐싱용 프로젝트(`dockerhub-cache`)와 사내 빌드 저장용 프로젝트(`service-prod`)를 명확히 분리해 운영한다.
+
+**설정 순서 (Harbor 공식 문서 main 기준, 2026-09):**
+
+1. **Registry Endpoint 먼저 만든다.** 대상 레지스트리(Docker Hub 등)를 registry endpoint로 등록한다. 지원 대상은 Harbor, Docker Hub, Docker registry, AWS ECR, Azure ACR, Google GCR, Quay, GitHub Container Registry, JFrog Artifactory다. 여기 넣는 접근 계정으로 Docker Hub 인증 풀 한도를 쓰게 되고, 그 계정이 볼 수 있는 이미지는 캐시 프로젝트 사용자 누구나 풀할 수 있으니 권한을 최소로 둔다.
+2. **Projects > New Project**에서 **Proxy Cache** 슬라이더를 켜고 위 endpoint를 고른다. Bandwidth로 upstream 풀 속도를 제한할 수 있다(-1은 무제한).
+3. 클라이언트와 Pod 매니페스트의 이미지 앞에 `<harbor_servername>/<proxy_project_name>/`를 붙인다.
+
+```bash
+# 공식 문서 예시 형식
+docker pull harbor.example.com/dockerhub-cache/goharbor/harbor-core:dev
+```
+
+- 새 proxy cache 프로젝트에는 기본으로 **7일 tag retention 정책**이 만들어진다. 오래 쓰는 베이스 이미지가 자꾸 캐시 미스 나면 이 정책부터 본다.
+- Harbor v2.1.1부터 캐시 갱신 여부를 HEAD 요청으로 확인하므로, 이 확인 자체는 Docker Hub rate limit를 소모하지 않는다. 레이어가 실제로 바뀌어 새로 받을 때만 카운트된다. proxy cache를 쓴다면 v2.1.1 이상이 권장된다.
+- upstream에 닿지 않으면 캐시된 이미지를 그대로 내주고, upstream에서 이미지가 삭제됐으면 내주지 않는다.
+
+출처: [Harbor — Configure Proxy Cache](https://goharbor.io/docs/main/administration/configure-proxy-cache/)
 
 ### 2.6 OCI Artifact — Helm Chart도 같이 저장
 

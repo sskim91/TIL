@@ -744,6 +744,6 @@ parent_builder.add_node("child", child_node)
 
 ## 출처
 
-- [LangGraph Documentation - Subgraphs](https://langchain-ai.github.io/langgraph/concepts/subgraphs/) - 공식 문서
-- [LangGraph Documentation - Low Level](https://langchain-ai.github.io/langgraph/concepts/low_level/)
+- [LangGraph Documentation - Subgraphs](https://docs.langchain.com/oss/python/langgraph/use-subgraphs) - 공식 문서
+- [LangGraph Documentation - Low Level](https://docs.langchain.com/oss/python/langgraph/graph-api)
 - [LangGraph GitHub](https://github.com/langchain-ai/langgraph)

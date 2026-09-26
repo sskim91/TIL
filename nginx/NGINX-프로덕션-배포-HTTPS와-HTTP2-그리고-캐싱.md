@@ -113,6 +113,9 @@ add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" alway
 
 **OCSP Stapling** 은 인증서 유효성 검증을 NGINX가 미리 해두는 기능이다. 이것 없이는 클라이언트가 직접 CA(인증 기관)에 문의해야 해서 연결 시간이 늘어난다.
 
+> [!warning] Let's Encrypt는 OCSP를 종료했다
+> 이 노트 예시처럼 Let's Encrypt 인증서를 쓴다면 OCSP Stapling은 효과가 없다. Let's Encrypt는 2025-05-07부터 발급 인증서에서 OCSP URL을 빼고 CRL 배포 지점으로 대체했고, 2025-08-06에 OCSP responder를 종료했다. 이 경우 `ssl_stapling`/`ssl_stapling_verify`는 붙일 대상이 없으므로 빼도 된다. OCSP를 계속 제공하는 다른 CA의 인증서라면 여전히 유효한 설정이다. ([Let's Encrypt, Ending OCSP Support in 2025](https://letsencrypt.org/2024/12/05/ending-ocsp))
+
 **HSTS(Strict-Transport-Security)** 는 브라우저에게 "앞으로 이 사이트는 무조건 HTTPS로 접속하라"고 알려준다. 첫 방문 이후에는 HTTP → HTTPS 리다이렉트조차 발생하지 않아 보안과 성능이 모두 향상된다.
 
 ## 2. HTTP/2 — 멀티플렉싱의 힘

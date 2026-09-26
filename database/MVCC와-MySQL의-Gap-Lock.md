@@ -411,7 +411,7 @@ TX2:              🔷(8)
 MySQL 공식 문서가 명시한 핵심 예외다.
 
 > *"Gap locking is not needed for statements that lock rows using a unique index to search for a unique row."*
-> — [MySQL 8.0 Reference: InnoDB Locking](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html#innodb-gap-locks)
+> — [MySQL 8.4 Reference: InnoDB Locking](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html#innodb-gap-locks)
 
 **즉, PK나 UNIQUE 인덱스로 단일 행을 `=`로 잠그면 Gap Lock 없이 Record Lock만 걸린다.** REPEATABLE READ에서도 마찬가지다.
 
@@ -742,8 +742,8 @@ flowchart TB
 
 ## 출처
 
-- [MySQL 8.0 Reference Manual - InnoDB Locking](https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html)
-- [MySQL 8.0 Reference Manual - InnoDB Multi-Versioning](https://dev.mysql.com/doc/refman/8.0/en/innodb-multi-versioning.html)
+- [MySQL 8.4 Reference Manual - InnoDB Locking](https://dev.mysql.com/doc/refman/8.4/en/innodb-locking.html)
+- [MySQL 8.4 Reference Manual - InnoDB Multi-Versioning](https://dev.mysql.com/doc/refman/8.4/en/innodb-multi-versioning.html)
 - [PostgreSQL Documentation - Transaction Isolation](https://www.postgresql.org/docs/current/transaction-iso.html)
 - [Multiversion Concurrency Control - Wikipedia](https://en.wikipedia.org/wiki/Multiversion_concurrency_control)
 - [How does MVCC work - Vlad Mihalcea](https://vladmihalcea.com/how-does-mvcc-multi-version-concurrency-control-work/)

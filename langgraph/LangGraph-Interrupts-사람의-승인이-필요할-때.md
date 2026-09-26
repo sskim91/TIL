@@ -645,6 +645,6 @@ graph.invoke(Command(resume={"action": "approve", "note": "OK"}), config)
 
 ## 출처
 
-- [LangGraph Documentation - Human-in-the-Loop](https://langchain-ai.github.io/langgraph/concepts/human_in_the_loop/) - 공식 문서
-- [LangGraph How-to - Interrupts](https://langchain-ai.github.io/langgraph/how-tos/human_in_the_loop/)
-- [LangGraph API Reference - Types](https://langchain-ai.github.io/langgraph/reference/types/)
+- [LangGraph Documentation - Human-in-the-Loop](https://docs.langchain.com/oss/python/langgraph/interrupts) - 공식 문서
+- [LangGraph How-to - Interrupts](https://docs.langchain.com/oss/python/langgraph/interrupts)
+- [LangGraph API Reference - Types](https://reference.langchain.com/python/langgraph/types/)

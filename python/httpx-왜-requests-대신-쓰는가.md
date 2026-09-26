@@ -280,7 +280,7 @@ with httpx.Client(http2=True) as client:
     print(response.http_version)  # "HTTP/2"
 ```
 
-> `h2`가 없으면 `http2=True`만 지정해도 평문/HTTP/1.1로 fallback되거나 import 단계에서 오류가 난다.
+> `h2`가 없는데 `http2=True`를 지정하면 HTTP/1.1로 fallback되지 않고, `Client`/`AsyncClient` 생성 시점에 `ImportError`("Using http2=True, but the 'h2' package is not installed")가 난다.
 
 **HTTP/2 장점:**
 - 멀티플렉싱 (하나의 TCP 연결에서 여러 요청을 동시 처리, head-of-line blocking 완화)

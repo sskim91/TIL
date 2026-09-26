@@ -270,10 +270,10 @@ kill -HUP $(cat /var/run/gunicorn.pid)
 
 ## 출처
 
-- [Uvicorn 공식 문서 - Deployment](https://www.uvicorn.org/deployment/) - 공식 문서
-- [Gunicorn 공식 문서](https://docs.gunicorn.org/en/stable/) - 공식 문서
-- [Gunicorn Settings - worker-connections](https://docs.gunicorn.org/en/stable/settings.html#worker-connections) - 공식 문서
-- [Gunicorn Signal Handling (SIGHUP graceful reload)](https://docs.gunicorn.org/en/stable/signals.html) - 공식 문서
+- [Uvicorn 공식 문서 - Deployment](https://uvicorn.dev/deployment/) - 공식 문서
+- [Gunicorn 공식 문서](https://gunicorn.org/) - 공식 문서
+- [Gunicorn Settings - worker_connections](https://gunicorn.org/reference/settings/#worker_connections) - 공식 문서
+- [Gunicorn Signal Handling (SIGHUP graceful reload)](https://gunicorn.org/signals/) - 공식 문서
 - [FastAPI 공식 문서 - Server Workers (Gunicorn with Uvicorn)](https://fastapi.tiangolo.com/deployment/server-workers/) - 공식 문서
 - [FastAPI Release Notes (0.111.0)](https://fastapi.tiangolo.com/release-notes/) - 공식 릴리스 노트
 - [PEP 3333 - Python Web Server Gateway Interface (WSGI)](https://peps.python.org/pep-3333/) - 공식 표준

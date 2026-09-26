@@ -259,6 +259,24 @@ pip install -r requirements/development.txt
 pip install -r requirements/test.txt
 ```
 
+### pylock.toml (PEP 751 표준 락 파일)
+
+PEP 751(2025-03-31 승인, Final)은 도구 간에 공유할 수 있는 표준 락 파일 형식 `pylock.toml`을 정의한다. `requirements.txt` + 해시 고정을 대체하려는 목적이다. 2026-09 기준 pip 지원은 **아직 experimental**이다.
+
+```bash
+# pip 25.1+ : 현재 환경 기준으로 락 파일 생성 (experimental)
+pip lock -r requirements.txt            # 기본 출력 파일명: pylock.toml
+pip lock -e . -o pylock.toml
+
+# pip 26.1+ : 락 파일에서 설치 (experimental)
+pip install -r pylock.toml
+```
+
+- `pip lock`이 만든 락 파일은 **현재 Python 버전과 플랫폼에서만** 유효가 보장된다. 여러 OS·버전을 한 파일로 고정하려면 아직 uv 등 다른 도구의 락 파일(`uv.lock`)이 현실적이다.
+- 26.2(2026-07-29)에서 `-r pylock.toml`에 `--only-final`, `--uploaded-prior-to` 지원과 충돌 에러 메시지가 개선됐다.
+
+출처: [PEP 751](https://peps.python.org/pep-0751/), [pip lock](https://pip.pypa.io/en/stable/cli/pip_lock/), [pip changelog](https://pip.pypa.io/en/stable/news/)
+
 ## 4. 가상환경과 함께 사용
 
 ### 가상환경이 필요한 이유
@@ -645,6 +663,8 @@ pipenv run python script.py
 ```
 
 ### uv (🔥 최신 트렌드, 초고속!)
+
+> [!note] 자세한 내용은 Python uv 가상환경 관리 참고
 
 **uv**는 Rust로 작성된 차세대 Python 패키지 관리자로, **pip보다 10-100배 빠른** 성능을 자랑합니다. Astral(ruff 개발사)에서 개발했습니다.
 

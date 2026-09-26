@@ -276,7 +276,7 @@ app.get('/api/orders', async (req, res) => {
 
 ```java
 // CPU가 한 명령어로 여러 데이터를 동시에 처리
-// Java 21+ Vector API
+// Java 21+ Vector API (JDK 27 기준에도 Incubator — --add-modules jdk.incubator.vector 필요)
 float[] a = {1, 2, 3, 4, 5, 6, 7, 8};
 float[] b = {1, 1, 1, 1, 1, 1, 1, 1};
 float[] c = new float[8];
@@ -457,7 +457,7 @@ try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
 > - **Java 21~23**: `synchronized` 블록 안에서 블로킹하면 carrier가 pin됨 → `ReentrantLock`이 권장됨
 > - **Java 24+ (JEP 491)**: `synchronized`에서도 virtual thread가 unmount될 수 있도록 개선 → 이 제약이 해소됨. 더 이상 virtual thread만의 이유로 `ReentrantLock`으로 교체할 필요 없음
 >
-> native 메서드 등 다른 pinning 사례는 여전히 남아 있으므로 `jdk.tracePinnedThreads`로 확인하는 게 안전하다.
+> native 메서드 등 다른 pinning 사례는 여전히 남아 있으므로 JFR의 `jdk.VirtualThreadPinned` 이벤트로 확인하는 게 안전하다. (`jdk.tracePinnedThreads` 시스템 프로퍼티는 JEP 491과 함께 JDK 24에서 제거되었다.)
 
 Virtual Threads가 혁신적인 이유:
 - **Concurrent한 설계**를 강제하지 않아도 됨 (기존 코드 그대로)

@@ -142,17 +142,17 @@ flowchart LR
 ### 의존성 추가
 
 ```xml
-<!-- Maven -->
+<!-- Maven (2026-09 기준 최신 0.41.1) -->
 <dependency>
     <groupId>com.hierynomus</groupId>
     <artifactId>sshj</artifactId>
-    <version>0.39.0</version>
+    <version>0.41.1</version>
 </dependency>
 ```
 
 ```groovy
 // Gradle
-implementation 'com.hierynomus:sshj:0.39.0'
+implementation 'com.hierynomus:sshj:0.41.1'
 ```
 
 ### 필수 의존성
@@ -606,7 +606,7 @@ sshj 0.37.0 이하 버전은 Terrapin Attack에 취약하다. **반드시 0.38.0
 <version>0.37.0</version>  <!-- 사용 금지! -->
 
 <!-- 패치된 버전 -->
-<version>0.39.0</version>  <!-- 권장 -->
+<version>0.41.1</version>  <!-- 권장 (2026-09 기준 최신) -->
 ```
 
 ### 프로덕션 체크리스트

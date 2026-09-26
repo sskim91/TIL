@@ -56,7 +56,7 @@ User user = mapper.readValue(json, User.class);  // 바로 동작
 <dependency>
     <groupId>com.fasterxml.jackson.core</groupId>
     <artifactId>jackson-databind</artifactId>
-    <version>2.18.0</version>
+    <version>2.22.3</version>
 </dependency>
 
 <!-- 신규 (3.0) -->
@@ -66,6 +66,8 @@ User user = mapper.readValue(json, User.class);  // 바로 동작
     <version>3.0.0</version>
 </dependency>
 ```
+
+> [!note] 이 노트의 예제는 3.0.0 기준이다. 2026-09 기준 최신 3.x는 3.2.3(2026-09-22), 2.x는 2.22.3이다(2.x 예제는 2.22.3으로 갱신). 새로 적용한다면 최신 3.x 패치 버전을 쓰자. ([Maven Central](https://repo1.maven.org/maven2/com/fasterxml/jackson/core/jackson-databind/maven-metadata.xml))
 
 **Java 패키지명:**
 ```java
@@ -531,7 +533,7 @@ MyClass obj = mapper.readValue(json, MyClass.class);
 <dependency>
     <groupId>com.fasterxml.jackson.dataformat</groupId>
     <artifactId>jackson-dataformat-yaml</artifactId>
-    <version>2.18.0</version>
+    <version>2.22.3</version>
 </dependency>
 
 <!-- 신규 (3.0): SnakeYAML Engine -->
@@ -634,10 +636,10 @@ XmlMapper xmlMapper = XmlMapper.builder()
 ```gradle
 // 기존 (2.x)
 dependencies {
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.0'
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.0'
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.18.0'
-    implementation 'com.fasterxml.jackson.module:jackson-module-parameter-names:2.18.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.22.3'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.22.3'
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.22.3'
+    implementation 'com.fasterxml.jackson.module:jackson-module-parameter-names:2.22.3'
 }
 
 // 변경 (3.0)
@@ -655,12 +657,12 @@ dependencies {
     <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
         <artifactId>jackson-databind</artifactId>
-        <version>2.18.0</version>
+        <version>2.22.3</version>
     </dependency>
     <dependency>
         <groupId>com.fasterxml.jackson.datatype</groupId>
         <artifactId>jackson-datatype-jsr310</artifactId>
-        <version>2.18.0</version>
+        <version>2.22.3</version>
     </dependency>
 </dependencies>
 

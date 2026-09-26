@@ -57,7 +57,7 @@ graph LR
 | 도구 | 역할 | Spring 7 이후 |
 |------|------|---------------|
 | MockMvc | 모의 서블릿 환경 테스트 | 유지 (RestTestClient가 래핑) |
-| TestRestTemplate | 실제 HTTP 테스트 | **Deprecated 예정** |
+| TestRestTemplate | 실제 HTTP 테스트 | **Spring Boot 4.2에서 Deprecated 예정** |
 | WebTestClient | Reactive 환경 테스트 | Reactive 전용으로 유지 |
 | **RestTestClient** | **통합 테스트 클라이언트** | **신규 도입 (권장)** |
 
@@ -365,7 +365,7 @@ class UserControllerE2ETest {
 
 ### 3.3 TestRestTemplate에서 마이그레이션
 
-TestRestTemplate은 Spring Boot 4에서 deprecated 처리될 예정이다. 기존 코드를 RestTestClient로 마이그레이션하려면:
+TestRestTemplate은 Spring Boot 4.2에서 deprecated 처리될 예정이다(4.2.0-M1에 반영, 4.0/4.1에서는 deprecated 아님). 기존 코드를 RestTestClient로 마이그레이션하려면:
 
 ```java
 // Before: TestRestTemplate
@@ -804,15 +804,15 @@ graph LR
 
 ## 8. TestRestTemplate에서 마이그레이션
 
-> **현재 상태(2026-04 기준)**: TestRestTemplate의 공식 deprecation은 아직 확정되지 않았다. Spring Boot 이슈 [#46632](https://github.com/spring-projects/spring-boot/issues/46632)는 4.x 마일스톤에 배정되어 있으나 `pending-design-work` 라벨이 붙은 **검토 중인 제안**이다. 따라서 아래 "Deprecated"·"제거" 일정은 현 시점에서는 확정 로드맵이 아닌 가능성 시나리오로 읽어야 한다.
+> **상태(2026-09 기준)**: TestRestTemplate의 deprecation이 확정되었다. Spring Boot 이슈 [#46632](https://github.com/spring-projects/spring-boot/issues/46632)가 2026-07에 완료되어 **Spring Boot 4.2.0-M1(2026-08)** 에 반영되었다. Spring Boot 4.0/4.1에서는 deprecated가 아니며, 4.2는 2026-09 기준 아직 GA 전(M2)이다. 이슈 #46632에는 제거 버전 언급이 없다.
 
 Spring 팀은 TestRestTemplate 대신 RestTestClient 사용을 권장하고 있으며, 신규 코드는 RestTestClient로 작성하고 기존 코드는 마이그레이션을 검토해 두는 것이 합리적이다.
 
 | 버전 | TestRestTemplate 상태 | 권장 대안 |
 |------|----------------------|-----------|
-| Spring Boot 3.x | 사용 가능 | RestTestClient (선택적) |
-| Spring Boot 4.0 | 사용 가능 (deprecation 미확정·논의 중) | RestTestClient (권장) |
-| Spring Boot 4.x 이후 | deprecated 가능성 있음 | RestTestClient |
+| Spring Boot 3.x | 사용 가능 | - (RestTestClient는 Framework 7 / Boot 4부터) |
+| Spring Boot 4.0 / 4.1 | 사용 가능 (deprecated 아님) | RestTestClient (권장) |
+| Spring Boot 4.2 (GA 전, 4.2.0-M1부터) | deprecated ([#46632](https://github.com/spring-projects/spring-boot/issues/46632)) | RestTestClient |
 
 ### 마이그레이션이 간단한 이유
 
@@ -849,7 +849,7 @@ restTestClient.get().uri("/api/users/1")
 1. **통합된 API**: MockMvc, 라이브 서버, 컨트롤러 직접 테스트 모두 동일한 API
 2. **유창한 문법**: 체이닝으로 가독성 높은 테스트 코드
 3. **Reactive 의존성 불필요**: WebFlux 없이 WebTestClient 스타일 API 사용
-4. **미래 대비**: TestRestTemplate deprecated 예정, RestTestClient가 표준
+4. **미래 대비**: TestRestTemplate은 Spring Boot 4.2에서 deprecated 예정, RestTestClient가 표준
 
 ### 마이그레이션 체크리스트
 
@@ -868,4 +868,4 @@ restTestClient.get().uri("/api/users/1")
 - [The state of HTTP clients in Spring](https://spring.io/blog/2025/09/30/the-state-of-http-clients-in-spring/)
 - [Testing Spring REST APIs with RestTestClient: A Complete Guide](https://www.danvega.dev/blog/spring-framework-7-rest-test-client)
 - [What's New for Testing in Spring Boot 4 and Spring Framework 7](https://rieckpil.de/whats-new-for-testing-in-spring-boot-4-0-and-spring-framework-7/)
-- [Consider deprecating TestRestTemplate in favor of RestTestClient](https://github.com/spring-projects/spring-boot/issues/46632)
+- [Deprecate TestRestTemplate in favor of RestTestClient (#46632, Boot 4.2.0-M1)](https://github.com/spring-projects/spring-boot/issues/46632)

@@ -190,6 +190,8 @@ public class ThemeController {
 
 ## 3. Jackson 3.0 지원
 
+> [!note] 자세한 내용은 [Jackson-3.0](../jackson/Jackson-3.0.md) 참고
+
 Spring 7.0은 **Jackson 3.x를 기본으로 지원**하며, 2.x는 폴백으로 동작합니다.
 
 **핵심 변경사항:**
@@ -218,7 +220,7 @@ public class JacksonConfig {
 - Annotation 패키지(`@JsonProperty` 등)는 `com.fasterxml.jackson` 유지
 
 **📚 자세한 내용:**
-Jackson 3.0의 모든 변경사항, 마이그레이션 가이드는 [Jackson 3.0 완전 정복](../jackson/Jackson-3.0-완전-정복.md)을 참조하세요.
+Jackson 3.0의 모든 변경사항, 마이그레이션 가이드는 [Jackson 3.0 완전 정복](../jackson/Jackson-3.0.md)을 참조하세요.
 
 ## 4. 새로운 기능
 

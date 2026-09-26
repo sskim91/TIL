@@ -31,7 +31,7 @@ flowchart LR
 
 ## 1. 왜 서빙 엔진이 필요한가?
 
-> [[ML 모델 서빙이란 무엇인가]] 에서 모델 서빙의 기본 개념을 다뤘다. 이번엔 **LLM 서빙** 이 왜 특별히 어려운지, 그리고 vLLM이 그 문제를 어떻게 해결하는지를 파고든다.
+> [ML-모델-서빙이란-무엇인가](./ML-모델-서빙이란-무엇인가.md) 에서 모델 서빙의 기본 개념을 다뤘다. 이번엔 **LLM 서빙** 이 왜 특별히 어려운지, 그리고 vLLM이 그 문제를 어떻게 해결하는지를 파고든다.
 
 ### 1.1 모델 파일의 정체
 
@@ -312,10 +312,13 @@ vLLM만 있는 건 아니다. 목적과 환경에 따라 선택지가 다르다.
 | 도구 | 개발 | 특징 | 적합한 상황 |
 |------|------|------|-------------|
 | **vLLM** | UC Berkeley | PagedAttention, 범용적, 커뮤니티 활발 | 대부분의 프로덕션 환경 |
-| **TGI** | HuggingFace | HF 생태계 통합, 배포 간편 | HuggingFace 모델 빠르게 서빙 |
+| **TGI** | HuggingFace | HF 생태계 통합, 배포 간편 (maintenance mode, 2026-09 기준 저장소 archived) | 기존 TGI 배포 유지. 신규는 vLLM·SGLang 권장 |
 | **TensorRT-LLM** | NVIDIA | H100 최적화 극대화, 설정 복잡 | 최대 성능이 필요한 대규모 서비스 |
 | **SGLang** | LMSys (UC Berkeley 주도) | 구조화된 출력(JSON 등)에 강점, RadixAttention | JSON 응답이 중요한 Agent 시스템 |
 | **Ollama** | Ollama | 로컬 실행 특화, 설치 간편 | 로컬 개발/테스트 |
+
+> [!note] TGI 상태
+> Hugging Face는 TGI를 maintenance mode로 전환하고(경미한 버그 수정·문서만 수용) 후속 엔진으로 vLLM·SGLang을 권장한다. GitHub 저장소는 2026-09 기준 archived 상태다. ([TGI README](https://github.com/huggingface/text-generation-inference))
 
 ```mermaid
 flowchart TB

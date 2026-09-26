@@ -734,6 +734,6 @@ LangGraph는 **LLM 애플리케이션을 상태 머신** 으로 설계하는 프
 
 ## 출처
 
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/) - 공식 문서
+- [LangGraph Documentation](https://docs.langchain.com/oss/python/langgraph/overview) - 공식 문서
 - [LangGraph GitHub](https://github.com/langchain-ai/langgraph)
 - [LangChain Documentation](https://docs.langchain.com/)

@@ -572,6 +572,6 @@ def process_large_file():
 
 ## 출처
 
-- [LangGraph Documentation - Durable Execution](https://langchain-ai.github.io/langgraph/concepts/durable_execution/) - 공식 문서
+- [LangGraph Documentation - Durable Execution](https://docs.langchain.com/oss/python/langgraph/durable-execution) - 공식 문서
 - [LangGraph GitHub - README](https://github.com/langchain-ai/langgraph) - Core Benefits
-- [LangGraph Functional API](https://langchain-ai.github.io/langgraph/reference/functions/)
+- [LangGraph Functional API](https://reference.langchain.com/python/langgraph/func/)

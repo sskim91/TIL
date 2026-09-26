@@ -123,6 +123,12 @@ Terraform의 가장 중요한 특징은 **State(상태)** 관리다. Terraform�
 - 리소스 간의 의존성을 추적할 수 있다
 - 변경 전에 "이렇게 바뀔 거야"라고 미리 보여줄 수 있다
 
+### 2.4 참고: OpenTofu — 라이선스 변경이 낳은 포크
+
+HashiCorp는 2023-08-10 Terraform의 라이선스를 오픈소스인 MPL v2.0에서 **Business Source License(BUSL) v1.1** 로 바꿨다. 커뮤니티는 OpenTF 선언문을 내고 원복을 요청했지만 응답이 없자 Terraform을 포크했고, 이 포크가 2023-09-20 Linux Foundation 프로젝트 **OpenTofu** 로 출범했다. 2024-01-10 첫 정식 버전(v1.6.0)을 냈고, 2025-04-23 CNCF Sandbox 프로젝트가 됐다. 2026-09 기준 최신 안정판은 v1.12.6(2026-08-19)이고 v1.13.0은 RC 단계다. HCL 문법, provider, state 모델이 같아 이 노트의 예제는 명령어를 `terraform` 대신 `tofu`로 바꾸면 그대로 따라갈 수 있다(마이그레이션 전에는 공식 migration guide로 버전별 차이를 확인한다). 도구 선택 기준은 기능보다 **라이선스·거버넌스**다. BUSL 조건이 자사 사업 모델에 걸리거나 오픈소스 라이선스·벤더 중립 거버넌스가 필요하면 OpenTofu를, HCP Terraform 같은 HashiCorp 생태계를 쓴다면 Terraform을 고르는 식이다.
+
+출처: [OpenTofu Manifesto](https://opentofu.org/manifesto), [Linux Foundation — Launches OpenTofu (2023-09-20)](https://www.linuxfoundation.org/press/announcing-opentofu), [Linux Foundation — OpenTofu GA (2024-01-10)](https://www.linuxfoundation.org/press/opentofu-announces-general-availability), [CNCF — OpenTofu](https://www.cncf.io/projects/opentofu/), [OpenTofu Releases](https://github.com/opentofu/opentofu/releases)
+
 ---
 
 ## 3. Terraform 핵심 워크플로우
@@ -148,7 +154,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"  # v6.0.0 2025-06 GA, 2026-09 기준 최신 6.66.x
     }
   }
 }

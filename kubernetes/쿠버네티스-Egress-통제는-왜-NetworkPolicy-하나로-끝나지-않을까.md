@@ -1,6 +1,6 @@
 # 쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까
 
-프로덕션 클러스터를 잠그는 첫 단추는 보통 이렇게 시작한다. 네임스페이스에 `default-deny-egress`를 깔고, Pod가 통신을 시작할 수 있게 DNS(53 포트)만 열어준다. (`kind: Egress` 리소스가 따로 없고 NetworkPolicy의 `egress` 필드로 나가는 트래픽을 다룬다는 이야기, default-deny와 DNS 함정은 [[쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까]]에서 다뤘다.)
+프로덕션 클러스터를 잠그는 첫 단추는 보통 이렇게 시작한다. 네임스페이스에 `default-deny-egress`를 깔고, Pod가 통신을 시작할 수 있게 DNS(53 포트)만 열어준다. (`kind: Egress` 리소스가 따로 없고 NetworkPolicy의 `egress` 필드로 나가는 트래픽을 다룬다는 이야기, default-deny와 DNS 함정은 [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)에서 다뤘다.)
 
 여기까지 오면 다음 요구가 자연스럽게 따라온다. **"이제 우리 결제 서비스가 외부 결제 게이트웨이(`api.payment.com`)랑 S3에만 나갈 수 있게 허용하자."** NetworkPolicy의 `egress`에 그 도메인을 적으려고 YAML을 여는 순간, 첫 번째 벽에 부딪힌다. **거기엔 도메인을 적는 칸이 없다.**
 
@@ -32,7 +32,7 @@ flowchart TB
 |----|--------------------------|-----------|
 | **1. FQDN을 모른다** | 목적지를 IP/CIDR로만 지정. `api.payment.com` 같은 도메인 불가 | CNI FQDN 정책 (Cilium `toFQDNs`, Calico `domains`), GKE FQDNNetworkPolicy |
 | **2. 출발지 IP를 못 고정한다** | "어디로 나갈지"만 정하고 "어떤 IP로 나갈지"는 정하지 못함 | Egress Gateway (Cilium·Calico), 클라우드 NAT Gateway |
-| **3. 네임스페이스 범위다** | 정책이 한 네임스페이스 안에서만 유효 | cluster-wide 정책 (Calico Global, Cilium Clusterwide, 표준 AdminNetworkPolicy) |
+| **3. 네임스페이스 범위다** | 정책이 한 네임스페이스 안에서만 유효 | cluster-wide 정책 (Calico Global, Cilium Clusterwide, 표준 ClusterNetworkPolicy(구 AdminNetworkPolicy)) |
 
 핵심은 이거다. **egress 통제는 "NetworkPolicy"라는 단일 도구가 아니라, "무엇을 통제하려는가"에 따라 골라 쌓는 도구 스택이다.** 표준 리소스가 멈추는 지점을 알아야 그 다음 도구를 꺼낼 수 있다. 벽을 하나씩 넘어보자.
 
@@ -156,7 +156,7 @@ spec:
 
 ### 2-4. 꼭 짚어야 할 함정: FQDN 정책은 DNS 접근을 자동 허용하지 않는다
 
-여기서 [[쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까]]에서 다룬 "DNS를 열어둬라"보다 **한 단계 더 깊은 함정**이 있다. 표준화 제안 NPEP-133이 명시하는 원칙이다.
+여기서 [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)에서 다룬 "DNS를 열어둬라"보다 **한 단계 더 깊은 함정**이 있다. 표준화 제안 NPEP-133이 명시하는 원칙이다.
 
 > FQDN egress 정책은 그 자체로 워크로드에 in-cluster DNS 서비스(`kube-dns` 등)로의 통신 권한을 주지 않는다. DNS 서버로의 트래픽은 별도 규칙으로 허용해야 한다. 또한 FQDN 정책은 도메인 **해석(resolve)** 능력에는 관여하지 않고, 오직 해석된 IP로의 **통신**만 통제한다 — 즉 DNS 필터링이 아니다.
 
@@ -184,7 +184,7 @@ FQDN 정책이 표준이 아니다 보니, 환경마다 가용성이 들쭉날�
 
 도메인 허용까지 끝냈다고 하자. 그런데 외부 파트너가 이렇게 요구한다. **"우리 방화벽은 출발지 IP 화이트리스트로 동작합니다. 당신들이 우리에게 접속할 때 쓰는 고정 IP를 알려주세요."**
 
-NetworkPolicy를 아무리 들여다봐도 이걸 만족시킬 방법이 없다. NetworkPolicy의 egress는 **목적지(to)**를 통제하는 도구이지, **출발지 IP를 지정**하는 도구가 아니기 때문이다. ("고정 IP가 왜 어려운가 — Pod IP는 수시로 바뀌고 노드 IP로 SNAT되며 노드도 교체된다"는 배경은 [[쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까]] §3-2에 정리돼 있다. 여기서는 그걸 *어떻게 푸는가*에 집중한다.)
+NetworkPolicy를 아무리 들여다봐도 이걸 만족시킬 방법이 없다. NetworkPolicy의 egress는 **목적지(to)**를 통제하는 도구이지, **출발지 IP를 지정**하는 도구가 아니기 때문이다. ("고정 IP가 왜 어려운가 — Pod IP는 수시로 바뀌고 노드 IP로 SNAT되며 노드도 교체된다"는 배경은 [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) §3-2에 정리돼 있다. 여기서는 그걸 *어떻게 푸는가*에 집중한다.)
 
 ### 3-1. Egress Gateway — 트래픽을 한 노드로 모아 SNAT
 
@@ -308,11 +308,11 @@ spec:
       - 53
 ```
 
-### 4-2. 표준화의 방향 — AdminNetworkPolicy
+### 4-2. 표준화의 방향 — ClusterNetworkPolicy (구 AdminNetworkPolicy)
 
 이 "관리자가 클러스터 전역 정책을 거는" 영역도 표준화가 진행 중이다. sig-network의 **Network Policy API** 프로젝트가 `AdminNetworkPolicy`(ANP)와 `BaselineAdminNetworkPolicy`(BANP)를 내놨는데, 일반 NetworkPolicy와 달리 **클러스터 범위 리소스**이고 관리자가 사용자 정책보다 우선하는(또는 기본값이 되는) 규칙을 건다.
 
-다만 성숙도는 아직 이르다. ANP/BANP는 `policy.networking.k8s.io/v1alpha1` — **alpha** 단계이며, 프로젝트는 이를 다음 단계인 `ClusterNetworkPolicy`로 진화시키는 중이다. 즉 **방향은 표준 cluster-wide 정책이 맞지만, 2026년 현재 프로덕션의 주력은 여전히 Calico/Cilium의 CNI CRD**다. 표준이 GA에 닿기 전까지는 CNI 기능으로 이 벽을 넘는 게 현실적이다.
+다만 성숙도는 아직 이르다. ANP/BANP는 `policy.networking.k8s.io/v1alpha1` — **alpha** 단계였고, 2026-04-21 릴리스 v0.2.0에서 두 리소스가 **`ClusterNetworkPolicy`(CNP) 하나로 합쳐졌다**(`policy.networking.k8s.io/v1alpha2`, 여전히 alpha). CNP는 `tier` 필드(`Admin` 또는 `Baseline`)로 우선순위를 구분하고, 액션 이름 `Allow`가 `Accept`로 바뀌었으며, `ports` 필드가 TCP·UDP·SCTP별로 매칭하는 `protocols` 필드로 대체됐다. 프로젝트 홈은 ANP/BANP를 "다음 단계로 진화해 더 이상 활발히 개발되지 않는" API로 분류한다. 이미 ANP/BANP 매니페스트가 있다면 CNP로 옮길 계획을 세워야 한다. 즉 **방향은 표준 cluster-wide 정책이 맞지만, 2026-09 현재 프로덕션의 주력은 여전히 Calico/Cilium의 CNI CRD**다. 표준이 GA에 닿기 전까지는 CNI 기능으로 이 벽을 넘는 게 현실적이다.
 
 ---
 
@@ -326,7 +326,7 @@ flowchart TD
     q0 -->|"내부 Pod·고정 IP 대상으로만"| a1["표준 NetworkPolicy<br>egress (IP/CIDR)"]
     q0 -->|"도메인(FQDN)으로<br>외부 SaaS 허용"| a2["CNI FQDN 정책<br>Cilium toFQDNs<br>Calico domains"]
     q0 -->|"고정 출발지 IP를<br>외부에 제공"| a3["Egress Gateway<br>(Cilium/Calico)<br>또는 클라우드 NAT"]
-    q0 -->|"클러스터 전체에<br>default-deny 일괄"| a4["cluster-wide 정책<br>Calico Global / Cilium Clusterwide<br>표준 ANP (alpha)"]
+    q0 -->|"클러스터 전체에<br>default-deny 일괄"| a4["cluster-wide 정책<br>Calico Global / Cilium Clusterwide<br>표준 CNP (alpha)"]
 
     style q0 fill:#C62828,color:#fff
     style a1 fill:#2E7D32,color:#fff
@@ -340,11 +340,11 @@ flowchart TD
 | 내부 Pod·고정 IP 대상 허용/차단 | NetworkPolicy `egress` (`ipBlock`) | **표준** |
 | 외부 도메인(SaaS) 허용 | Cilium `toFQDNs` / Calico `domains` / GKE FQDNNetworkPolicy | CNI·벤더 (표준 NPEP-133 Experimental) |
 | 고정 출발지 IP 제공 | Egress Gateway (SNAT) / 클라우드 NAT Gateway | CNI·인프라 |
-| 클러스터 전역 일괄 정책 | Calico Global / Cilium Clusterwide / AdminNetworkPolicy | CNI 주력 (표준 ANP alpha) |
+| 클러스터 전역 일괄 정책 | Calico Global / Cilium Clusterwide / ClusterNetworkPolicy | CNI 주력 (표준 CNP v1alpha2) |
 
 기억할 한 가지. **표준 NetworkPolicy가 어디서 멈추는지를 알아야, 다음에 어떤 도구를 꺼낼지 판단할 수 있다.** egress 통제에서 "NetworkPolicy로 안 되네?"는 막다른 길이 아니라, 요구가 L3/L4·목적지·네임스페이스라는 표준의 세 경계 중 어디를 넘었는지 알려주는 신호다. 그 경계를 읽으면 FQDN 정책인지, Egress Gateway인지, cluster-wide 정책인지가 따라 나온다.
 
-> 📖 관련 문서: [[쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까]] — `kind: Egress`가 없는 이유, NetworkPolicy egress 기본기와 default-deny·DNS 함정, "Ingress"라는 단어의 두 얼굴
+> 📖 관련 문서: [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) — `kind: Egress`가 없는 이유, NetworkPolicy egress 기본기와 default-deny·DNS 함정, "Ingress"라는 단어의 두 얼굴
 
 ---
 
@@ -352,6 +352,7 @@ flowchart TD
 
 - [Kubernetes 공식 — Network Policies](https://kubernetes.io/docs/concepts/services-networking/network-policies/) — 표준 NetworkPolicy egress와 `ipBlock`
 - [Network Policy API (sig-network) — 프로젝트 홈](https://network-policy-api.sigs.k8s.io/) — AdminNetworkPolicy/BaselineAdminNetworkPolicy(v1alpha1), ClusterNetworkPolicy 진화
+- [network-policy-api v0.2.0 릴리스 노트 (2026-04-21)](https://github.com/kubernetes-sigs/network-policy-api/releases/tag/v0.2.0) — ANP·BANP를 ClusterNetworkPolicy(v1alpha2, `tier` 필드)로 통합, `Allow`→`Accept`, `ports`→`protocols`
 - [NPEP-133 — FQDN Selector for Egress Traffic](https://network-policy-api.sigs.k8s.io/npeps/npep-133-fqdn-egress-selector/) — 표준 FQDN egress 제안(Experimental)과 DNS 처리 원칙
 - [Cilium — DNS based policies (`toFQDNs`)](https://docs.cilium.io/en/stable/security/policy/language/#dns-based) — FQDN egress 정책
 - [Cilium — Egress Gateway](https://docs.cilium.io/en/stable/network/egress-gateway/egress-gateway/) — `CiliumEgressGatewayPolicy`, `egressIP`, SNAT 검증

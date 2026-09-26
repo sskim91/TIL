@@ -555,18 +555,18 @@ public class Example {
 // 최신 안정 버전(Error Prone, NullAway, errorprone Gradle 플러그인)을 직접 확인하라.
 plugins {
     id 'java'
-    id 'net.ltgt.errorprone' version '3.1.0'  // 예시
+    id 'net.ltgt.errorprone' version '5.1.1'  // 예시 (2026-09 기준 최신)
 }
 
 dependencies {
     // JSpecify 어노테이션 (1.0.0 정식)
     implementation 'org.jspecify:jspecify:1.0.0'
 
-    // Error Prone (예시 버전 — 최신 확인 필요)
-    errorprone 'com.google.errorprone:error_prone_core:2.23.0'
+    // Error Prone (예시 버전 — 2026-09 기준 최신)
+    errorprone 'com.google.errorprone:error_prone_core:2.50.0'
 
-    // NullAway (예시 버전 — 최신 확인 필요. 2024 이후 0.11.x/0.12.x 라인업 출시)
-    errorprone 'com.uber.nullaway:nullaway:0.10.14'
+    // NullAway (예시 버전 — 2026-09 기준 최신 0.14.x)
+    errorprone 'com.uber.nullaway:nullaway:0.14.2'
 }
 
 tasks.withType(JavaCompile) {
@@ -943,7 +943,7 @@ public class UserService {
 4. **빌드 타임 검증 도구 사용**
    ```gradle
    // NullAway 설정
-   errorprone 'com.uber.nullaway:nullaway:0.10.14'
+   errorprone 'com.uber.nullaway:nullaway:0.14.2'
    ```
 
 5. **IDE 경고 무시하지 않기**

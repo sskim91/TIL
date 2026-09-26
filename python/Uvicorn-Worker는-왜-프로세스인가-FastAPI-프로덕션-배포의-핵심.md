@@ -20,7 +20,7 @@ uvicorn main:app --workers 4
 
 | 결정 | 이유 |
 |------|------|
-| worker 기본값이 `1` | Uvicorn은 "프로세스 관리"를 자기 책임으로 보지 않는다. 외부 도구(Gunicorn, systemd, K8s)에 위임하는 설계 |
+| worker 기본값이 `1` | 기본은 단일 프로세스이고, 멀티 프로세스는 명시적으로 켠다. Uvicorn 0.30(2024-05)부터는 죽은 워커 재시작과 `SIGHUP`/`SIGTTIN`/`SIGTTOU` 시그널을 지원하는 자체 process manager가 있지만, 외부 도구(Gunicorn, systemd, K8s)에 맡기는 구성도 여전히 흔하다 |
 | 프로덕션에서 Gunicorn + UvicornWorker 조합 | Gunicorn이 워커 생명주기(재시작, graceful shutdown)를 Uvicorn보다 안정적으로 관리 |
 | 컨테이너 환경에서는 worker=1 + replica 증설 | 컨테이너 하나 = 프로세스 하나가 관찰/스케일링 단위로 가장 깔끔하기 때문 |
 
@@ -69,7 +69,7 @@ graph LR
 
 ### I/O 바운드는 왜 괜찮은가?
 
-다만 여기서 중요한 반전이 있다. **GIL은 I/O 대기 중에는 풀린다.** DB 쿼리를 기다리거나, 외부 API 응답을 기다리거나, 디스크 읽기를 기다리는 동안에는 GIL을 다른 코루틴에 넘겨준다. FastAPI가 `async`/`await`로 수천 개의 동시 요청을 단일 프로세스에서 처리할 수 있는 이유가 바로 이것이다. I/O 바운드 작업에서는 프로세스가 1개여도 충분히 빠르다. **worker 수를 올려야 하는 건 CPU 바운드 상황에서만이다.**
+다만 여기서 중요한 반전이 있다. **GIL은 I/O 대기 중에는 풀린다.** DB 쿼리를 기다리거나, 외부 API 응답을 기다리거나, 디스크 읽기를 기다리는 동안에는 `await` 지점에서 이벤트 루프가 같은 스레드의 다른 코루틴으로 전환한다(코루틴 전환은 GIL과 무관하다). FastAPI가 `async`/`await`로 수천 개의 동시 요청을 단일 프로세스에서 처리할 수 있는 이유가 바로 이것이다. I/O 바운드 작업에서는 프로세스가 1개여도 충분히 빠르다. **worker 수를 올려야 하는 건 CPU 바운드 상황에서만이다.**
 
 $$\text{필요한 worker 수} \approx \begin{cases} 1 \sim 2 & \text{(I/O 바운드, async 활용)} \\ (2 \times \text{cores}) + 1 & \text{(CPU 바운드)} \end{cases}$$
 
@@ -107,7 +107,7 @@ graph TB
 
 **단일 모드**는 말 그대로 Python 인터프리터 하나, 이벤트 루프 하나다. 개발 중에 `uvicorn main:app --reload`로 띄우는 게 바로 이 모드다. 가볍고, 디버깅이 쉽고, 메모리도 적게 쓴다.
 
-**멀티 모드**는 Uvicorn이 먼저 마스터 프로세스 하나를 만들고, 그 마스터가 **`os.fork()`로 자식 프로세스들을 복제**한다. 각 자식은 자기만의 이벤트 루프, 자기만의 GIL, 자기만의 메모리 공간을 가진다. 마스터는 실제 요청을 처리하지 않고 자식들이 같은 포트에서 `SO_REUSEPORT`로 소켓을 공유하며 커널이 요청을 분배한다.
+**멀티 모드**는 Uvicorn이 먼저 마스터 프로세스 하나를 만들고, 그 마스터가 **`multiprocessing`의 `spawn` 방식으로 자식 프로세스들을 새로 띄운다**(Gunicorn과 달리 pre-fork가 아니다). 각 자식은 자기만의 이벤트 루프, 자기만의 GIL, 자기만의 메모리 공간을 가진다. 마스터는 실제 요청을 처리하지 않고, 리스닝 소켓을 한 번 bind한 뒤 자식들에게 넘겨주며, 자식들이 같은 소켓에서 연결을 accept하므로 커널이 요청을 분배한다.
 
 ### 메모리가 공유되지 않는다는 의미
 
@@ -164,10 +164,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 # CPU 8코어 서버에서 ML 추론 서비스
 gunicorn main:app \
   --workers 8 \
-  --worker-class uvicorn.workers.UvicornWorker \
+  --worker-class uvicorn_worker.UvicornWorker \
   --bind 0.0.0.0:8000 \
   --timeout 120
 ```
+
+> [!warning] `uvicorn.workers`는 deprecated
+> Uvicorn 0.30(2024-05)부터 `uvicorn.workers.UvicornWorker`는 deprecated이며 향후 제거 예정이다. `pip install uvicorn-worker` 후 `uvicorn_worker.UvicornWorker`를 쓴다. ([Uvicorn Deployment](https://uvicorn.dev/deployment/))
 
 여기서는 worker 수를 **코어 수만큼**으로 맞춘다. Uvicorn 공식 문서조차 async worker에 대해서는 `(2 × cores) + 1` 공식 대신 **`worker = cores`**를 권장한다. 이유는 async worker가 각자 자기 코어를 꽉 채워 돌기 때문에 컨텍스트 스위칭 오버헤드를 최소화하는 게 더 이득이기 때문이다. `--timeout 120`은 추론이 오래 걸리는 경우를 대비한 안전장치다. 기본값 30초로 두면 모델 로딩이 느릴 때 워커가 강제 종료된다.
 
@@ -232,7 +235,7 @@ spec:
 ```bash
 gunicorn main:app \
   --workers 4 \
-  --worker-class uvicorn.workers.UvicornWorker \
+  --worker-class uvicorn_worker.UvicornWorker \
   --bind 0.0.0.0:8000 \
   --max-requests 10000 \
   --max-requests-jitter 1000 \
@@ -241,6 +244,9 @@ gunicorn main:app \
 ```
 
 왜 Gunicorn을 앞에 두는가? Uvicorn도 `--workers` 옵션으로 멀티 프로세스를 지원하지만, **프로세스 생명주기 관리가 단순하다.** Gunicorn은 `max_requests`(일정 요청 수 후 워커 재시작으로 메모리 누수 방지), `graceful_timeout`(배포 시 진행 중인 요청을 끊지 않고 마무리), 워커 사망 시 자동 재생성 등 15년 넘게 다듬어진 프로덕션 기능을 제공한다. `max_requests_jitter`는 모든 워커가 정확히 같은 시점에 재시작하면서 일시적으로 서비스가 멈추는 **thundering herd** 현상을 막는 지터다.
+
+> [!note] 2026-09 기준
+> Uvicorn 0.30+ 자체 process manager도 죽은 워커 자동 재시작, `SIGHUP` 순차 재시작, `--limit-max-requests`/`--limit-max-requests-jitter`를 지원한다. Gunicorn을 앞에 두는 이유는 기능 유무보다 오랜 운영 이력과 설정 폭에 가깝다. ([Uvicorn Deployment](https://uvicorn.dev/deployment/), [Settings](https://uvicorn.dev/settings/))
 
 주의: 흔한 실수 중 하나가 "Gunicorn workers 4개 + UvicornWorker가 내부에서 또 workers 4개"라는 **중첩 구성**이다. 이렇게 하면 프로세스가 16개로 늘어나면서 메모리만 날아간다. UvicornWorker는 기본적으로 내부 워커 수를 1로 고정하므로 Gunicorn 레벨에서만 worker 수를 조절하면 된다.
 
@@ -270,8 +276,8 @@ Java 개발자에게 가장 기억해둘 비교 한 줄은 이것이다. **Tomca
 ## 출처
 
 - [FastAPI 공식 문서 - Server Workers](https://fastapi.tiangolo.com/deployment/server-workers/)
-- [Uvicorn 공식 문서 - Deployment](https://www.uvicorn.org/deployment/)
-- [Gunicorn 공식 문서 - Design](https://docs.gunicorn.org/en/stable/design.html)
+- [Uvicorn 공식 문서 - Deployment](https://uvicorn.dev/deployment/)
+- [Gunicorn 공식 문서 - Design](https://gunicorn.org/design/)
 - [Python 공식 문서 - GIL (Global Interpreter Lock)](https://docs.python.org/3/glossary.html#term-global-interpreter-lock)
 - [Render - FastAPI Production Deployment Best Practices](https://render.com/articles/fastapi-production-deployment-best-practices)
 - [OneUptime - How to Use Uvicorn for Production Deployments](https://oneuptime.com/blog/post/2026-02-03-python-uvicorn-production/view)

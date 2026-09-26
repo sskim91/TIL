@@ -203,10 +203,10 @@ MCP 프로토콜은 **통신 내용**(JSON-RPC 메시지)과 **통신 방법**(T
 | Transport | 통신 경로 | 연결 방식 | 사용 사례 | 상태 |
 |-----------|----------|----------|----------|------|
 | **STDIO** | 프로세스 파이프 | 부모가 자식을 spawn | 로컬 도구, CLI | 표준 |
-| **Streamable HTTP** | 단일 HTTP 엔드포인트(POST + 선택적 SSE 스트리밍) | 클라이언트가 서버에 연결 | 원격 서버, 웹, 팀 공유 | **2026년 표준** (2025-03-26 스펙) |
-| **SSE** (legacy) | 별도 SSE 엔드포인트 | 클라이언트가 서버에 연결 | (이전 원격 서버) | **Deprecated** — 2025-03-26 스펙부터 Streamable HTTP로 대체 |
+| **Streamable HTTP** | 단일 HTTP 엔드포인트(POST + 선택적 SSE 스트리밍) | 클라이언트가 서버에 연결 | 원격 서버, 웹, 팀 공유 | **표준** (2025-03-26 스펙 도입, 2026-07-28 스펙에서 세션 제거) |
+| **SSE** (legacy) | 별도 SSE 엔드포인트 | 클라이언트가 서버에 연결 | (이전 원격 서버) | **Deprecated** — 2025-03-26 스펙부터 Streamable HTTP로 대체 (2026-07-28 deprecated registry 등재) |
 
-> **중요 — SSE는 deprecated**: 본 문서에서 이후 4장 등에서 비교 대상으로 다루는 *SSE Transport*는 MCP 스펙 2025-03-26 버전부터 **Streamable HTTP에 의해 대체된 legacy 옵션**이다. 신규 MCP 서버를 만든다면 SSE 대신 Streamable HTTP를 사용해야 한다 — 단일 엔드포인트로 양방향 통신·세션 재연결·중간 미들웨어 호환성이 모두 단순해진다. 다만 본 문서의 `STDIO vs SSE` 비교는 "로컬 파이프 vs 네트워크 transport"라는 **개념적 대비**를 보여주는 데는 여전히 유효하므로 학습용으로 그대로 읽되, 실제 코드를 작성할 때는 SSE를 Streamable HTTP로 교체해 사용하라.
+> **중요 — SSE는 deprecated**: 본 문서에서 이후 4장 등에서 비교 대상으로 다루는 *SSE Transport*는 MCP 스펙 2025-03-26 버전부터 **Streamable HTTP에 의해 대체된 legacy 옵션**이다. 신규 MCP 서버를 만든다면 SSE 대신 Streamable HTTP를 사용해야 한다 — 단일 엔드포인트로 양방향 통신·중간 미들웨어 호환성이 모두 단순해진다(2026-07-28 스펙부터는 `Mcp-Session-Id` 세션과 SSE 재개 기능이 제거된 stateless 방식). 다만 본 문서의 `STDIO vs SSE` 비교는 "로컬 파이프 vs 네트워크 transport"라는 **개념적 대비**를 보여주는 데는 여전히 유효하므로 학습용으로 그대로 읽되, 실제 코드를 작성할 때는 SSE를 Streamable HTTP로 교체해 사용하라.
 
 ### 3.2 왜 STDIO가 기본인가?
 
@@ -286,6 +286,9 @@ sequenceDiagram
 ```
 
 모든 메시지가 stdin/stdout을 통해 JSON-RPC 형식으로 오간다.
+
+> [!note] 2026-09 기준 스펙 변경
+> 위 2단계 `initialize` 핸드셰이크는 2025-11-25 이전 개정판 기준이다. 2026-07-28 스펙은 핸드셰이크를 제거하고 매 요청 `_meta`에 프로토콜 버전·capability를 싣는다. 클라이언트는 선택적으로 `server/discover`를 먼저 호출해 지원 버전을 확인할 수 있다(STDIO에서는 하위 호환 probe로도 사용). ([changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog))
 
 ## 4. STDIO vs SSE 비교
 
@@ -489,7 +492,7 @@ flowchart LR
 
 ## 출처
 
-- [MCP Specification - Transports](https://spec.modelcontextprotocol.io/specification/basic/transports/) - 공식 스펙
+- [MCP Specification - Transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) - 공식 스펙
 - [FastMCP Documentation](https://gofastmcp.com/servers/transports) - Transport 설명
 - [Unix Philosophy](https://en.wikipedia.org/wiki/Unix_philosophy) - Unix 철학
 - [Standard Streams](https://en.wikipedia.org/wiki/Standard_streams) - stdin/stdout/stderr

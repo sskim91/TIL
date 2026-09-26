@@ -272,7 +272,7 @@ cross-site 시나리오(`app.example.com` → `api.other.com` 같은 eTLD+1이 �
 - Fetch가 cross-origin인 이상 `credentials: 'include'`를 명시해야 한다 (기본값 `same-origin`은 쿠키를 보내지 않는다).
 - 쿠키의 `Domain` 범위가 요청 호스트를 포괄해야 한다. `api.example.com`이 직접 발급한 host-only 쿠키는 `api.example.com` 호출에는 잘 붙지만, 여러 서브도메인이 같은 쿠키를 공유해야 한다면 발급 시 `Domain=example.com`을 명시해야 한다.
 
-또한 cross-site 시나리오에서는 브라우저별 제3자 쿠키 정책이 다르다. **Safari**는 ITP를 통해 기본 차단, **Firefox**는 추적용 쿠키를 차단하고 그 외엔 Total Cookie Protection으로 사이트별 격리, **Chrome**은 시크릿 모드와 사용자 설정 기반 차단을 유지(2025년 4월 Privacy Sandbox 업데이트로 기존 선택 방식을 유지하기로 결정). 따라서 `SameSite=None; Secure`만으로 부족할 수 있다. 임베디드 위젯·iframe 같은 partitioned context에서는 `Partitioned` 속성(CHIPS, Cookies Having Independent Partitioned State)을 함께 붙여 top-level site별로 격리된 쿠키 jar에 저장되도록 해야 한다.
+또한 cross-site 시나리오에서는 브라우저별 제3자 쿠키 정책이 다르다. **Safari**는 ITP를 통해 기본 차단, **Firefox**는 추적용 쿠키를 차단하고 그 외엔 Total Cookie Protection으로 사이트별 격리, **Chrome**은 시크릿 모드와 사용자 설정 기반 차단을 유지(2025년 4월 Privacy Sandbox 업데이트로 기존 선택 방식을 유지하기로 결정했고, [2025-10-17 발표](https://privacysandbox.google.com/blog/update-on-plans-for-privacy-sandbox-technologies)로 Privacy Sandbox 기술 대부분을 퇴역시켰다. CHIPS·FedCM은 계속 지원). 따라서 `SameSite=None; Secure`만으로 부족할 수 있다. 임베디드 위젯·iframe 같은 partitioned context에서는 `Partitioned` 속성(CHIPS, Cookies Having Independent Partitioned State)을 함께 붙여 top-level site별로 격리된 쿠키 jar에 저장되도록 해야 한다.
 
 즉 "SameSite 때문에 막히지는 않지만, fetch credentials 옵션과 쿠키 Domain 범위는 별개로 챙겨야 한다." 같은 회사의 서브도메인 분리에서는 *SameSite는 신경 안 써도* CORS와 쿠키 범위는 여전히 풀어야 할 숙제다.
 

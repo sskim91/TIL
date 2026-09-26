@@ -108,7 +108,7 @@ graph LR
 | **빈 등록** | 수동 | 수동 | 수동 (Factory 필요) | ✅ **자동** |
 | **설정 복잡도** | 중간 | 높음 | 높음 (Factory 설정) | ✅ **낮음** |
 | **보일러플레이트** | 많음 | 많음 | 중간 | ✅ **최소** |
-| **상태** | ⚠️ Maintenance mode | ✅ 활발 | ✅ 활발 | ✅ **최신** |
+| **상태** | ⚠️ Maintenance mode (Framework 7.1에서 deprecated 예정, 2026-11 GA 예정) | ✅ 활발 | ✅ 활발 | ✅ **최신** |
 
 ## 2. Spring 6의 HTTP Interface (기본)
 
@@ -1484,4 +1484,4 @@ graph LR
 - [Spring Framework 7.0 Release Notes](https://github.com/spring-projects/spring-framework/wiki/Spring-Framework-7.0-Release-Notes)
 - [HTTP Interface in Spring - Baeldung](https://www.baeldung.com/spring-6-http-interface)
 - [Spring Boot HTTP Interface using @HttpExchange](https://howtodoinjava.com/spring-webflux/http-declarative-http-client-httpexchange/)
-- [ImportHttpServices API Documentation](https://docs.spring.io/spring-framework/docs/7.0.0-SNAPSHOT/javadoc-api/org/springframework/web/service/registry/ImportHttpServices.html)
+- [ImportHttpServices API Documentation](https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/web/service/registry/ImportHttpServices.html)

@@ -1,5 +1,8 @@
 # FastMCP 3.0 - 프로덕션 레디 MCP 서버 구축의 새로운 패러다임
 
+> [!warning] 2026-09 기준 버전
+> 이 문서는 FastMCP 3.0(2026-02 GA) 기준이다. FastMCP 4.0.0이 2026-08-31 stable로 나왔고(2026-09-24 기준 4.0.9, 3.x 최신 3.4.7), MCP 2026-07-28 스펙과 MCP Python SDK v2 위에서 동작한다. 4.0에서는 server-initiated sampling/roots, 3.x deprecated API, object-mode 데코레이터(`FASTMCP_DECORATOR_MODE=object`)가 제거됐다. 저장소도 `PrefectHQ/fastmcp`로 이전됐다. ([v4.0.0 릴리스](https://github.com/PrefectHQ/fastmcp/releases/tag/v4.0.0), [3→4 업그레이드 가이드](https://gofastmcp.com/getting-started/upgrading/from-fastmcp-3))
+
 MCP 서버를 직접 만들어봤다면 알겠지만, 보일러플레이트 코드가 너무 많다. FastMCP 3.0은 이 문제를 근본적으로 해결하면서, 프로덕션 환경에서 필요한 기능들을 모두 갖췄다.
 
 ## 결론부터 말하면
@@ -115,6 +118,9 @@ client = httpx.AsyncClient(base_url="https://api.example.com")
 provider = OpenAPIProvider(openapi_spec=spec, client=client)
 mcp.add_provider(provider)
 ```
+
+> [!warning] 보안: CVE-2026-32871
+> FastMCP 3.2.0 미만의 `OpenAPIProvider`는 path parameter를 URL 인코딩 없이 치환해 SSRF/경로 조작이 가능한 취약점이 있다. 3.2.0 이상(2026-09 기준 4.x 권장)을 사용하라. ([NVD](https://nvd.nist.gov/vuln/detail/CVE-2026-32871))
 
 > URL 문자열만 넘기는 short form은 공식 API에 없다. *스펙 로딩*과 *런타임 호출 client*는 분리해서 명시적으로 주입하는 것이 FastMCP 3의 표준 패턴이다 ([공식 OpenAPI 통합 가이드](https://gofastmcp.com/integrations/openapi) 참고).
 
@@ -475,6 +481,26 @@ async def adaptive_tool(ctx: Context):
 | 상태 메서드가 async로 변경 | `await ctx.get_state()` |
 | 명시적 auth provider 설정 | 문서 참조 |
 | `enabled` 파라미터 deprecated | Visibility 시스템 사용 |
+
+---
+
+## 11. FastMCP 4 요약
+
+2026-09 기준 FastMCP 4(4.0.0 stable 2026-08-31, 최신 4.0.9)는 MCP Python SDK v2 위에서 동작하며, 대부분의 3.x 서버는 그대로 돌아간다. 하지만 sessionless 2026-07-28 스펙을 따르면서 아래 변경은 직접 손봐야 한다.
+
+| 영역 | 4.0 변경 | 대응 |
+|------|---------|------|
+| 환경 | pydantic >= 2.12, server extra는 Starlette >= 1.0.1 요구 | FastAPI를 함께 쓰면 0.133.0 이상으로 올린다 |
+| 서버 발신 요청 | `ctx.sample()`, `ctx.sample_step()`, `ctx.list_roots()`, `FastMCP(sampling_handler=...)` 제거 | 서버에서 LLM을 직접 호출하거나 경로를 tool 인자로 받는다 |
+| Elicitation | `ctx.elicit()`는 2026-07-28 연결에서 예외. `response_type` 필수 | guard 패턴(`InputRequiredResult` 반환)으로 재작성하거나 클라이언트를 `mode="legacy"`로 유지 |
+| 백그라운드 태스크 | tasks extension으로 분리 | `fastmcp[tasks]` 설치 후 `mcp.add_extension(TasksExtension())` 등록. 안 하면 서버가 시작하지 않는다 |
+| 제거된 3.x API | `as_proxy`, `import_server`, `mount(prefix=)`, `add_tool_transformation` 등 | `create_proxy`, `mount`, `mount(namespace=)`, `add_transform(ToolTransform(...))` |
+| 제거된 파라미터 | tool `serializer=`, `exclude_args=`, `FASTMCP_DECORATOR_MODE`(object 모드) | `ToolResult` 반환, `Depends()` 주입, 데코레이터는 항상 원래 함수 반환 |
+| 이동한 import | `fastmcp.server.proxy`, `fastmcp.server.openapi`, `SkillsProvider` 등 | `fastmcp.server.providers.*`, `SkillsDirectoryProvider` |
+| 에러·HTTP | `McpError(ErrorData(...))` 위치 인자 생성 불가, httpx 대신 httpx2 | `McpError(code=..., message=...)`, `httpx2` import |
+| 클라이언트 | `Client`가 기본 `mode="auto"`로 최신 스펙을 협상. `on_initialize`, 세션 상태가 2026-07-28에서는 동작하지 않음 | 세션 의존 서버는 `mode="legacy"` 유지 |
+
+위 10장의 `FASTMCP_DECORATOR_MODE`, 6장의 세션 스코프 상태, 8.2장의 백그라운드 태스크가 4.0에서 달라지는 대표적인 부분이다. 업그레이드 체크리스트 전문은 [Upgrading from FastMCP 3](https://gofastmcp.com/getting-started/upgrading/from-fastmcp-3)에 있다.
 
 ---
 
@@ -1333,5 +1359,5 @@ Happy Context Engineering.
 ## 출처
 
 - [FastMCP 3.0: What's New](https://www.jlowin.dev/blog/fastmcp-3-whats-new) - 공식 블로그
-- [FastMCP GitHub](https://github.com/jlowin/fastmcp)
+- [FastMCP GitHub](https://github.com/PrefectHQ/fastmcp)
 - [FastMCP Documentation](https://gofastmcp.com/)

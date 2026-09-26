@@ -32,7 +32,10 @@ flowchart LR
 |------|-------------|--------|
 | 10만 행 합계 | `for row in data: total += row` | `df['col'].sum()` |
 | 조건 필터링 | 중첩 if문 | `df[df['price'] > 1000]` |
-| 그룹별 집계 | 딕셔너리 수동 관리 | `df.groupby('category').mean()` |
+| 그룹별 집계 | 딕셔너리 수동 관리 | `df.groupby('category').mean(numeric_only=True)` |
+
+> [!note] pandas 버전 주의 (2026-09 기준)
+> pandas 2.0부터 groupby 집계의 `numeric_only` 기본값이 `False`라서, 문자열 열이 섞인 DataFrame에 `groupby().mean()`을 그대로 쓰면 `TypeError`가 난다. `numeric_only=True`를 주거나 열을 선택해 집계한다. pandas 3.0(2026-01-21, Python 3.11+)부터는 Copy-on-Write가 유일한 동작이고 문자열 열의 기본 dtype이 `object` 대신 `str`이다. ([3.0 릴리스 노트](https://pandas.pydata.org/docs/whatsnew/v3.0.0.html))
 
 ## 1. 왜 pandas가 필요한가?
 

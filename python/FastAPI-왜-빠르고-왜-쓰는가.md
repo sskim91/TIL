@@ -508,6 +508,8 @@ uvicorn main:app --reload
 # http://localhost:8000/docs → Swagger UI
 ```
 
+> [!note] 자세한 내용은 [gunicorn과-uvicorn은-경쟁자가-아니다](./gunicorn과-uvicorn은-경쟁자가-아니다.md) 참고
+
 > **프로덕션 배포:** 개발 시 `--reload`는 편리하지만 프로덕션에서는 멀티 프로세스로 실행한다.
 > ```bash
 > # 권장: Uvicorn 자체 워커 (FastAPI 0.111.0+에서는 fastapi run도 가능 — 2024-05 추가)
@@ -518,7 +520,7 @@ uvicorn main:app --reload
 > # pip install uvicorn-worker
 > # gunicorn main:app -w 4 -k uvicorn_worker.UvicornWorker
 > ```
-> [`uvicorn.workers.UvicornWorker`는 deprecated되어](https://www.uvicorn.org/#running-with-gunicorn) 향후 제거 예정이다. 별도 [`uvicorn-worker`](https://pypi.org/project/uvicorn-worker/) 패키지로 분리되었으니 새 코드는 위 패턴을 따른다.
+> [`uvicorn.workers.UvicornWorker`는 deprecated되어](https://uvicorn.dev/deployment/#gunicorn) 향후 제거 예정이다. 별도 [`uvicorn-worker`](https://pypi.org/project/uvicorn-worker/) 패키지로 분리되었으니 새 코드는 위 패턴을 따른다.
 
 ### 7.2 CRUD 예시
 

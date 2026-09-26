@@ -32,7 +32,7 @@ flowchart TB
 | 계층 | 역할 | MCP에서 |
 |------|------|---------|
 | **메시지 형식** | "무엇"을 보내는가 | **JSON-RPC 2.0** |
-| **Transport** | "어떻게" 보내는가 | STDIO, **Streamable HTTP**(2025-03-26 표준), HTTP+SSE(legacy) |
+| **Transport** | "어떻게" 보내는가 | STDIO, **Streamable HTTP**(2025-03-26 도입, 2026-07-28 스펙에서도 표준), HTTP+SSE(deprecated) |
 
 **핵심:**
 - JSON-RPC = 메시지의 **포맷** (봉투 양식)
@@ -230,6 +230,9 @@ sequenceDiagram
     Server-->>CC: {"jsonrpc":"2.0","method":"notifications/progress","params":{...}}
 ```
 
+> [!note] 2026-09 기준 스펙 변경
+> 위 "1. 초기화"(`initialize` 핸드셰이크)는 2025-11-25 이전 개정판의 흐름이다. 2026-07-28 스펙은 MCP를 stateless로 바꿔 핸드셰이크를 제거했고, 각 요청이 `_meta`(`io.modelcontextprotocol/protocolVersion`, `io.modelcontextprotocol/clientCapabilities`)에 버전·capability를 싣는다. 사전 버전 확인이 필요하면 `server/discover`를 호출한다. ([changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog))
+
 ### 3.2 실제 메시지 예시
 
 #### 도구 목록 조회
@@ -339,6 +342,9 @@ curl -X POST http://localhost:8080/mcp \
   -H "Accept: application/json, text/event-stream" \
   -d '{"jsonrpc":"2.0","method":"tools/call","params":{...},"id":1}'
 ```
+
+> [!note] 2026-07-28 스펙 기준 추가 헤더
+> Streamable HTTP POST에는 `MCP-Protocol-Version`과 `Mcp-Method`(모든 요청), `Mcp-Name`(`tools/call` 등) 헤더가 요구되며, `Mcp-Session-Id` 세션과 SSE 스트림 재개(`Last-Event-ID`)는 제거됐다. ([Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http))
 
 **통신 흐름:**
 
@@ -517,6 +523,6 @@ python server.py --transport http --port 8080
 ## 출처
 
 - [JSON-RPC 2.0 Specification](https://www.jsonrpc.org/specification) - 공식 스펙
-- [MCP Specification - Base Protocol](https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/) - MCP 공식 스펙
-- [MCP Specification - Transports](https://spec.modelcontextprotocol.io/specification/2025-03-26/basic/transports/) - Transport 스펙
+- [MCP Specification - Base Protocol](https://modelcontextprotocol.io/specification/2026-07-28/basic) - MCP 공식 스펙 (2026-09 기준 current 2026-07-28)
+- [MCP Specification - Transports](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) - Transport 스펙
 - [Model Context Protocol Documentation](https://modelcontextprotocol.io/) - 공식 문서

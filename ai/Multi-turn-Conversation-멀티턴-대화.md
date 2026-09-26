@@ -52,7 +52,7 @@ response = llm.invoke("둘의 차이는 뭐야?")
 
 왜 이런 일이 벌어질까?
 
-**핵심 LLM API는 기본적으로 Stateless(무상태)다.** OpenAI Chat Completions, Anthropic Messages 같은 표준 API에서 각 요청은 독립적으로 처리되고, 서버는 이전 대화를 자동으로 보존하지 않는다 — 그래서 클라이언트가 매번 히스토리를 넘겨야 한다. 다만 일부 API는 **서버 측 상태 관리 옵션**을 제공한다 — OpenAI **Responses API**의 `previous_response_id` 또는 신규 **Conversations API**가 현재(2026-04) 권장되는 경로다. 참고로 OpenAI Assistants API의 `thread_id` 방식은 2025-08-26 deprecated, 2026-08-26 종료 예정이므로 신규 도입 시에는 사용하지 않는 것이 안전하다. 이런 서버 상태 옵션을 써도 *모델이 추론할 때는 결국 이전 대화가 컨텍스트에 포함되어야* 하므로, 멀티턴의 본질(=이전 대화를 어떤 형태로든 모델에 다시 넣어야 한다)은 그대로다.
+**핵심 LLM API는 기본적으로 Stateless(무상태)다.** OpenAI Chat Completions, Anthropic Messages 같은 표준 API에서 각 요청은 독립적으로 처리되고, 서버는 이전 대화를 자동으로 보존하지 않는다 — 그래서 클라이언트가 매번 히스토리를 넘겨야 한다. 다만 일부 API는 **서버 측 상태 관리 옵션**을 제공한다 — OpenAI **Responses API**의 `previous_response_id` 또는 신규 **Conversations API**가 현재(2026-04) 권장되는 경로다. 참고로 OpenAI Assistants API의 `thread_id` 방식은 2025-08-26 deprecated, 2026-08-26 종료(shutdown)되었으므로 Responses API + Conversations API로 마이그레이션해야 한다([Deprecations](https://developers.openai.com/api/docs/deprecations)). 이런 서버 상태 옵션을 써도 *모델이 추론할 때는 결국 이전 대화가 컨텍스트에 포함되어야* 하므로, 멀티턴의 본질(=이전 대화를 어떤 형태로든 모델에 다시 넣어야 한다)은 그대로다.
 
 ### 1.2 그렇다면 ChatGPT는 어떻게?
 
@@ -187,9 +187,9 @@ flowchart TB
 
 LangChain은 다양한 메모리 관리 전략을 제공한다.
 
-> **참고:** 현재 LangChain에서는 상태 관리를 위해 `ConversationChain`보다 더 유연하고 강력한 **LangGraph** 사용을 권장하는 추세다. 이 문서의 예제는 메모리의 기본 개념을 이해하기 위한 것이다. 실제 프로덕션에서는 [LangGraph Persistence](https://langchain-ai.github.io/langgraph/how-tos/persistence/)를 참고하라.
+> **참고:** 현재 LangChain에서는 상태 관리를 위해 `ConversationChain`보다 더 유연하고 강력한 **LangGraph** 사용을 권장하는 추세다. 이 문서의 예제는 메모리의 기본 개념을 이해하기 위한 것이다. 실제 프로덕션에서는 [LangGraph Persistence](https://docs.langchain.com/oss/python/langgraph/add-memory)를 참고하라.
 
-> ⚠️ **이 절(3.1~3.6)의 예제는 모두 deprecated legacy API다.** 본문에 등장하는 `ConversationChain`, `ConversationBufferMemory`, `ConversationBufferWindowMemory`, `ConversationSummaryMemory`, `ConversationSummaryBufferMemory`, `ConversationTokenBufferMemory`, `VectorStoreRetrieverMemory`는 LangChain 공식 문서가 deprecated로 표시한 클래스들이며, LangChain v1부터는 `langchain-classic` 패키지로 분리되었다. 현재 권장 경로는 ① `RunnableWithMessageHistory` 또는 ② **LangGraph의 checkpointer/persistence**다. 아래 코드는 *각 메모리 전략의 차이를 직관적으로 보여주는 개념 학습용*으로만 참고하고, 실제 프로덕션 구현은 [LangGraph Persistence](https://langchain-ai.github.io/langgraph/how-tos/persistence/) 문서를 따르라. (LangGraph는 단순히 히스토리를 변수에 담는 것을 넘어 State와 Checkpointer로 대화 상태를 영속화한다는 점이 핵심 차이다.)
+> ⚠️ **이 절(3.1~3.6)의 예제는 모두 deprecated legacy API다.** 본문에 등장하는 `ConversationChain`, `ConversationBufferMemory`, `ConversationBufferWindowMemory`, `ConversationSummaryMemory`, `ConversationSummaryBufferMemory`, `ConversationTokenBufferMemory`, `VectorStoreRetrieverMemory`는 LangChain 공식 문서가 deprecated로 표시한 클래스들이며, LangChain v1부터는 `langchain-classic` 패키지로 분리되었다. 현재 권장 경로는 ① `RunnableWithMessageHistory` 또는 ② **LangGraph의 checkpointer/persistence**다. 아래 코드는 *각 메모리 전략의 차이를 직관적으로 보여주는 개념 학습용*으로만 참고하고, 실제 프로덕션 구현은 [LangGraph Persistence](https://docs.langchain.com/oss/python/langgraph/add-memory) 문서를 따르라. (LangGraph는 단순히 히스토리를 변수에 담는 것을 넘어 State와 Checkpointer로 대화 상태를 영속화한다는 점이 핵심 차이다.)
 
 ### 3.1 ConversationBufferMemory (전체 저장) — *deprecated 개념 학습용*
 
@@ -477,5 +477,5 @@ messages.append(response)
 - [OpenAI - Chat Completions](https://platform.openai.com/docs/guides/chat-completions) - 공식 문서
 - [Anthropic - Claude Conversations](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering) - 공식 문서
 - [LangChain Memory Types](https://python.langchain.com/docs/modules/memory/types/) - 공식 문서
-- [LangGraph Persistence](https://langchain-ai.github.io/langgraph/how-tos/persistence/) - 최신 권장 방식
+- [LangGraph Persistence](https://docs.langchain.com/oss/python/langgraph/add-memory) - 최신 권장 방식
 - [Pinecone - LangChain Conversational Memory](https://www.pinecone.io/learn/series/langchain/langchain-conversational-memory/)

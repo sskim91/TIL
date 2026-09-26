@@ -240,7 +240,7 @@ refresh_tokens
 
 ## 6. JWT 사용 시 피해야 할 함정 7가지
 
-JWT는 도구다. 도구를 잘못 쓰면 서명이 된 척하면서 위조를 통과시키는 보안 사고가 된다. 실제로 RFC 8725(JWT Best Current Practices)와 그 갱신 드래프트 `rfc8725bis-04`(2026년 3월)는 그동안 발견된 사고 패턴들을 정리해 놓은 일종의 "함정 카탈로그"다. 그중 실무에서 가장 자주 만나는 일곱 가지를 추린다.
+JWT는 도구다. 도구를 잘못 쓰면 서명이 된 척하면서 위조를 통과시키는 보안 사고가 된다. 실제로 RFC 8725(JWT Best Current Practices)와 그 갱신 드래프트 `rfc8725bis`(2026-09 기준 최신 -10, 2026-08-21 게시, RFC Editor Queue 대기 중)는 그동안 발견된 사고 패턴들을 정리해 놓은 일종의 "함정 카탈로그"다. 그중 실무에서 가장 자주 만나는 일곱 가지를 추린다.
 
 ### 6.1 `alg: none` 공격 -- 서명 자체를 끄는 헤더
 
@@ -428,9 +428,10 @@ DPoP의 동작 메커니즘과 브라우저 환경에서의 구현은 [`web/Web-
 
 - [RFC 7519 -- JSON Web Token (JWT)](https://www.rfc-editor.org/rfc/rfc7519) -- JWT 본 스펙
 - [RFC 8725 -- JSON Web Token Best Current Practices](https://datatracker.ietf.org/doc/html/rfc8725) -- 운영 보안 가이드
-- [draft-ietf-oauth-rfc8725bis-04 (March 2026)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-rfc8725bis-04) -- BCP 갱신 드래프트
+- [draft-ietf-oauth-rfc8725bis-10 (2026-08)](https://datatracker.ietf.org/doc/html/draft-ietf-oauth-rfc8725bis-10) -- BCP 갱신 드래프트
 - [RFC 7515 -- JSON Web Signature (JWS)](https://www.rfc-editor.org/rfc/rfc7515) -- 시그니처 구조 정의
 - [OWASP -- JSON Web Token Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html)
 - [Okta Developer -- Refresh access tokens and rotate refresh tokens](https://developer.okta.com/docs/guides/refresh-tokens/main/)
 - [Spring Security 6 -- OAuth2 Resource Server (JWT)](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
 - 관련 TIL: [`web/토큰을-어디에-둘-것인가...`](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md), [`web/브라우저는-어떻게-토큰을-받아오는가...`](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md), [`web/Web-Crypto-API와-Passkey-DPoP...`](Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때.md)
+- <https://datatracker.ietf.org/doc/draft-ietf-oauth-rfc8725bis/>

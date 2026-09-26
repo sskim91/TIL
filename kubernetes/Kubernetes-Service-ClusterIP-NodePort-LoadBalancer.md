@@ -184,7 +184,7 @@ Service를 만들면 Kubernetes가 자동으로 백엔드 Pod 목록을 관리�
 
 **Endpoints (레거시)**
 
-Endpoints는 "현재 트래픽을 받을 수 있는 Pod IP 목록"이다.
+Endpoints는 "현재 트래픽을 받을 수 있는 Pod IP 목록"이다. Endpoints API는 Kubernetes v1.33에서 공식 deprecated 되었다. `kubectl get endpoints`는 여전히 동작하지만 deprecation 경고가 출력되며, 새 코드·도구는 EndpointSlice를 쓴다. ([Kubernetes 블로그, 2025-04-24](https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/))
 
 ```bash
 # Service 확인

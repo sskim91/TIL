@@ -30,7 +30,10 @@ flowchart LR
 - **AI 역할**: 보조 도구 → 능동적 파트너
 - **작업 방식**: 동기 → 비동기
 
-**무료 Public Preview** | MacOS, Windows, Linux 지원
+**무료 Public Preview** (2025-11 발표 당시) | MacOS, Windows, Linux 지원
+
+> [!note] 2026-09 기준
+> 요금 페이지에는 개인 $0 플랜과 Google AI Pro·Ultra, Google Cloud 조직 플랜이 있다. ([Pricing](https://antigravity.google/pricing))
 
 ## 1. 왜 Antigravity를 만들었나?
 
@@ -274,7 +277,7 @@ flowchart TD
     Start[작업 시작] --> Decision{작업 유형?}
 
     Decision -->|일반 코딩| Gemini[Gemini 3<br/>코딩 특화<br/>빠른 실행]
-    Decision -->|복잡한 설계| Claude[Claude Sonnet 4.5<br/>긴 컨텍스트<br/>깊은 추론]
+    Decision -->|복잡한 설계| Claude[Claude Sonnet 4.6<br/>긴 컨텍스트<br/>깊은 추론]
     Decision -->|프라이버시 중요| GPT[GPT-OSS<br/>로컬 실행<br/>커스터마이징]
     Decision -->|자동 선택| Auto[Auto-select<br/>작업별 최적 모델]
 
@@ -294,10 +297,16 @@ flowchart TD
 | 모델 | 특징 | 추천 용도 |
 |------|------|----------|
 | **Gemini 3** (기본) | 코딩 특화, 에이전트 워크플로우 네이티브 | 일반적인 개발 작업 |
-| **Claude Sonnet 4.5** | 긴 컨텍스트, 복잡한 추론 | 아키텍처 설계, 리팩토링 |
+| **Claude Sonnet 4.6** | 긴 컨텍스트, 복잡한 추론 | 아키텍처 설계, 리팩토링 |
 | **GPT-OSS** (오픈소스) | 로컬 실행, 커스터마이징 | 프라이버시 중요 프로젝트 |
 
+> [!warning] 2026-09 기준 지원 모델
+> 공식 문서의 reasoning model 목록은 Gemini 3.8 Flash, Gemini 3.7 Flash, Gemini 3.6 Flash, Gemini 3.1 Pro, Claude Sonnet 4.6 (thinking), Claude Opus 4.6 (thinking), GPT-OSS-120b다. 공식 문서는 GPT-OSS-120b를 plan별 rate limit이 적용되는 선택형 모델로만 설명하며 "로컬 실행" 모드는 언급하지 않는다. 모델은 대화 입력창 아래 model selector 드롭다운에서 고른다. ([Models](https://antigravity.google/docs/models))
+
 ### 4.2 모델 선택 예시
+
+> [!warning] 공식 API 아님
+> 아래 `config = {...}` 코드는 개념을 보여주는 의사 코드다. 공식 Models 문서는 모델을 UI의 model selector 드롭다운에서 고른다고 설명하며, 이런 설정 API는 다루지 않는다. ([Models](https://antigravity.google/docs/models))
 
 ```python
 # 빠른 코딩 작업
@@ -322,6 +331,8 @@ config = {
 ## 5. 시작하기
 
 ### 5.1 현재 상태
+
+> [!note] 아래는 2025-11 발표 당시 상태다. 2026-09 기준 요금제는 [Pricing](https://antigravity.google/pricing) 참고.
 
 ```
 ✅ Public Preview (무료)
@@ -378,7 +389,7 @@ Google Antigravity:
 ---
 
 **발표일**: 2025년 11월 18일 (Gemini 3와 동시 공개)
-**현재 상태**: Public Preview (무료)
+**발표 당시 상태**: Public Preview (무료). 2026-09 기준 개인 $0 플랜 + 유료 플랜 운영
 **지원 플랫폼**: MacOS, Windows, Linux
 
 ## 출처

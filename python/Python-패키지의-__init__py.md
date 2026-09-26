@@ -136,6 +136,39 @@ User()  # OK
 # _helper()  # NameError! __all__에 없음
 ```
 
+### `__all__` 동작 상세
+
+`__all__`은 **`from 모듈 import *` 때 공개할 이름을 명시하는 리스트**다. 패키지 `__init__.py`뿐 아니라 일반 모듈 최상위에도 둘 수 있다. Java에 비유하면 `public`으로 노출할 클래스·메서드를 고르는 역할에 가깝다.
+
+```python
+# calculator.py
+def add(a, b):
+    return a + b
+
+def subtract(a, b):
+    return a - b
+
+def _internal_helper():
+    """내부 함수 (공개하지 않음)"""
+    pass
+
+__all__ = ['add', 'subtract']
+```
+
+```python
+from calculator import *
+add(5, 3)            # OK
+subtract(5, 3)       # OK
+# _internal_helper() # NameError! __all__에 없음
+
+# 명시적 import는 __all__과 상관없이 가능하다
+from calculator import _internal_helper
+```
+
+- **`__all__`이 없으면** `import *`는 `_`로 시작하지 않는 모든 이름을 가져온다.
+- `__all__`은 `import *`만 제어한다. 접근 제한이 아니라 "공개 API 선언"이다.
+- PEP 8은 `__all__`, `__version__` 같은 모듈 레벨 dunder를 모듈 docstring 다음, `from __future__`를 제외한 import 문 앞에 두도록 권한다.
+
 ## 3. 실전 예시
 
 ### 예시 1: HTTP 라이브러리 (requests 스타일)
@@ -494,3 +527,5 @@ __all__ = ['MainClass', 'helper']
 - [Python Documentation - Packages](https://docs.python.org/3/tutorial/modules.html#packages)
 - [PEP 420 - Implicit Namespace Packages](https://www.python.org/dev/peps/pep-0420/)
 - [Real Python - Python Modules and Packages](https://realpython.com/python-modules-packages/)
+- [Python Documentation - Importing * From a Package](https://docs.python.org/3/tutorial/modules.html#importing-from-a-package)
+- [PEP 8 - Module Level Dunder Names](https://peps.python.org/pep-0008/#module-level-dunder-names)

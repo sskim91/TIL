@@ -692,5 +692,5 @@ LangGraph의 **Time Travel** 은 Checkpoint 기반으로 과거 상태를 탐색
 
 ## 출처
 
-- [LangGraph Documentation - Time Travel](https://langchain-ai.github.io/langgraph/concepts/time-travel/) - 공식 문서
+- [LangGraph Documentation - Time Travel](https://docs.langchain.com/oss/python/langgraph/use-time-travel) - 공식 문서
 - [LangGraph Checkpoint Package](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint) - GitHub

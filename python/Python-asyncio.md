@@ -854,6 +854,37 @@ async def good_example():
     print("완료")
 ```
 
+### asyncio.TaskGroup과 asyncio.timeout() (Python 3.11+)
+
+Python 3.11부터는 `gather()`와 `wait_for()` 대신 **구조적 동시성** API를 쓸 수 있습니다.
+
+- **`asyncio.TaskGroup`**: `async with` 블록 안에서 `create_task()`로 만든 태스크를 블록을 나갈 때 모두 기다립니다. 하나라도 `CancelledError` 외의 예외로 실패하면 **나머지 태스크를 취소**하고, 실패한 예외들을 `ExceptionGroup`으로 묶어 올립니다. `gather()`는 기본적으로 한 태스크가 실패해도 나머지를 취소하지 않는다는 점이 다릅니다.
+- **`asyncio.timeout(delay)`**: 블록 전체에 시간 제한을 겁니다. 초과하면 현재 태스크를 취소하고 `TimeoutError`로 바꿔 올립니다. `delay=None`이면 제한이 없고, `Timeout.reschedule()`로 나중에 기한을 바꿀 수 있습니다.
+
+```python
+import asyncio
+
+async def fetch(name: str, sec: float) -> str:
+    await asyncio.sleep(sec)
+    return f"{name} 완료"
+
+async def main():
+    try:
+        async with asyncio.timeout(2):            # 블록 전체 2초 제한
+            async with asyncio.TaskGroup() as tg:
+                t1 = tg.create_task(fetch("A", 1))
+                t2 = tg.create_task(fetch("B", 1.5))
+        print(t1.result(), t2.result())           # 블록을 나오면 모두 끝난 상태
+    except* TimeoutError:                         # except와 except*는 한 try에 섞을 수 없다
+        print("2초 초과")
+    except* ValueError as eg:                     # 태스크 예외는 ExceptionGroup으로 온다
+        print("실패:", eg.exceptions)
+
+asyncio.run(main())
+```
+
+출처: [Python docs - Coroutines and Tasks](https://docs.python.org/3/library/asyncio-task.html)
+
 ## 9. 실전 활용: 웹 스크래핑
 
 ### 동기 방식 (느림)

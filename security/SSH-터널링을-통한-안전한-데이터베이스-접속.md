@@ -55,6 +55,8 @@ sequenceDiagram
 
 ### 3.1 터미널에서 SSH 터널 생성
 
+> [!note] 자세한 내용은 [SSH-ProxyJump](../infra/SSH-ProxyJump.md) 참고
+
 ```bash
 # 기본 형식
 ssh -L [로컬포트]:[DB호스트]:[DB포트] [SSH사용자]@[SSH서버]
@@ -163,6 +165,11 @@ Host bastion
     ServerAliveInterval 60
     ServerAliveCountMax 3
 ```
+
+> [!tip] AWS라면 공개 Bastion 없이도 같은 터널을 만들 수 있다 (2026-09 기준)
+> - **SSM Session Manager 원격 호스트 포트 포워딩**: `aws ssm start-session --target <instance-id> --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '{"host":["<rds-endpoint>"],"portNumber":["3306"],"localPortNumber":["3307"]}'` 뒤 `localhost:3307`로 접속한다. 인바운드 22번 포트와 SSH 키가 필요 없다(경유 인스턴스에 SSM Agent 3.1.1374.0 이상, 로컬에 Session Manager plugin). 포트 포워딩 세션은 세션 로그 기록 대상이 아니다.
+> - **EC2 Instance Connect Endpoint**: 퍼블릭 IP 없는 private 인스턴스로 SSH 하는 IAM 기반 TCP 프록시다. `ssh -o ProxyCommand='aws ec2-instance-connect open-tunnel --instance-id %h' ec2-user@<instance-id>` 형태로 기존 SSH 흐름에 끼워 넣고, 그 위에서 `-L` 로컬 포워딩을 그대로 쓸 수 있다. TCP 연결은 최대 1시간이다.
+> - 자세한 비교는 [Bastion-Host](../infra/Bastion-Host.md) 5절 참고. 출처: [Session Manager — Start a session](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html), [EC2 Instance Connect Endpoint](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-with-ec2-instance-connect-endpoint.html)
 
 ---
 

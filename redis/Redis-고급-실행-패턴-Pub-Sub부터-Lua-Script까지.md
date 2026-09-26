@@ -15,6 +15,8 @@ Redis의 고급 실행 패턴은 **4가지** 다. 각각은 서로 다른 문제
 
 ## 1. Pub/Sub — Fire-and-Forget 메시징
 
+> [!note] 자세한 내용은 [Pub-Sub-패턴](../computer-science/Pub-Sub-패턴.md) 참고
+
 ### 1.1 왜 Pub/Sub인가?
 
 마이크로서비스 환경에서 서비스 A가 "주문이 생성되었다"는 이벤트를 다른 서비스들에 알려야 한다. 서비스 A가 서비스 B, C, D를 직접 호출하면 **강결합(Tight Coupling)** 이 된다. 서비스 D가 추가되면 A의 코드를 수정해야 한다.

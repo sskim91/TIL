@@ -6,7 +6,7 @@ Java에서 SSH/SFTP 연결을 구현할 때 가장 많이 사용되는 JSch 라�
 
 **원본 JSch**(com.jcraft:jsch)는 2018년 0.1.55 버전을 마지막으로 업데이트가 중단되었다. 문제는 2021년 OpenSSH 8.8이 보안상의 이유로 `ssh-rsa`(SHA1 기반)를 기본 비활성화하면서 발생했다. 원본 JSch는 새로운 `rsa-sha2-256/512` 알고리즘을 지원하지 않아 많은 서버에 접속할 수 없게 되었다.
 
-**mwiede/jsch fork**는 이 문제를 해결하고, 현재(2026-04 기준 최신 2.28.0) 활발하게 유지보수되고 있다. Drop-in replacement로 설계되어 의존성만 교체하면 기존 코드 수정 없이 사용할 수 있다.
+**mwiede/jsch fork**는 이 문제를 해결하고, 현재(2026-09 기준 최신 2.28.7, 2026-08-20 릴리스) 활발하게 유지보수되고 있다. Drop-in replacement로 설계되어 의존성만 교체하면 기존 코드 수정 없이 사용할 수 있다.
 
 ```xml
 <!-- Before: 더 이상 업데이트되지 않는 원본 -->
@@ -20,7 +20,7 @@ Java에서 SSH/SFTP 연결을 구현할 때 가장 많이 사용되는 JSch 라�
 <dependency>
     <groupId>com.github.mwiede</groupId>
     <artifactId>jsch</artifactId>
-    <version>2.27.6</version>
+    <version>2.28.7</version>
 </dependency>
 ```
 
@@ -71,10 +71,10 @@ timeline
          : ssh-rsa 기본 비활성화
     2022 : mwiede 0.2.0 릴리즈
          : RSA/SHA1 기본 비활성화
-    2024 : Semantic Versioning 도입
-         : 2.27.0 릴리즈
-    2025 : 2.27.6 최신 버전
-         : 활발한 유지보수 중
+    2025 : Semantic Versioning 도입
+         : 2.27.0 릴리즈 (2025-05)
+    2026 : 2.28.x 라인
+         : 2.28.7 (2026-08) 활발한 유지보수 중
 ```
 
 ### 원본 JSch가 멈춘 이유
@@ -203,6 +203,8 @@ flowchart LR
 
 ### 5.3 CVE 패치
 
+> [!note] 자세한 내용은 [sshj-현대적인-Java-SSH-라이브러리](./sshj-현대적인-Java-SSH-라이브러리.md) 참고
+
 | CVE | 설명 | 패치 버전 |
 |-----|------|----------|
 | CVE-2023-48795 | Terrapin Attack - SSH 핸드셰이크 취약점 | 0.2.15 |
@@ -244,7 +246,7 @@ jsch.jar
 <dependency>
     <groupId>com.github.mwiede</groupId>
     <artifactId>jsch</artifactId>
-    <version>2.27.6</version>
+    <version>2.28.7</version>
 </dependency>
 ```
 
@@ -256,7 +258,7 @@ jsch.jar
 <dependency>
     <groupId>com.github.mwiede</groupId>
     <artifactId>jsch</artifactId>
-    <version>2.27.6</version>
+    <version>2.28.7</version>
 </dependency>
 
 <!-- 원본 JSch를 사용하는 라이브러리 -->
@@ -462,6 +464,8 @@ channel.connect(10000);  // 채널 연결 타임아웃 10초
 ```
 
 ## 9. 대안 라이브러리
+
+> [!note] 자세한 내용은 [sshj-현대적인-Java-SSH-라이브러리](./sshj-현대적인-Java-SSH-라이브러리.md) 참고
 
 JSch 외에도 Java SSH 라이브러리가 있다. 각각 장단점이 있으므로 요구사항에 따라 선택하면 된다.
 

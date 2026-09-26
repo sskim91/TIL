@@ -276,10 +276,10 @@ WAL과 binlog의 차이를 다시 보면 결국 **"하나의 로그가 모든 �
 
 ## 출처
 
-- [MySQL :: 17.2.1 Replication Formats (8.0 공식 문서)](https://dev.mysql.com/doc/refman/8.0/en/replication-formats.html)
-- [MySQL :: 17.2.1.2 Usage of Row-Based Logging and Replication (8.0 공식 문서)](https://dev.mysql.com/doc/refman/8.0/en/replication-sbr-rbr.html)
-- [MySQL :: 5.4.4.3 Mixed Binary Logging Format (8.0 공식 문서)](https://dev.mysql.com/doc/refman/8.0/en/binary-log-mixed.html)
-- [MySQL :: 17.2.1.3 Determination of Safe and Unsafe Statements in Binary Logging (8.0 공식 문서)](https://dev.mysql.com/doc/refman/8.0/en/replication-rbr-safe-unsafe.html)
+- [MySQL :: Replication Formats (8.4 공식 문서)](https://dev.mysql.com/doc/refman/8.4/en/replication-formats.html)
+- [MySQL :: Usage of Row-Based Logging and Replication (8.4 공식 문서)](https://dev.mysql.com/doc/refman/8.4/en/replication-sbr-rbr.html)
+- [MySQL :: Mixed Binary Logging Format (8.4 공식 문서)](https://dev.mysql.com/doc/refman/8.4/en/binary-log-mixed.html)
+- [MySQL :: Determination of Safe and Unsafe Statements in Binary Logging (8.4 공식 문서)](https://dev.mysql.com/doc/refman/8.4/en/replication-rbr-safe-unsafe.html)
 - [MySQL :: 17.5.1.26 Replication and Row Searches (8.0 공식 문서)](https://dev.mysql.com/doc/refman/8.0/en/replication-features-row-searches.html)
 - [Deep Dive on MySQL's Replication Protocol — DoltHub Blog](https://www.dolthub.com/blog/2024-06-17-mysql-replication/)
 - [MySQL Replication Internals — Arpit Bhayani](https://arpitbhayani.me/blogs/mysql-replication-internals/)

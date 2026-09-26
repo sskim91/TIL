@@ -101,6 +101,8 @@ ssh -i private-key.pem ec2-user@10.0.1.100
 
 ### 3.2 ProxyJump: 한 번에 점프하기
 
+> [!note] 자세한 내용은 [SSH-ProxyJump](./SSH-ProxyJump.md) 참고
+
 SSH 설정 파일(`~/.ssh/config`)을 사용하면 한 번에 접속할 수 있다.
 
 ```ssh-config
@@ -210,6 +212,43 @@ aws ssm start-session --target i-0123456789abcdef0
 ```
 
 Session Manager는 SSH 키 관리가 필요 없고, IAM으로 권한을 제어한다. 22번 포트를 열 필요도 없어 보안이 강화된다.
+
+Private 서브넷의 RDS처럼 SSM Agent를 설치할 수 없는 대상은 **원격 호스트 포트 포워딩**으로 접근한다. 관리 대상 인스턴스를 경유지로 쓰는 방식이라 SSH 터널링과 같은 효과를 낸다(인스턴스에 SSM Agent 3.1.1374.0 이상, 로컬에 Session Manager plugin 필요).
+
+```bash
+aws ssm start-session \
+    --target i-0123456789abcdef0 \
+    --document-name AWS-StartPortForwardingSessionToRemoteHost \
+    --parameters '{"host":["mydb.xxxx.ap-northeast-2.rds.amazonaws.com"],"portNumber":["3306"],"localPortNumber":["3306"]}'
+```
+
+주의: 포트 포워딩·SSH 방식 세션은 Session Manager의 세션 로그(S3/CloudWatch Logs) 기록 대상이 아니다. 호출 이력은 CloudTrail에 남는다.
+
+### 5.2 EC2 Instance Connect Endpoint (EICE)
+
+EICE는 VPC 서브넷에 두는 **identity-aware TCP 프록시**다. 인스턴스에 퍼블릭 IP가 없고 VPC에 인터넷 게이트웨이가 없어도, IAM 자격 증명으로 인증·인가된 트래픽만 VPC 안으로 들여보낸다. 에이전트 대신 표준 SSH/RDP를 그대로 쓴다는 점이 Session Manager와 다르다.
+
+```bash
+# 인스턴스 ID만으로 SSH 접속 (AWS CLI v2)
+aws ec2-instance-connect ssh --instance-id i-0123456789abcdef0 \
+    --os-user ec2-user --connection-type eice
+
+# 또는 기존 ssh 클라이언트의 ProxyCommand로 터널 사용
+ssh -i my-key.pem ec2-user@i-0123456789abcdef0 \
+    -o ProxyCommand='aws ec2-instance-connect open-tunnel --instance-id i-0123456789abcdef0'
+```
+
+- 인스턴스 보안 그룹은 EICE(기본값에서는 VPC 대역)에서 오는 관리 포트만 허용하면 된다.
+- 성공·실패한 접속 시도가 모두 CloudTrail에 기록된다. 추가 요금은 없고, 다른 AZ의 인스턴스에 접속하면 AZ 간 데이터 전송 요금만 붙는다.
+- 제약(2026-09 기준 문서): VPC·서브넷당 엔드포인트 1개, 엔드포인트당 동시 연결 20개, TCP 연결 최대 1시간. 관리 트래픽용이라 대용량 전송은 스로틀링된다.
+
+| 기준 | Session Manager | EC2 Instance Connect Endpoint |
+|------|-----------------|-------------------------------|
+| 대상 쪽 요구 사항 | SSM Agent + Systems Manager 연결 | 표준 SSH/RDP 서버 |
+| 세션 로그 | 셸 세션은 S3/CloudWatch 기록 가능 | CloudTrail 접속 기록 |
+| 비 EC2 노드 | 온프레미스·하이브리드 노드 지원 | VPC 안 대상만 |
+
+출처: [AWS — Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html), [AWS — Start a session](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html), [AWS — EC2 Instance Connect Endpoint](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-with-ec2-instance-connect-endpoint.html), [AWS — Connect using EICE](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-using-eice.html)
 
 ## 6. Bastion Host 운영 베스트 프랙티스
 

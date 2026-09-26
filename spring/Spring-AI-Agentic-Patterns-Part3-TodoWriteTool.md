@@ -102,11 +102,11 @@ Progress: 2/4 tasks completed (50%)
 <dependency>
     <groupId>org.springaicommunity</groupId>
     <artifactId>spring-ai-agent-utils</artifactId>
-    <version>0.7.0</version>
+    <version>0.12.0</version> <!-- 2026-09 기준 최신, Spring AI 2.0.0+ 필요 -->
 </dependency>
 ```
 
-ℹ️ **Note:** Spring AI `2.0.0-M4` 이상이 필요하다 (2026-04 기준 `spring-ai-agent-utils 0.7.0` 호환). 최신 호환 버전은 [GitHub README](https://github.com/spring-ai-community/spring-ai-agent-utils#requirements)에서 확인하라.
+ℹ️ **Note:** 원문(2026-04)은 `spring-ai-agent-utils 0.7.0` + Spring AI `2.0.0-M4` 이상 기준이었다. 2026-09 기준 최신은 `spring-ai-agent-utils 0.12.0`(2026-08-30)이며 Spring AI `2.0.0` 이상이 필요하다. Spring AI 2.0은 GA 되었다(2.0.0 GA 2026-06, 2026-09 기준 2.0.1). ([README](https://github.com/spring-ai-community/spring-ai-agent-utils), [Maven Central](https://repo1.maven.org/maven2/org/springframework/ai/spring-ai-bom/maven-metadata.xml)) 최신 호환 버전은 [GitHub README](https://github.com/spring-ai-community/spring-ai-agent-utils#requirements)에서 확인하라.
 
 ### 3.2 에이전트 구성
 

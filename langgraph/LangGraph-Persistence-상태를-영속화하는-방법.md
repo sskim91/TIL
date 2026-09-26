@@ -568,7 +568,7 @@ LangGraph의 **Persistence** 는 그래프 상태를 영속화하여 다음을 �
 
 ## 출처
 
-- [LangGraph Documentation - Persistence](https://langchain-ai.github.io/langgraph/concepts/persistence/) - 공식 문서
+- [LangGraph Documentation - Persistence](https://docs.langchain.com/oss/python/langgraph/persistence) - 공식 문서
 - [LangGraph Checkpoint Package](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint) - GitHub
 - [LangGraph Checkpoint SQLite](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-sqlite)
 - [LangGraph Checkpoint Postgres](https://github.com/langchain-ai/langgraph/tree/main/libs/checkpoint-postgres)

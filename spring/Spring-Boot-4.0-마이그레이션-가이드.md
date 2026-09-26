@@ -87,7 +87,7 @@ Spring Boot 4.0의 기반 기술이 전면 업그레이드되었다. 2.7 시절�
 
 ### 1.3 의존성 검토
 
-Spring Boot가 관리하는 의존성 버전이 대폭 변경되었다. [3.5.x 의존성 목록](https://docs.spring.io/spring-boot/3.5/appendix/dependency-versions/coordinates.html)과 [4.0.x 의존성 목록](https://docs.spring.io/spring-boot/4.0-SNAPSHOT/appendix/dependency-versions/coordinates.html)을 비교해서 영향을 파악해야 한다.
+Spring Boot가 관리하는 의존성 버전이 대폭 변경되었다. [3.5.x 의존성 목록](https://docs.spring.io/spring-boot/3.5/appendix/dependency-versions/coordinates.html)과 [4.0.x 의존성 목록](https://docs.spring.io/spring-boot/4.0/appendix/dependency-versions/coordinates.html)을 비교해서 영향을 파악해야 한다.
 
 특히 Spring Boot가 관리하지 않는 의존성(예: Spring Cloud)은 호환 버전을 직접 확인해야 한다.
 
@@ -108,7 +108,7 @@ Spring Boot 4.0은 Servlet 6.1을 기준으로 삼는데, Undertow가 아직 이
 기존에 Unix 계열 OS에서 jar 파일을 직접 실행 가능하게 만드는 임베디드 런치 스크립트 기능이 있었다. `./myapp.jar`처럼 스크립트 없이 바로 실행할 수 있게 해주는 기능이었는데, 몇 가지 한계가 있었다:
 
 - Unix 전용이라 Windows에서 안 됨
-- [효율적 배포 권장사항](https://docs.spring.io/spring-boot/4.0-SNAPSHOT/reference/packaging/efficient.html)과 충돌
+- [효율적 배포 권장사항](https://docs.spring.io/spring-boot/4.0/reference/packaging/efficient.html)과 충돌
 
 이제는 `java -jar`로 실행하거나, Gradle의 [Application Plugin](https://docs.gradle.org/current/userguide/application_plugin.html) 같은 대안을 사용해야 한다.
 
@@ -371,6 +371,8 @@ spring.devtools.livereload.enabled=true
 
 ## 5. Jackson 3 업그레이드 — 두 번째로 큰 변화
 
+> [!note] 자세한 내용은 [Jackson-3.0](../jackson/Jackson-3.0.md) 참고
+
 ### 5.1 왜 Jackson 3이 큰 변화인가?
 
 Jackson은 Java 생태계에서 가장 널리 쓰이는 JSON 라이브러리다. REST API를 만들면 거의 반드시 쓰게 된다. 그런데 Jackson 3은 **group ID와 패키지명이 완전히 바뀌었다.**
@@ -614,7 +616,7 @@ Spring Boot의 `StreamBuilderFactoryBeanCustomizer`가 제거되고, Spring Kafk
 
 **이건 Kafka와 AMQP 모두에 해당하는 중요한 변화다.** Spring Kafka와 Spring AMQP의 retry 기능이 Spring Retry에서 **Spring Framework의 새 retry 기능** 으로 이전되었다.
 
-왜 이런 변화가 생겼을까? Spring Retry는 별도의 프로젝트였는데, retry 같은 기본적인 기능을 Framework 자체에 내장하는 것이 더 자연스럽다는 판단이 있었다. Spring Framework 7에 [`org.springframework.core.retry` 패키지](https://docs.spring.io/spring-framework/docs/7.0.x-SNAPSHOT/javadoc-api/org/springframework/core/retry/package-summary.html)가 추가되었다.
+왜 이런 변화가 생겼을까? Spring Retry는 별도의 프로젝트였는데, retry 같은 기본적인 기능을 Framework 자체에 내장하는 것이 더 자연스럽다는 판단이 있었다. Spring Framework 7에 [`org.springframework.core.retry` 패키지](https://docs.spring.io/spring-framework/docs/7.0.x/javadoc-api/org/springframework/core/retry/package-summary.html)가 추가되었다.
 
 **Kafka retry 프로퍼티 변경:**
 

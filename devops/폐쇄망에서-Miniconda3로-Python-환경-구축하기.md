@@ -2,6 +2,8 @@
 
 인터넷이 없는 폐쇄망 리눅스 서버에서 conda 가상환경을 만들고, wheel 파일로 패키지를 설치하는 방법을 정리한다.
 
+> [!note] 이 노트는 conda편이다. pip편은 [Python-폐쇄망-환경-패키지-관리](../python/Python-폐쇄망-환경-패키지-관리.md) 참고
+
 ## 결론부터 말하면
 
 폐쇄망에서 Miniconda3는 **두 가지 경로** 로 패키지를 관리한다. conda 자체 패키지는 `pkgs/` 디렉토리를 오프라인 채널로 사용하고, pip 패키지는 `.whl` 파일을 직접 설치한다. `conda activate` 상태에서 `pip install`하면 해당 가상환경의 `site-packages/`에 설치되므로, 환경 간 격리가 보장된다.

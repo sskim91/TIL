@@ -109,6 +109,8 @@
   - 개인정보 수집/이용/제공 시 동의 필요
   - 안전조치 의무
   - 위반 시 과태료/형사처벌
+  - **2023 전면 개정** (법률 제19234호, 2023-03-14 공포, 2023-09-15 시행): 과징금 상한이 "위반행위 관련 매출액의 3%"에서 **"전체 매출액의 3% 이하"** 로 바뀌었다. 단, 산정 시 전체 매출액에서 위반행위와 관련 없는 매출액은 제외한다(제64조의2). 과징금 규정이 일원화돼 공공기관·수탁자를 포함한 모든 개인정보처리자에게 적용된다.
+  - **2026 개정** (법률 제21445호, 2026-03-10 공포, 2026-09-11 시행): 원칙은 3% 그대로 두고, ① 과징금 처분 후 3년 내 고의·중과실 재위반 ② 고의·중과실로 피해 정보주체 1천만 명 이상 ③ 시정조치 명령 불이행으로 유출등 발생 중 하나면 **전체 매출액의 10% 이하** 로 가중할 수 있게 했다. 통지 대상 "유출등"에 위조·변조·훼손이 포함되고, 유출 가능성 단계의 통지도 신설됐다.
 
 - **정보통신망법**
   - 온라인 서비스의 개인정보 보호
@@ -126,6 +128,12 @@
 - **CCPA** (California Consumer Privacy Act)
   - 캘리포니아 주민 데이터 보호
   - 개인정보 삭제 요청권
+  - **CPRA로 개정·확장**: 2020-11 주민투표로 통과된 Proposition 24(CPRA)가 CCPA를 대체한 것이 아니라 개정했다. 개정 조항은 2023-01-01부터 시행됐고, 정정권·민감정보 이용 제한권이 추가됐으며, 집행 기관으로 California Privacy Protection Agency(CPPA)가 신설됐다. 현재는 "CCPA(as amended)"로 부른다.
+
+- **EU AI Act** (Regulation (EU) 2024/1689)
+  - 개인정보 법은 아니지만, 생체 인식·채용·신용평가처럼 PII를 다루는 AI 시스템에 위험 기반 의무를 부과한다(GDPR과 함께 적용)
+  - 2024-08-01 발효 → 금지 관행·AI 리터러시 2025-02-02 적용 → 범용 AI(GPAI) 의무 2025-08-02 적용
+  - 고위험 AI 의무는 원래 2026-08-02 예정이었으나 Digital Omnibus 개정(2026-07 관보 게재)으로 Annex III 독립형 고위험 시스템은 **2027-12-02**, Annex I 규제 제품 내장형은 **2028-08-02**로 연기됐다 (2026-09 기준)
 
 - **HIPAA** (Health Insurance Portability and Accountability Act)
   - 미국 의료정보 보호
@@ -195,4 +203,8 @@
 
 - [개인정보 보호법 (한국)](https://www.privacy.go.kr/)
 - [GDPR 공식 사이트](https://gdpr.eu/)
+- [국가법령정보센터 — 개인정보 보호법 제64조의2 (시행 2026-09-11)](https://law.go.kr/LSW//lsLinkCommonInfo.do?lsJoLnkSeq=1020398647&chrClsCd=010202&ancYnChk=)
+- [개인정보보호위원회 — 전면 개정 개인정보 보호법 9월 15일 시행 (2023)](https://m.blog.naver.com/pipcpr/223204172313)
+- [California OAG — CCPA (CPRA 개정 포함)](https://oag.ca.gov/privacy/ccpa), [CPPA — About](https://cppa.ca.gov/about_us/)
+- [European Commission — AI Act](https://digital-strategy.ec.europa.eu/en/policies/regulatory-framework-ai), [EU Council — AI 규칙 간소화 최종 승인 (2026-06-29)](https://www.consilium.europa.eu/en/press/press-releases/2026/06/29/artificial-intelligence-council-gives-final-green-light-to-simplify-and-streamline-rules)
 - [OWASP - PII](https://owasp.org/www-community/vulnerabilities/Information_exposure_through_query_strings_in_url)

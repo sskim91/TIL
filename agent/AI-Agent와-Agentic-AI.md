@@ -86,6 +86,25 @@ agent:
   4. "내일 오후 2시 회의 일정을 추가했습니다."
 ```
 
+### 1.3 구현자 관점의 합의 정의: 도구 루프
+
+Simon Willison은 2025-09 글에서 "에이전트"가 마케팅 용어로 남발되어 왔지만, 기술 구현자들 사이에서는 **"목표를 달성하기 위해 도구를 루프로 실행하는 LLM"** 이라는 정의로 수렴했다고 정리한다. Anthropic·LangChain 등 주요 프레임워크가 같은 패러다임을 쓴다.
+
+```
+Agent = 도구(Tools) + 루프(Loop) + 목표(Goal)
+```
+
+- **도구**: 도구가 없으면 LLM은 텍스트만 생성한다. 도구가 있어야 행동할 수 있다.
+- **루프**: 도구 결과가 다시 LLM에 들어가 다음 행동을 정하는 피드백 루프가 핵심이다. 도구를 한 번 부르고 끝나면 에이전트가 아니다.
+- **목표**: 루프의 종료 조건이다. 사용자가 주거나("이 버그를 고쳐줘"), 상위 에이전트가 하위 에이전트에 위임하거나, 시스템이 정한다.
+- **메모리**: 루프 덕분에 이전 도구 결과가 컨텍스트에 쌓여 단기 메모리가 자연히 생기고, 장기 메모리는 `save_to_memory`/`recall_from_memory` 같은 도구로 구현하면 된다.
+
+이 정의로 보면 도구·루프가 없는 단순 챗봇과 단일 도구 호출은 에이전트가 아니다. 용어가 흐려진 이유로 Willison은 OpenAI가 같은 단어를 모호한 비전(Sam Altman 발언), 브라우저·컴퓨터 자동화 제품(ChatGPT Agent), 도구 루프 SDK(Agents SDK)라는 세 의미로 쓴 점을 꼽는다.
+
+그는 또 에이전트를 **인간 직원의 대체재**로 보는 기대에 반대한다. 핵심은 책임성(accountability)이다. AI는 행동에 책임을 지거나 실수에서 배워 성과 개선의 대상이 될 수 없고, 1979년 IBM 교육 슬라이드의 "컴퓨터는 책임질 수 없으므로 경영 결정을 내려서는 안 된다"는 원칙이 여전히 유효하다는 것이다.
+
+출처: [What is an agent? - Simon Willison](https://simonwillison.net/2025/Sep/18/agents/), [LangChain Agents](https://python.langchain.com/docs/concepts/agents/), [Anthropic Tool use](https://docs.anthropic.com/en/docs/build-with-claude/tool-use)
+
 ## 2. Agent 개념의 역사
 
 ### 2.1 초기: 강화학습 Agent (1990s~2010s)
@@ -1796,6 +1815,9 @@ class SmartCachingAgent:
 
 ### 8.3 미래 전망
 
+> [!note] 2024년 작성 시점의 전망
+> 아래 블록은 2024년에 작성한 예측이다. 2026-09 기준 "2025년 예상" 구간은 이미 지난 시점이므로 실제 전개와 비교하는 참고 자료로만 읽는다.
+
 ```
 2024년 (현재):
 ├─ Function Calling 안정화
@@ -2164,3 +2186,9 @@ for i in range(3):
 - LLM 데이터 전처리의 중요성
 - Python의 @abstractmethod와 추상 클래스
 - Python Typing (타입 힌팅)
+
+## 출처
+
+- <https://simonwillison.net/2025/Sep/18/agents/>
+- <https://python.langchain.com/docs/concepts/agents/>
+- <https://docs.anthropic.com/en/docs/build-with-claude/tool-use>

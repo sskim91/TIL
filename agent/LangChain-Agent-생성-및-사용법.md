@@ -366,7 +366,7 @@ model = init_chat_model("openai:gpt-4o", temperature=0.7)
 model = init_chat_model("anthropic:claude-sonnet-4-5", temperature=0)
 
 # Google
-model = init_chat_model("google-genai:gemini-2.0-flash-exp", temperature=0.5)
+model = init_chat_model("google_genai:gemini-3.6-flash", temperature=0.5)  # provider 접두사는 google_genai. Gemini 2.0 Flash 계열은 2026-06-01 종료
 
 # Ollama (로컬)
 model = init_chat_model("ollama:llama3", temperature=0.8)
@@ -1507,5 +1507,5 @@ public class WeatherResponse {  // = ResponseFormat
 ## 출처
 
 - [LangChain Documentation - Quickstart](https://docs.langchain.com/oss/python/langchain/quickstart)
-- [LangChain API Reference - create_agent](https://python.langchain.com/api_reference/langchain/agents/langchain.agents.create_agent.html)
-- [LangGraph Checkpointer Documentation](https://langchain-ai.github.io/langgraph/reference/checkpoints/)
+- [LangChain API Reference - create_agent](https://reference.langchain.com/python/langchain/agents)
+- [LangGraph Checkpointer Documentation](https://reference.langchain.com/python/langgraph/checkpoints/)

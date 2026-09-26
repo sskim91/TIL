@@ -35,7 +35,7 @@ flowchart TD
 
 ## 1. 왜 다시 디바이스의 키인가
 
-[2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)의 결론은 단순했다. **브라우저는 `client_secret`을 안전하게 보관할 수 없다.** SPA는 본질적으로 Public Client이고, [draft-ietf-oauth-browser-based-apps-26](https://datatracker.ietf.org/doc/draft-ietf-oauth-browser-based-apps/)은 그래서 BFF를 1순위로 권고했다. 토큰의 책임을 백엔드 세션으로 옮기는 일이었다.
+[2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)의 결론은 단순했다. **브라우저는 `client_secret`을 안전하게 보관할 수 없다.** SPA는 본질적으로 Public Client이고, [RFC 10017 (구 draft-ietf-oauth-browser-based-apps, BCP, 2026-08)](https://www.rfc-editor.org/rfc/rfc10017)은 그래서 BFF를 1순위로 권고했다. 토큰의 책임을 백엔드 세션으로 옮기는 일이었다.
 
 그러나 모든 자리에서 BFF가 가능한 것은 아니다. **토큰이 어쩔 수 없이 브라우저로 내려와야 하는 자리** -- 정적 호스팅만 가능한 SPA, BFF를 운영할 인력이 없는 작은 팀, 모바일·데스크톱 앱과 토큰을 공유해야 하는 통합 환경 -- 가 여전히 많다. 그리고 BFF로 토큰을 가린다 해도, **세션 쿠키 자체가 도난되면 다른 디바이스에서 그대로 사용된다는 위협**은 남는다.
 
@@ -417,9 +417,12 @@ SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
 기본 구현은 `HttpSession` 기반으로 challenge를 보관하므로 운영에서는 [Baeldung 가이드](https://www.baeldung.com/spring-security-integrate-passkeys)가 짚는 대로 영속 저장소(`PublicKeyCredentialUserEntityRepository`·`UserCredentialRepository` 구현체) 교체가 필요하다. 의존성은 `spring-security-webauthn` 한 줄.
 
-### 8.2 Spring Authorization Server 1.5.0-M1 — DPoP 발급
+### 8.2 Spring Authorization Server 1.5 — DPoP 발급
 
-[GitHub issue #1813](https://github.com/spring-projects/spring-authorization-server/issues/1813)에서 트래킹된 DPoP 지원은 **Spring Authorization Server 1.5.0-M1** 마일스톤에 들어왔다. 인가 서버 측에서 클라이언트가 보낸 DPoP proof를 검증하고 access token에 `cnf.jkt`를 박는 흐름이 표준 경로 위에서 동작한다.
+[GitHub issue #1813](https://github.com/spring-projects/spring-authorization-server/issues/1813)에서 트래킹된 DPoP 지원은 **Spring Authorization Server 1.5.0-M1** 마일스톤에 들어왔고 1.5.0 GA(2025-05-20)에 포함됐다. 인가 서버 측에서 클라이언트가 보낸 DPoP proof를 검증하고 access token에 `cnf.jkt`를 박는 흐름이 표준 경로 위에서 동작한다.
+
+> [!note] Spring Authorization Server는 Spring Security 7.0으로 이관됐다
+> Spring Authorization Server 1.5.x가 독립 프로젝트의 마지막 세대이고(저장소는 archived), 이후 인가 서버 기능은 Spring Security 7.0(2025-11 GA)부터 Spring Security 안에서 이어진다. 신규 프로젝트라면 Spring Security 7.x의 인가 서버 모듈을 기준으로 본다. ([Spring 블로그, 2025-09-11](https://spring.io/blog/2025/09/11/spring-authorization-server-moving-to-spring-security-7-0))
 
 ### 8.3 Resource Server — DPoP-bound 검증
 
@@ -456,7 +459,7 @@ Spring Security 6.4+는 `oneTimeTokenLogin()` DSL을 함께 도입해 매직 링
 - 그 핸들이 사는 자리 -- IndexedDB -- 가 곧 **DPoP의 키 보관소** 이기도 하다. DPoP는 [RFC 9449](https://datatracker.ietf.org/doc/html/rfc9449)가 정의한 `cnf.jkt`로 토큰을 그 키에 묶고, 매 요청마다 짧은 수명의 proof JWT가 *"이 키를 가진 자가 이 시점에 이 URL을 호출했다"* 를 증명한다. **bearer 모델이 안고 있던 도난 위협을 application 계층에서 닫는다.**
 - DPoP가 닫지 못하는 한 가지 -- 페이지가 열린 동안의 임의 mint -- 는 다음 층에서 닫힌다. **WebAuthn / Passkey** 가 키를 OS·하드웨어 영역으로 끌어내려, mint 자체가 사용자 확인 프롬프트 뒤에 있게 만든다. 그리고 서명 안에 origin과 RP ID가 함께 들어가므로, 사용자가 가짜 사이트에 속아도 *디바이스가* 속지 않는다 -- **이것이 phishing-resistance의 정확한 출처다.**
 - 셋은 **OAuth를 대체하지 않는다.** Passkey는 IdP의 1차 인증을, DPoP는 그 IdP가 발급한 토큰을 키에 묶는 일을 맡는다. 풀스택은 **BFF + Passkey + DPoP** -- [2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)의 BFF 권고 위에 두 표준이 자연스럽게 겹쳐 앉는다.
-- Spring 생태계에서 이 풀스택은 **Spring Security 6.4의 `webAuthn()`** + **Spring Authorization Server 1.5.0-M1의 DPoP** + **resource server의 `cnf.jkt` 검증** 으로 구체화된다. 한 곳에 모든 것이 있고, 추가 인프라 없이 단일 프레임워크 안에서 결합된다.
+- Spring 생태계에서 이 풀스택은 **Spring Security 6.4의 `webAuthn()`** + **Spring Authorization Server 1.5의 DPoP**(Spring Security 7.0부터는 Spring Security에 통합) + **resource server의 `cnf.jkt` 검증** 으로 구체화된다. 한 곳에 모든 것이 있고, 추가 인프라 없이 단일 프레임워크 안에서 결합된다.
 
 [1편](Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때.md)이 *"브라우저 HTTP는 왜 다른가"* 를, [2-1편](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)이 *"토큰을 어디에 둘 것인가"* 를, [2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)이 *"그 토큰이 어떻게 도착하는가"* 를 닫았다면, 이 2-3편이 닫는 것은 그 모든 글의 **공통 전제** 다. **브라우저는 비밀을 못 가진다 -- 그러나 디바이스는 가질 수 있다.** 한 발의 진보가, 토큰의 사용·세션의 도난·사용자 인증이라는 세 자리에 같은 비대칭 키 모델을 동시에 깔아 둔다.
 

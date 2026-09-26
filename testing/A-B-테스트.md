@@ -230,7 +230,7 @@ flowchart LR
 
 | 플랫폼 | 특징 | 주 사용 기업 |
 |--------|------|-------------|
-| **Optimizely** | 엔터프라이즈급, 기능 풍부 | Gap, IBM |
+| **Optimizely** | 엔터프라이즈급, 기능 풍부 | 대기업·엔터프라이즈 (고객 사례는 공식 사이트 참고) |
 | **LaunchDarkly** | 피처 플래그 + A/B 테스트 | Atlassian, Honeycomb |
 | **Google Optimize** | 무료, GA 연동 (2023.09.30 종료 — Google 공식 후속 제품 없음, VWO·AB Tasty·Optimizely 등 서드파티로 마이그레이션 권고) | 중소기업 |
 | **Amplitude Experiment** | 분석 도구와 통합 | 스타트업 |

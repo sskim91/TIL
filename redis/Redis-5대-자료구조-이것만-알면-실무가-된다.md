@@ -198,6 +198,8 @@ SDIFF interests:alice interests:bob
 
 ## 4. Hash — String보다 메모리 효율적인 객체 저장
 
+> [!note] 자세한 내용은 [Redis-String-vs-Hash-언제-무엇을-써야-하는가](../database/Redis-String-vs-Hash-언제-무엇을-써야-하는가.md) 참고
+
 ### 4.1 왜 Hash가 String보다 효율적일 수 있는가?
 
 사용자 프로필을 Redis에 저장한다고 하자. String을 쓰는 방법은 두 가지다.
