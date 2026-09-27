@@ -215,7 +215,7 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
         from vaultkit import tilsync
         from vaultkit.apply import backup_root, new_backup_dir
         from vaultkit.policy import load_policy
-        from vaultkit.register import register_note
+        from vaultkit.register import register_note, update_counts
     except Exception as exc:  # ImportError 외 import 중 오류도 hook을 깨뜨리지 않는다
         print("⚠️ vaultkit 없음 — 동기화 건너뜀")
         print(f"  {type(exc).__name__}: {exc}")
@@ -257,6 +257,7 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
     unclassified: list[str] = []
     failures: list[tuple[str, str]] = []
     register_skipped: list[str] = []
+    registered_any = False
 
     for stem in sorted(targets):
         paths = til_index.get(stem, [])
@@ -312,6 +313,15 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
                 else:
                     if reg.status == "unclassified":
                         unclassified.append(stem)
+                    elif reg.status == "added":
+                        registered_any = True
+
+    if registered_any:
+        # MOC 도입문·00-Wiki-MOC의 "노트 N개" 표기를 새 항목 수에 맞춘다
+        try:
+            update_counts(policy, dry_run=False)
+        except Exception as exc:
+            failures.append(("MOC 개수", f"갱신 실패: {exc}"))
 
     til_deleted: list[str] = []
     if mode == "full":
