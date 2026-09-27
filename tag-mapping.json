@@ -309,6 +309,9 @@
   "Kubernetes-Ingress": [
     "kubernetes/ingress"
   ],
+  "왜-Kubernetes-Gateway-API는-Ingress를-역할별로-쪼갰을까": [
+    "kubernetes/ingress"
+  ],
   "Kubernetes-Introduction": [
     "kubernetes/intro"
   ],
