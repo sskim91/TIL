@@ -654,5 +654,8 @@
   ],
   "왜-사내-시스템들은-로그인을-LDAP에-물어볼까": [
     "security/ldap"
+  ],
+  "Kubernetes-Secret은-누가-갱신할까-ESO-External-Secrets-Operator": [
+    "kubernetes/config"
   ]
 }
