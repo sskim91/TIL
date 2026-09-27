@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **217개**
+- 총 TIL 개수: **218개**
 
 - 카테고리 수: **31개**
 
@@ -288,6 +288,8 @@
 - [Kubernetes Probe: Liveness, Readiness, Startup](kubernetes/Kubernetes-Probe-Liveness-Readiness-Startup.md)
 
 - [Kubernetes ReplicaSet & Deployment](kubernetes/Kubernetes-ReplicaSet-Deployment.md)
+
+- [Kubernetes Secret은 누가 갱신할까? ESO External Secrets Operator](kubernetes/Kubernetes-Secret은-누가-갱신할까-ESO-External-Secrets-Operator.md)
 
 - [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](kubernetes/Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
 
