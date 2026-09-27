@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **216개**
+- 총 TIL 개수: **217개**
 
 - 카테고리 수: **31개**
 
@@ -306,6 +306,8 @@
 - [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
 
 - [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](kubernetes/내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)
+
+- [왜 Kubernetes Gateway API는 Ingress를 역할별로 쪼갰을까](kubernetes/왜-Kubernetes-Gateway-API는-Ingress를-역할별로-쪼갰을까.md)
 
 - [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](kubernetes/쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)
 
