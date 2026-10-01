@@ -657,5 +657,8 @@
   ],
   "Kubernetes-Secret은-누가-갱신할까-ESO-External-Secrets-Operator": [
     "kubernetes/config"
+  ],
+  "Apache-Iceberg는-왜-디렉토리-대신-파일을-추적할까": [
+    "database/iceberg"
   ]
 }
