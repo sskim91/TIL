@@ -666,5 +666,8 @@
   ],
   "Kerberos는-어떻게-비밀번호를-보내지-않고-로그인시킬까": [
     "security/kerberos"
+  ],
+  "Exchange-Online-EWS는-왜-2027년-4월에-완전히-꺼질까": [
+    "backend/ews"
   ]
 }
