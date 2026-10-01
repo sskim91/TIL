@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **219개**
+- 총 TIL 개수: **222개**
 
 - 카테고리 수: **31개**
 
@@ -92,6 +92,8 @@
 ### backend
 
 - [BaaS (Backend as a Service)](backend/BaaS-Backend-as-a-Service.md)
+
+- [Exchange Online EWS는 왜 2027년 4월에 완전히 꺼질까](backend/Exchange-Online-EWS는-왜-2027년-4월에-완전히-꺼질까.md)
 
 - [FastAPI에는 왜 세션이 없을까](backend/FastAPI에는-왜-세션이-없을까.md)
 
@@ -505,7 +507,11 @@
 
 ### security
 
+- [Kerberos는 어떻게 비밀번호를 보내지 않고 로그인시킬까](security/Kerberos는-어떻게-비밀번호를-보내지-않고-로그인시킬까.md)
+
 - [MITM (Man-In-The-Middle) 중간자 공격](security/MITM-Man-In-The-Middle-중간자-공격.md)
+
+- [NTLM은 왜 30년 만에 퇴출될까](security/NTLM은-왜-30년-만에-퇴출될까.md)
 
 - [PII (Personally Identifiable Information)](security/PII-Personally-Identifiable-Information.md)
 
