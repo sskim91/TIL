@@ -126,7 +126,7 @@ sequenceDiagram
 LDAP의 인증 방식은 크게 두 갈래다.
 
 - **Simple authentication**: DN과 비밀번호를 그대로 보내 검증한다. 단순하지만, 기본(plain) LDAP에서는 이 **자격증명이 평문(clear text)으로 전송**된다.
-- **SASL** (Simple Authentication and Security Layer): 인증 메커니즘을 갈아 끼울 수 있는 **프레임워크**다. 그 자체가 하나의 인증 방식이 아니라, Kerberos/GSSAPI 같은 메커니즘을 끼워 넣는 틀이다. 이런 메커니즘들은 챌린지-응답 방식으로 비밀번호를 직접 전송하지 않을 수 있어 더 안전하다.
+- **SASL** (Simple Authentication and Security Layer): 인증 메커니즘을 갈아 끼울 수 있는 **프레임워크**다. 그 자체가 하나의 인증 방식이 아니라, Kerberos/GSSAPI 같은 메커니즘을 끼워 넣는 틀이다. 이런 메커니즘들은 챌린지-응답 방식으로 비밀번호를 직접 전송하지 않을 수 있어 더 안전하다. (Kerberos의 동작 원리는 [Kerberos는 어떻게 비밀번호를 보내지 않고 로그인시킬까](./Kerberos는-어떻게-비밀번호를-보내지-않고-로그인시킬까.md) 참고)
 
 여기서 "보안" 키워드와 LDAP이 엮이는 또 하나의 결정적 이유가 나온다. **평문 LDAP은 네트워크에서 비밀번호가 그대로 노출될 수 있다.** 그래서 실무에서는 반드시 암호화를 얹는다.
 

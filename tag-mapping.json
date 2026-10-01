@@ -660,5 +660,11 @@
   ],
   "Apache-Iceberg는-왜-디렉토리-대신-파일을-추적할까": [
     "database/iceberg"
+  ],
+  "NTLM은-왜-30년-만에-퇴출될까": [
+    "security/ntlm"
+  ],
+  "Kerberos는-어떻게-비밀번호를-보내지-않고-로그인시킬까": [
+    "security/kerberos"
   ]
 }
