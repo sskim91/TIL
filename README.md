@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **218개**
+- 총 TIL 개수: **219개**
 
 - 카테고리 수: **31개**
 
@@ -128,6 +128,8 @@
 
 
 ### database
+
+- [Apache Iceberg는 왜 디렉토리 대신 파일을 추적할까?](database/Apache-Iceberg는-왜-디렉토리-대신-파일을-추적할까.md)
 
 - [BigQuery는 왜 인덱스 없이 페타바이트를 스캔할까](database/BigQuery는-왜-인덱스-없이-페타바이트를-스캔할까.md)
 
