@@ -66,7 +66,7 @@ flowchart LR
 
 ### 1.1 CI/CD 파이프라인의 한계
 
-2017년 이전, 대부분의 조직은 Jenkins나 GitHub Actions 같은 CI/CD 파이프라인으로 배포했다. 흐름은 이랬다.
+2017년 이전, 대부분의 조직은 Jenkins 같은 CI/CD 파이프라인으로 배포했다. 흐름은 이랬다.
 
 1. 개발자가 코드 Push
 2. CI가 빌드 & 테스트
@@ -184,8 +184,8 @@ timeline
     2019 : Flux CNCF Sandbox 프로젝트 합류 (7월)
     2020 : Argo CNCF Incubating 프로젝트 승인 (3월 26일)
     2021 : Flux CNCF Incubating 프로젝트 승인 (3월 12일)
-    2022 : OpenGitOps 1.0 공식 원칙 발표 (6월)
-         : Flux CNCF Graduated 프로젝트 승인 (11월 30일)
+         : OpenGitOps 1.0 공식 원칙 발표 (11월)
+    2022 : Flux CNCF Graduated 프로젝트 승인 (11월 30일)
          : Argo CNCF Graduated 프로젝트 승인 (12월 6일)
     2024 : Weaveworks 폐업 (2월), Flux는 CNCF 커뮤니티가 계속 유지
     2025 : Argo CD 3.0 공개 — 리소스 추적 방식 등 기본값 변경
@@ -210,7 +210,7 @@ kubectl set image deployment/api api=myapp:v2.0
 ```
 
 ```yaml
-# 선언형 (Declarative) — GitOps
+# 선언형 (Declarative) — GitOps가 Git에 저장하는 원하는 상태
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -224,11 +224,11 @@ spec:
         image: myapp:v2.0
 ```
 
-차이는 문법이 아니라 **재실행 가능성** 이다. 명령형 스크립트를 두 번 실행하면 어떻게 될지 예측하기 어렵다. 선언형 매니페스트는 몇 번 적용해도 같은 결과다. 이 성질을 **멱등성(idempotency)** 이라고 하고, 4절에서 볼 제어 루프가 성립하는 전제 조건이다.
+차이는 문법이 아니라 **무엇을 저장하느냐** 다. 명령형은 "지금 상태에서 무엇을 할지"라는 동작을 저장하므로, 결과가 실행 시점의 상태에 따라 달라질 수 있다. 위의 `kubectl scale`처럼 여러 번 실행해도 결과가 같은 명령도 있지만, `kubectl create`는 리소스가 이미 있으면 두 번째 실행에서 실패한다. 명령마다 이 성질을 따로 따져야 한다는 뜻이다. 선언형 매니페스트는 최종 상태 자체를 저장하므로 몇 번 적용해도 같은 결과다. 이 성질을 **멱등성(idempotency)** 이라고 하고, 4절에서 볼 제어 루프가 성립하는 전제 조건이다.
 
 Java 개발자에게 익숙한 비유가 두 개 있다. 첫째, Spring의 Bean 설정이다. `new UserService(new UserRepository(dataSource))`라고 조립 순서를 쓰는 대신 `@Bean`으로 "이런 객체가 있어야 한다"를 선언하고, 조립은 컨테이너가 한다. 둘째, SQL이다. `SELECT ... WHERE`는 원하는 결과 집합을 기술하고, 인덱스를 탈지 풀 스캔을 할지는 옵티마이저가 결정한다.
 
-주의할 점: **선언적이라는 것이 YAML을 뜻하지는 않는다.** OpenGitOps 문서는 CUE, Pulumi, HCL, ytt 등으로 표현해도 원하는 상태를 선언적으로 저장할 수 있으면 원칙을 만족한다고 본다. 반대로 `kubectl apply`를 순서대로 호출하는 Bash 스크립트는 파일이 YAML이어도 선언적이지 않다.
+주의할 점: **선언적이라는 것이 YAML을 뜻하지는 않는다.** OpenGitOps 문서는 CUE, Pulumi, HCL, ytt 등으로 표현해도 원하는 상태를 선언적으로 저장할 수 있으면 원칙을 만족한다고 본다. 반대로 매니페스트가 선언적이어도, 그것을 `kubectl apply`로 한 번 적용하고 끝나는 Bash 스크립트나 CI 파이프라인은 GitOps가 아니다. 원칙 1(선언적 설정)은 갖췄지만, 4절에서 볼 지속적 reconciliation(원칙 3·4)이 없기 때문이다.
 
 ### 3.2 Versioned and Immutable (버전 관리 & 불변)
 
@@ -253,7 +253,7 @@ h7i8j9k refactor: 환경별 설정을 overlay로 분리
 image: myorg/payment-api:latest
 ```
 
-이 한 줄은 불변인가? 텍스트는 불변이다. 하지만 `latest`가 가리키는 다이제스트는 언제든 바뀐다. 원칙을 실제로 만족하려면 커밋 SHA 태그(`payment-api:a1b2c3d`)나 다이제스트(`payment-api@sha256:...`)처럼 **가리키는 대상까지 불변인 참조** 를 써야 한다. 이 문제가 어떻게 파이프라인을 조용히 멈추는지는 [ArgoCD 노트 7.1절](ArgoCD가-Synced라고-하는데-왜-서비스는-죽어-있을까.md)에서 구체적으로 다룬다.
+이 한 줄은 불변인가? 텍스트는 불변이다. 하지만 `latest`가 가리키는 다이제스트는 언제든 바뀐다. 원칙을 실제로 만족하려면 **가리키는 대상까지 불변인 참조** 를 써야 한다. 가장 확실한 것은 다이제스트(`payment-api@sha256:...`)다. 커밋 SHA 태그(`payment-api:a1b2c3d`)도 널리 쓰지만, 이름이 커밋 SHA일 뿐 태그 자체는 기본적으로 다른 이미지로 덮어쓸 수 있다. 레지스트리에서 태그 덮어쓰기를 금지(immutable tags)해야 다이제스트와 같은 보장을 얻는다. 이 문제가 어떻게 파이프라인을 조용히 멈추는지는 [ArgoCD 노트 7.1절](ArgoCD가-Synced라고-하는데-왜-서비스는-죽어-있을까.md)에서 구체적으로 다룬다.
 
 ### 3.3 Pulled Automatically (자동 Pull)
 
@@ -435,12 +435,14 @@ sequenceDiagram
     rect rgba(46, 125, 50, 0.3)
     Note over Git,HPA: 해법 — 소유권을 하나로 정리한다
     Note over Git: Git에서 replicas 필드를 제거한다
-    Note over Argo: 또는 그 필드만 비교에서 제외한다
+    Note over Argo: 또는 그 필드를 비교와 sync 양쪽에서 제외한다
     HPA->>K8s: replicas를 단독으로 관리
     end
 ```
 
 여기서 배울 일반 규칙은 이것이다. **하나의 필드에는 하나의 소유자만 있어야 한다.** 어떤 필드를 다른 컨트롤러에게 맡기기로 했다면, 그 필드는 Git에서 빼거나 비교 대상에서 제외해야 한다. 그렇지 않으면 GitOps는 그 컨트롤러와 싸운다.
+
+단, "비교에서 제외"는 생각보다 범위가 좁다. Argo CD의 `ignoreDifferences`는 기본적으로 **diff 계산에서만** 그 필드를 뺀다. 그래서 화면은 Synced로 보여도, 다른 변경 때문에 sync가 일어나면 Git의 `replicas: 3`이 다시 적용된다. sync에서도 그 필드를 건너뛰게 하려면 `RespectIgnoreDifferences=true` sync 옵션을 함께 켜야 하고, 이 옵션은 이미 클러스터에 존재하는 리소스에만 적용된다(최초 생성 때는 Git 매니페스트가 그대로 들어간다). 그래서 가능하면 Git에서 필드를 아예 빼는 쪽이 가장 확실하다.
 
 그리고 이 규칙을 모른 채 자가 치유를 먼저 켜면 정확히 이 사고가 난다. 그래서 도입 순서가 중요하다(12절).
 
@@ -523,7 +525,7 @@ GitOps 도입에서 가장 흔한 실수는 "drift는 나쁜 것이니 자동으
 | 종류 | 누가 만드는가 | 예시 | 올바른 대응 |
 |------|---------------|------|-------------|
 | **사고성 drift** | 사람이 클러스터를 직접 고침 | 긴급 `kubectl scale`, 클라우드 콘솔 편집, 검증용 label 추가 후 방치 | 되돌린다. 그리고 애초에 못 하게 만든다 |
-| **의도적 drift** | 다른 컨트롤러가 그 필드를 정당하게 소유 | HPA가 `replicas`, cert-manager가 `tls.crt`, kube-controller-manager가 CA bundle | 되돌리면 안 된다. Git에서 빼거나 비교에서 제외 |
+| **의도적 drift** | 다른 컨트롤러가 그 필드를 정당하게 소유 | HPA가 `replicas`, cert-manager가 `tls.crt`, kube-controller-manager가 CA bundle | 되돌리면 안 된다. Git에서 빼거나, 비교와 sync 양쪽에서 제외(4.3절) |
 | **시스템 유래 drift** | 클러스터가 저장 과정에서 값을 변형 | admission webhook의 사이드카 주입, 기본값 채워짐, `cpu: 100m`이 `0.1`로 정규화 | 되돌릴 수 없다. 비교 규칙을 조정 |
 
 ```mermaid
@@ -535,7 +537,7 @@ flowchart TB
     Q -->|"클러스터 자신"| C["시스템 유래 drift"]
 
     A --> A2["자가 치유로 되돌린다<br>+ 직접 write 권한 회수<br>+ break-glass 절차"]
-    B --> B2["Git에서 그 필드를 제거<br>또는 비교에서 제외"]
+    B --> B2["Git에서 그 필드를 제거<br>또는 비교·sync에서 제외"]
     C --> C2["비교 규칙 조정<br>managedFields 활용"]
 
     style A fill:#C62828,color:#fff
@@ -591,7 +593,7 @@ flowchart TB
 
 **둘째, cherry-pick 운영으로 흐른다.** 위 충돌을 피하려고 팀은 전체 머지 대신 필요한 커밋만 골라 옮기기 시작한다. 그러면 어느 변경이 어느 환경에 반영됐는지 추적이 불가능해진다. "이 버그 수정이 staging에 들어갔나?"에 답하려면 커밋 로그를 뒤져야 한다.
 
-**셋째, 환경 간 diff를 볼 수 없다.** "dev와 prod의 설정 차이가 뭐야?"는 운영에서 가장 자주 나오는 질문이다. 브랜치 방식에서 `git diff dev prod`를 하면 설정 차이에 **커밋 히스토리 차이가 섞여** 나온다. 아직 승격 안 된 기능 3개와 환경 전용 값 5개가 뒤엉킨 diff를 사람이 읽어야 한다.
+**셋째, 환경 간 차이를 읽기 어렵다.** "dev와 prod의 설정 차이가 뭐야?"는 운영에서 가장 자주 나오는 질문이다. 브랜치 방식에서도 `git diff dev prod`로 두 브랜치의 파일 내용은 비교할 수 있다. 문제는 그 diff에 **환경 고유 설정과 아직 승격되지 않은 변경이 구분 없이 섞여** 나온다는 점이다. 아직 승격 안 된 기능 3개와 환경 전용 값 5개가 뒤엉킨 diff를 보고, 어느 줄이 어느 쪽인지 사람이 가려내야 한다.
 
 **넷째, 배포 프로세스가 Git 브랜치 전략에 결합된다.** 환경을 하나 추가하려면 브랜치를 만들어야 하고, 브랜치 전략을 바꾸려면 배포 구조를 건드려야 한다.
 
@@ -640,8 +642,10 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - service.yaml
-commonLabels:
-  app.kubernetes.io/name: payment-api
+labels:
+  - pairs:
+      app.kubernetes.io/name: payment-api
+    includeSelectors: true   # selector에도 붙인다 (Deprecated된 commonLabels와 같은 동작)
 ```
 
 환경별 차이는 overlay가 전부 표현한다. 프로덕션은 이렇다.
@@ -793,7 +797,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 불변 태그로 빌드 (커밋 SHA)
+      - name: 커밋 SHA 태그로 빌드 (레지스트리 태그 덮어쓰기 금지 전제)
         run: |
           TAG="${GITHUB_SHA::7}"
           IMAGE="ghcr.io/myorg/payment-api:${TAG}"
@@ -904,7 +908,7 @@ flowchart LR
 | 방식 | 렌더링 주체 | 성격 | 현재 상태 |
 |------|-------------|------|-----------|
 | **CI 렌더링** | CI 파이프라인 | 가장 단순. 익숙한 도구만 쓴다. CI에서 "재렌더링해도 diff 없음"을 검증해 정합성을 강제한다 | 지금 바로 가능 |
-| **ArgoCD sourceHydrator** | ArgoCD 자신 | 선언적. `drySource` / `syncSource` / `hydrateTo`로 표현. `hydrateTo`로 스테이징 브랜치를 거치게 하면 렌더링 결과를 PR로 리뷰할 수 있다 | 현재 stable(v3.4)에서 Alpha, v3.5.0에서 Beta |
+| **ArgoCD sourceHydrator** | ArgoCD 자신 | 선언적. `drySource` / `syncSource` / `hydrateTo`로 표현. `hydrateTo`로 스테이징 브랜치를 거치게 하면 렌더링 결과를 PR로 리뷰할 수 있다 | v3.4까지 Alpha, v3.5.0부터 Beta |
 | **Kargo** | 전용 승격 도구 | 렌더링과 **단계별 승격 게이트** 를 하나의 워크플로로 묶는다. 환경이 여러 단계일 때 강하다 | 별도 프로젝트 |
 | **OCI 아티팩트** | CI가 렌더 후 레지스트리에 push | 배포 단위를 컨테이너처럼 서명된 불변 아티팩트로 만든다. Git clone 대신 아티팩트 하나를 당기므로 sync가 빠르다 | Flux `OCIRepository` 등 |
 
@@ -1161,7 +1165,7 @@ GitOps가 왜 쿠버네티스에서 먼저 꽃폈는지를 4.1절에서 이미 �
 
 여기서 일반 원리를 뽑을 수 있다. **GitOps를 어떤 시스템에 적용하려면 그 시스템에 세 가지가 있어야 한다** — 상태를 선언적으로 표현할 방법, 현재 상태를 조회할 방법, 차이를 멱등하게 적용할 방법. 명령형 API만 제공하는 시스템(순차 실행 스크립트로만 조작되는 레거시 장비)에서는 GitOps 에이전트가 이 세 가지를 처음부터 만들어야 하고, 그것이 어렵기 때문에 GitOps가 잘 퍼지지 않는다.
 
-그리고 3.5절에서 예고한 반대 방향의 확장도 있다. 상태 저장소를 Git이 아니라 OCI 레지스트리로 두는 구성이다. CI가 렌더링 결과를 아티팩트로 서명해 push하고, Flux의 `OCIRepository`가 그것을 당겨온다. Git 히스토리와 협업은 그대로 쓰면서 **런타임 상태 저장소만 레지스트리로 옮기는 것** 이라서 **"Gitless GitOps"** 라고 불린다. 이름은 도발적이지만 원칙 위반이 아니다 — 원칙 2가 요구한 것은 불변성과 버전 관리였고, 서명된 OCI 아티팩트는 그것을 Git보다 더 강하게 만족한다.
+그리고 3.5절에서 예고한 반대 방향의 확장도 있다. 상태 저장소를 Git이 아니라 OCI 레지스트리로 두는 구성이다. CI가 렌더링 결과를 아티팩트로 서명해 push하고, Flux의 `OCIRepository`가 그것을 당겨온다. Git 히스토리와 협업은 그대로 쓰면서 **런타임 상태 저장소만 레지스트리로 옮기는 것** 이라서 **"Gitless GitOps"** 라고 불린다. 이름은 도발적이지만 원칙 위반은 아니다 — 원칙 2가 요구한 것은 불변성과 버전 관리, 그리고 이력 보존이다. 아티팩트를 digest로 참조하고 레지스트리에서 과거 버전의 삭제·덮어쓰기를 막는 보존 정책을 갖추면 이 요구를 만족하고, 서명은 여기에 "누가 만든 아티팩트인가"에 대한 검증을 더한다. 다만 서명만으로 이력이 보존되지는 않는다. OCI 배포 사양은 태그와 manifest 삭제를 레지스트리의 선택 사항으로 허용하므로, 보존은 레지스트리 정책이 책임진다.
 
 ---
 
@@ -1203,8 +1207,8 @@ flowchart LR
 
 | 안티패턴 | 왜 문제인가 | 대신 |
 |----------|-------------|------|
-| 환경을 브랜치로 나눔 | 구조적 병합 충돌, 환경 간 diff 불가, cherry-pick 운영으로 붕괴 | 디렉터리 + overlay (7.2절) |
-| `:latest`나 브랜치 참조 | 원칙 2 위반. Git 텍스트가 안 바뀌므로 **수렴할 대상이 없다** — 파이프라인이 조용히 정지 | 커밋 SHA 태그 또는 다이제스트 (3.2절) |
+| 환경을 브랜치로 나눔 | 구조적 병합 충돌, 환경 간 diff 해석 곤란, cherry-pick 운영으로 붕괴 | 디렉터리 + overlay (7.2절) |
+| `:latest`나 `:main`처럼 덮어쓸 수 있는 이미지 태그 | 원칙 2 위반. Git 텍스트가 안 바뀌므로 **수렴할 대상이 없다** — 파이프라인이 조용히 정지 | 커밋 SHA 태그 또는 다이제스트 (3.2절) |
 | 평문 Secret 커밋 | 히스토리·포크·로컬 clone에 영구 잔존 | ESO / Sealed Secrets (9.1절) |
 | 자가 치유를 가장 먼저 켬 | 의도적 drift와 싸운다. 컨트롤러 진동과 영구 OutOfSync | 비교 예외 정리 후 (6절, 12절) |
 | GitOps 도입 후에도 kubectl write 허용 | Git 히스토리가 "변경의 일부 기록"이 된다 | 컨트롤러만 write + break-glass (6.1절, 9.4절) |
@@ -1220,7 +1224,7 @@ GitOps는 단순한 배포 자동화가 아니다. **"Git이 시스템의 진실
 
 1. **핵심은 Git이 아니라 reconciliation이다.** OpenGitOps 네 원칙 어디에도 "Git"이 없다. 전통적 CD와 GitOps를 갈라놓는 것은 네 번째 원칙 — level-triggered 제어 루프다. `while (true) { desired vs actual }`이 모델의 전부이고, 여기서 이벤트 유실 내성·멱등성·순서 무관성이 따라 나온다. 대신 반영 시점의 불확정성과 "중간 과정을 표현할 수 없음"이라는 대가를 낸다.
 
-2. **환경은 브랜치가 아니라 디렉터리로 나눈다.** 브랜치 방식은 영구 환경 차이를 머지 충돌로 만들고, 환경 간 diff를 읽을 수 없게 한다. 디렉터리 + Kustomize overlay라면 `diff <(kustomize build dev) <(kustomize build prod)` 한 줄로 환경 차이를 볼 수 있고, 승격은 태그 한 줄 커밋이 된다.
+2. **환경은 브랜치가 아니라 디렉터리로 나눈다.** 브랜치 방식은 영구 환경 차이를 머지 충돌로 만들고, 환경 간 diff를 읽기 어렵게 만든다. 디렉터리 + Kustomize overlay라면 `diff <(kustomize build dev) <(kustomize build prod)` 한 줄로 환경 차이를 볼 수 있고, 승격은 태그 한 줄 커밋이 된다.
 
 3. **drift는 세 종류이고 대응이 정반대다.** 사람이 만든 사고성 drift는 되돌려야 하지만, HPA 같은 다른 컨트롤러가 소유한 의도적 drift와 admission webhook이 만드는 시스템 유래 drift는 되돌리면 안 된다. 비교 예외를 정리하기 전에 자가 치유를 켜는 것이 GitOps 도입 실패의 가장 흔한 경로다.
 
@@ -1238,7 +1242,7 @@ GitOps는 단순한 배포 자동화가 아니다. **"Git이 시스템의 진실
 - [Weaveworks Blog — Operations by Pull Request (2017)](https://www.weave.works/blog/gitops-operations-by-pull-request) — GitOps 용어 최초 등장
 - [CNCF GitOps Working Group](https://github.com/cncf/tag-app-delivery/tree/main/gitops-wg) — 원칙 제정 과정과 용어집
 - [ArgoCD Documentation](https://argo-cd.readthedocs.io/en/stable/) — Application, syncPolicy, 아키텍처
-- [Argo CD — Source Hydrator](https://argo-cd.readthedocs.io/en/stable/user-guide/source-hydrator/) — `drySource` · `syncSource` · `hydrateTo`, 현재 Alpha
+- [Argo CD — Source Hydrator](https://argo-cd.readthedocs.io/en/stable/user-guide/source-hydrator/) — `drySource` · `syncSource` · `hydrateTo`, v3.5.0부터 Beta
 - [Flux CD Documentation](https://fluxcd.io/) · [Flux from End-to-End](https://fluxcd.io/flux/flux-e2e/) — GitOps Toolkit 컨트롤러 구성과 각 역할
 - [Flux controller releases](https://fluxcd.io/flux/releases/controllers/) — 컨트롤러별 저장소와 의존 관계
 - [Argo Rollouts Documentation](https://argo-rollouts.readthedocs.io/) — Progressive Delivery 층
