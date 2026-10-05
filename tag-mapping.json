@@ -330,6 +330,14 @@
   "Kubernetes-Service-ClusterIP-NodePort-LoadBalancer": [
     "kubernetes/service"
   ],
+  "쿠버네티스-Service에는-왜-프로세스가-없을까": [
+    "kubernetes/service",
+    "kubernetes/networking"
+  ],
+  "같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유": [
+    "kubernetes/service",
+    "kubernetes/networking"
+  ],
   "Kubernetes-StatefulSet": [
     "kubernetes/statefulset"
   ],

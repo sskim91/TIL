@@ -6,6 +6,8 @@ Pod의 IP로 직접 접근하면 안 되는 이유가 뭘까?
 
 **Service**는 Pod 집합에 대한 **안정적인 네트워크 엔드포인트**를 제공한다. Pod는 죽었다 살아나면 IP가 바뀌지만, Service의 IP는 변하지 않는다.
 
+단, Service 자체는 트래픽을 중계하는 서버가 아니다. 내부에서 실제로 어떻게 동작하는지는 [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)에서 다룬다.
+
 ```mermaid
 flowchart LR
     subgraph "문제: Pod IP는 불안정"
@@ -40,7 +42,7 @@ Pod를 직접 IP로 호출하면 어떤 문제가 생길까?
 
 **문제 1: Pod IP는 휘발성이다**
 
-Pod가 재시작되면 IP가 바뀐다. Deployment가 롤링 업데이트를 하면? 새 Pod는 새 IP를 받는다.
+Pod가 삭제되고 새 Pod로 교체되면 IP가 바뀐다(같은 Pod 안에서 컨테이너만 재시작되는 경우는 IP가 유지된다). Deployment가 롤링 업데이트를 하면? 새 Pod는 새 IP를 받는다.
 
 ```
 # 처음 배포
@@ -87,7 +89,7 @@ flowchart LR
     style SVC stroke:#2196F3,stroke-width:3px
 ```
 
-> **분산 알고리즘 주의:** Service의 트래픽 분산 방식은 kube-proxy 모드에 따라 다르다. **iptables 모드(기본)**는 백엔드를 **무작위(random)**로 선택하고, **IPVS 모드**는 스케줄러 설정에 따라 `rr`(round-robin), `lc`(least connection) 등 다양한 알고리즘을 지원한다. "라운드 로빈"은 일반화된 표현일 뿐 기본 동작이 아니다.
+> **분산 알고리즘 주의:** Service의 트래픽 분산 방식은 kube-proxy 모드에 따라 다르다. **iptables 모드(기본)** 와 nftables 모드는 백엔드를 **무작위(random)** 로 선택하고, **IPVS 모드** (v1.35부터 deprecated)는 스케줄러 설정에 따라 `rr`(round-robin), `lc`(least connection) 등 다양한 알고리즘을 지원한다. "라운드 로빈"은 일반화된 표현일 뿐 기본 동작이 아니다.
 
 클라이언트는 `my-svc`라는 이름만 알면 된다. Pod가 몇 개인지, IP가 뭔지 몰라도 된다.
 
@@ -211,10 +213,10 @@ my-svc-abc12     IPv4          8080    10.1.1.5,10.1.1.6,10.1.1.7   5m
 
 | 비교 | Endpoints | EndpointSlice |
 |------|-----------|---------------|
-| **확장성** | 단일 객체에 모두 포함 (권장 상한 ~1,000개, etcd 객체 크기/kube-proxy 성능 한계) | 슬라이스당 기본 100개(최대 1,000개 설정 가능), 여러 슬라이스로 자동 분할 |
+| **확장성** | 단일 객체에 모두 포함 (1,000개 초과 시 목록이 잘리고 `endpoints.kubernetes.io/over-capacity: truncated` 어노테이션이 붙음) | 슬라이스당 기본 100개(최대 1,000개 설정 가능), 여러 슬라이스로 자동 분할되어 1,000개 제한이 없음 |
 | **업데이트 범위** | 전체 목록 전송 | 변경된 슬라이스만 전송 |
-| **토폴로지 정보** | 없음 | Zone, Node 정보 포함 |
-| **Dual-stack** | 별도 관리 | IPv4/IPv6 자동 분리 |
+| **토폴로지 정보** | Node 정보(`nodeName`)만 있고 Zone 필드는 없음 | Zone, Node 정보 포함 |
+| **Dual-stack** | 미지원 (클러스터의 기본 IP family 주소만 표시) | IPv4/IPv6를 별도 슬라이스로 자동 분리 |
 
 **EndpointSlice의 Endpoint 상태**
 
@@ -222,21 +224,21 @@ EndpointSlice는 각 Endpoint의 상태를 세 가지로 추적한다:
 
 | 상태 | 의미 | 트래픽 수신 |
 |------|------|------------|
-| **Ready** | 정상 동작 중 | ✅ |
-| **Serving** | 응답 가능 (Terminating 포함) | ✅ |
-| **Terminating** | 종료 중 | ⚠️ 조건부 |
+| **Ready** | 정상 동작 중 (serving이면서 terminating이 아님) | ✅ |
+| **Serving** | 응답 가능 (Pod의 Ready 조건과 대응, Terminating 중에도 true일 수 있음) | ⚠️ 조건부 (terminating이 아닐 때) |
+| **Terminating** | 종료 중 | ⚠️ 기본적으로 제외. 단, 사용 가능한 endpoint가 모두 종료 중이면 serving인 것으로 보낼 수 있음 |
 
-Rolling Update 중 Terminating 상태의 Pod도 남은 요청을 처리할 수 있어 graceful shutdown에 유용하다.
+이 마지막 규칙 덕분에 Rolling Update 중 모든 Pod가 종료 단계에 들어가도 트래픽이 끊기지 않아 graceful shutdown에 유용하다.
 
-**중요:** Readiness Probe가 실패한 Pod는 Endpoints/EndpointSlice에서 **제외**된다!
+**중요:** Readiness Probe가 실패한 Pod는 트래픽 대상에서 **제외** 된다. 단, 객체에서 지워지는 것은 아니다. EndpointSlice에는 `conditions.ready: false`로, 레거시 Endpoints에는 `notReadyAddresses`로 남고, kube-proxy가 이 상태를 보고 해당 Pod를 규칙에서 뺀다. 예외로 `spec.publishNotReadyAddresses: true`인 Service는 Ready 여부와 관계없이 모든 Pod를 ready로 취급한다.
 
 ```mermaid
 flowchart LR
-    SVC[Service] --> EP[Endpoints]
+    SVC[Service] --> EP[EndpointSlice]
 
     EP --> P1["Pod 1<br>Ready ✅"]
     EP --> P2["Pod 2<br>Ready ✅"]
-    EP -.->|"제외됨"| P3["Pod 3<br>Not Ready ❌"]
+    EP -.->|"ready: false<br>트래픽 제외"| P3["Pod 3<br>Not Ready ❌"]
 
     style P3 stroke:#f44336,stroke-width:2px,stroke-dasharray: 5 5
 ```
@@ -305,23 +307,17 @@ DNS 형식: `<service-name>.<namespace>.svc.cluster.local`
 
 ### 3.4 ClusterIP의 내부 동작
 
-ClusterIP는 실제 네트워크 인터페이스에 할당된 IP가 아니다. **kube-proxy** 가 각 노드의 `iptables`나 `IPVS`를 이용해 관리하는 **가상 IP(Virtual IP)** 다.
+ClusterIP를 가진 서버나 프로세스는 어디에도 없다. Service는 etcd에 저장된 선언이고, 각 노드에서 도는 **kube-proxy** 가 이 선언을 보고 커널에 주소 변환 규칙을 써 넣는다. Pod가 ClusterIP로 보낸 패킷은 보내는 쪽 노드의 커널에서 목적지가 실제 Pod IP로 바뀐다(DNAT, Destination NAT). 그래서 ClusterIP는 `ip addr`로 보이지 않는데도 클러스터의 모든 노드에서 접근할 수 있다. 이는 기본값인 iptables 모드와 nftables 모드 기준이며, deprecated된 IPVS 모드만 예외적으로 ClusterIP를 `kube-ipvs0` 인터페이스에 붙인다.
 
 ```mermaid
 flowchart LR
-    Pod[Pod] -->|"10.96.0.10:80"| Node[Node의<br>iptables/IPVS]
+    Pod[Pod] -->|"10.96.0.10:80"| Node["보내는 쪽 Node의<br>커널 규칙 (iptables/nftables)"]
     Node -->|"DNAT"| Backend["Pod IP<br>10.1.1.5:8080"]
 
     style Node stroke:#FF9800,stroke-width:2px
 ```
 
-**동작 방식:**
-1. Pod가 ClusterIP(10.96.0.10)로 요청 전송
-2. Node의 iptables/IPVS 규칙이 패킷 가로챔
-3. 목적지 주소를 실제 Pod IP로 변환(DNAT)
-4. 백엔드 Pod로 트래픽 전달
-
-이 때문에 ClusterIP는 `ifconfig`나 `ip addr` 명령으로 보이지 않지만, 클러스터 내 모든 노드에서 접근 가능하다.
+> 📖 패킷이 실제로 어떤 경로로 바뀌는지, ClusterIP에 ping이 안 되는 이유, gRPC 부하가 한 Pod에 몰리는 이유, Traffic Policy와 Session Affinity의 동작 원리는 [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)에서 다룬다.
 
 ---
 
@@ -508,15 +504,17 @@ flowchart LR
 ### 6.2 동작 방식
 
 1. `LoadBalancer` 타입 Service 생성
-2. 클라우드 제공자(AWS, GCP, Azure 등)가 LB 프로비저닝
-3. 외부 IP 할당 (`EXTERNAL-IP`)
-4. 트래픽: 외부 → LB → NodePort → Service → Pod
+2. 그 Service를 맡은 컨트롤러(클라우드의 service controller 등)가 클라우드 API로 LB 프로비저닝
+3. 컨트롤러가 LB 주소를 `status.loadBalancer`에 기록 → `EXTERNAL-IP`로 표시
+4. 트래픽: 외부 → LB → NodePort → Service → Pod (노드를 타겟으로 하는 일반적인 구성 기준. AWS NLB의 `ip` 타겟처럼 LB가 Pod IP로 직접 보내는 구성은 NodePort를 거치지 않는다)
 
 ```bash
 $ kubectl get svc my-svc
 NAME     TYPE           CLUSTER-IP    EXTERNAL-IP    PORT(S)        AGE
 my-svc   LoadBalancer   10.96.0.10    52.10.20.30    80:31234/TCP   5m
 ```
+
+> 📖 LB를 실제로 만드는 컨트롤러, 온프레미스에서 `EXTERNAL-IP`가 `<pending>`으로 남는 이유, AWS·GKE·AKS별 어노테이션은 [같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유](./같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유.md)에서 다룬다.
 
 ### 6.3 언제 사용하나?
 
@@ -655,253 +653,17 @@ flowchart LR
 
 ---
 
-## 10. Service Traffic Policy
+## 10. Service 디버깅
 
-### 10.1 externalTrafficPolicy: Source IP 보존
-
-LoadBalancer나 NodePort에서 클라이언트의 **실제 IP 주소(Source IP)** 가 필요할 때 사용한다.
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-svc
-spec:
-  type: LoadBalancer
-  externalTrafficPolicy: Local    # 기본값: Cluster
-  selector:
-    app: my-app
-  ports:
-  - port: 80
-    targetPort: 8080
-```
-
-| 설정 | Source IP | 트래픽 분산 | 사용 시점 |
-|------|-----------|------------|----------|
-| **Cluster** (기본) | SNAT으로 가려짐 | 모든 노드의 Pod로 분산 | 일반적인 경우 |
-| **Local** | **보존됨** | 해당 노드의 Pod로만 | IP 기반 접근 제어, 로깅 |
-
-```mermaid
-flowchart TB
-    subgraph "externalTrafficPolicy: Cluster (기본)"
-        C_Client[Client<br>203.0.113.10] --> C_LB[LoadBalancer]
-        C_LB --> C_Node1[Node 1]
-        C_LB --> C_Node2[Node 2]
-        C_Node1 -->|"SNAT"| C_Pod1["Pod<br>Source: Node IP"]
-        C_Node2 -->|"SNAT"| C_Pod2["Pod<br>Source: Node IP"]
-    end
-
-    subgraph "externalTrafficPolicy: Local"
-        L_Client[Client<br>203.0.113.10] --> L_LB[LoadBalancer]
-        L_LB -->|"Pod 있는<br>노드만"| L_Node1[Node 1]
-        L_Node1 --> L_Pod1["Pod<br>Source: 203.0.113.10"]
-    end
-
-    style C_Pod1 stroke:#9E9E9E,stroke-width:2px
-    style L_Pod1 stroke:#4CAF50,stroke-width:2px
-```
-
-**Local의 주의점:**
-- Pod가 없는 노드로 트래픽이 가면 **드롭됨**
-- 클라우드 LB의 Health Check가 Pod 존재 여부를 확인해야 함
-- Pod 분포에 따라 트래픽 불균형 발생 가능
-
-### 10.2 internalTrafficPolicy: 내부 트래픽 최적화
-
-클러스터 **내부** 트래픽을 같은 노드의 Pod로만 라우팅하여 네트워크 홉을 줄인다.
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-svc
-spec:
-  type: ClusterIP
-  internalTrafficPolicy: Local    # 기본값: Cluster
-  selector:
-    app: my-app
-  ports:
-  - port: 80
-    targetPort: 8080
-```
-
-| 설정 | 동작 | 사용 시점 |
-|------|------|----------|
-| **Cluster** (기본) | 모든 노드의 Pod로 분산 | 일반적인 경우 |
-| **Local** | 같은 노드의 Pod로만 | 지연 시간 최소화 |
-
-**Local의 주의점:** 해당 노드에 Pod가 없으면 트래픽이 **실패**한다.
-
----
-
-## 11. Session Affinity (Sticky Session)
-
-### 11.1 특정 클라이언트를 같은 Pod로
-
-기본적으로 Service는 **kube-proxy 모드에 따라** 백엔드 Pod를 선택한다(iptables는 random, IPVS는 스케줄러 설정). 이 때 같은 클라이언트의 연속된 요청이 서로 다른 Pod로 갈 수 있다. **Session Affinity** 를 설정하면 같은 클라이언트의 요청을 동일한 Pod로 고정해서 보낸다.
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-svc
-spec:
-  type: ClusterIP
-  sessionAffinity: ClientIP           # 기본값: None
-  sessionAffinityConfig:
-    clientIP:
-      timeoutSeconds: 10800           # 3시간 (기본값)
-  selector:
-    app: my-app
-  ports:
-  - port: 80
-    targetPort: 8080
-```
-
-| 설정 | 동작 |
-|------|------|
-| **None** (기본) | sticky 없이 kube-proxy 모드에 따라 분산 (iptables: random, IPVS: 스케줄러 설정) |
-| **ClientIP** | 같은 IP의 요청은 같은 Pod로 |
-
-### 11.2 언제 사용하나?
-
-| 상황 | Session Affinity |
-|------|-----------------|
-| Stateless 애플리케이션 | None (기본) |
-| 세션을 Pod 메모리에 저장 | **ClientIP** |
-| WebSocket 연결 유지 | **ClientIP** |
-
-**주의:**
-- Pod가 죽으면 세션 정보가 유실된다. 프로덕션에서는 Redis 같은 외부 세션 스토어 사용을 권장한다.
-- `ClientIP` 방식은 **L4 레벨(IP 기반)** 이다. NAT(회사 네트워크, 통신사 게이트웨이) 뒤의 사용자들은 동일한 Client IP로 보이기 때문에 트래픽이 한 Pod로 쏠릴 수 있다. 정교한 세션 유지가 필요하다면 **Ingress(L7) 레벨의 쿠키 기반 Sticky Session** 을 사용하라.
-
----
-
-## 12. 클라우드 LoadBalancer 어노테이션
-
-클라우드 환경에서 LoadBalancer Service를 세밀하게 제어하려면 **어노테이션** 을 사용한다.
-
-### 12.1 AWS EKS (Network Load Balancer)
-
-**외부 NLB (인터넷 노출):**
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-svc
-  annotations:
-    # AWS Load Balancer Controller가 관리하는 LB 생성
-    service.beta.kubernetes.io/aws-load-balancer-type: "external"
-    # Pod IP를 직접 타겟으로 지정 (VPC CNI 필요, Fargate 필수)
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
-    # 인터넷 노출 (기본값)
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
-spec:
-  type: LoadBalancer
-  # ...
-```
-
-**내부 NLB (VPC 내부 전용):**
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-internal-svc
-  annotations:
-    service.beta.kubernetes.io/aws-load-balancer-type: "external"
-    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
-    # VPC 내부에서만 접근 가능
-    service.beta.kubernetes.io/aws-load-balancer-scheme: "internal"
-    # 서브넷 지정 (선택)
-    service.beta.kubernetes.io/aws-load-balancer-subnets: "subnet-xxx,subnet-yyy"
-    # Health Check 경로 (선택)
-    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
-spec:
-  type: LoadBalancer
-  # ...
-```
-
-| 어노테이션 | 설명 |
-|-----------|------|
-| `aws-load-balancer-type: external` | AWS Load Balancer Controller가 관리하는 LB 생성 |
-| `aws-load-balancer-nlb-target-type: ip` | Pod IP 직접 타겟 (Fargate 필수) |
-| `aws-load-balancer-scheme: internet-facing` | 외부 노출 (기본값) |
-| `aws-load-balancer-scheme: internal` | VPC 내부 전용 |
-
-> **참고:** AWS Load Balancer Controller가 없으면 기본적으로 **Classic Load Balancer(CLB)** 가 생성된다. NLB를 사용하려면 AWS Load Balancer Controller 설치가 필요하며, v2.5+부터는 자동으로 NLB를 생성한다.
-
-### 12.2 GKE (Google Cloud)
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-svc
-  annotations:
-    # Internal LB
-    networking.gke.io/load-balancer-type: "Internal"
-
-    # NEG (Network Endpoint Group) 활성화 - 독립형 Service용
-    cloud.google.com/neg: '{"exposed": true}'
-
-    # Backend Service 기반 외부 LB (1.32.2+)
-    cloud.google.com/l4-rbs: "enabled"
-spec:
-  type: LoadBalancer
-  # ...
-```
-
-| 어노테이션 | 설명 |
-|-----------|------|
-| `networking.gke.io/load-balancer-type: Internal` | Internal LB |
-| `cloud.google.com/neg` | Container-native 로드밸런싱 |
-| `cloud.google.com/l4-rbs: enabled` | NEG 기반 외부 LB |
-
-### 12.3 Azure AKS
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-svc
-  annotations:
-    # Internal LB
-    service.beta.kubernetes.io/azure-load-balancer-internal: "true"
-
-    # 특정 서브넷에 배치
-    service.beta.kubernetes.io/azure-load-balancer-internal-subnet: "apps-subnet"
-
-    # 고정 IP 지정
-    service.beta.kubernetes.io/azure-load-balancer-ipv4: "10.0.0.100"
-
-    # Private Link Service 생성
-    service.beta.kubernetes.io/azure-pls-create: "true"
-spec:
-  type: LoadBalancer
-  # ...
-```
-
-| 어노테이션 | 설명 |
-|-----------|------|
-| `azure-load-balancer-internal: true` | Internal LB |
-| `azure-load-balancer-internal-subnet` | 서브넷 지정 |
-| `azure-pls-create: true` | Private Link Service |
-
----
-
-## 13. Service 디버깅
-
-### 13.1 연결 문제 체크리스트
+### 10.1 연결 문제 체크리스트
 
 Service에 연결이 안 될 때 확인할 순서:
 
 ```mermaid
 flowchart TB
-    A["Service 연결 실패"] --> B{"Endpoints<br>있는가?"}
+    A["Service 연결 실패"] --> B{"EndpointSlice에<br>endpoint가 있는가?"}
     B -->|"없음"| C["Pod selector/label 확인"]
-    B -->|"있음"| D{"Pod가<br>Ready인가?"}
+    B -->|"있음"| D{"conditions.ready가<br>true인가?"}
     D -->|"Not Ready"| E["Readiness Probe 확인"]
     D -->|"Ready"| F{"Pod 내부에서<br>응답하는가?"}
     F -->|"아니오"| G["컨테이너 포트/애플리케이션 확인"]
@@ -914,47 +676,49 @@ flowchart TB
     style H stroke:#FF9800,stroke-width:2px
 ```
 
-### 13.2 디버깅 명령어
+### 10.2 디버깅 명령어
 
 ```bash
 # 1. Service 상태 확인
 kubectl get svc my-svc -o wide
 kubectl describe svc my-svc
 
-# 2. Endpoints 확인 (가장 중요!)
-kubectl get endpoints my-svc
-# ENDPOINTS가 비어있으면 → selector/label 불일치 또는 Pod가 Ready가 아님
-
-# 3. EndpointSlice 확인 (상세 정보)
+# 2. EndpointSlice 확인 (가장 중요!)
 kubectl get endpointslices -l kubernetes.io/service-name=my-svc -o yaml
+# endpoints가 비어 있으면 → selector/label 불일치
+# endpoints[].conditions.ready가 false면 → terminating인지 먼저 보고, 아니라면 Pod가 Ready가 아님 (Readiness Probe 확인)
 
-# 4. Pod 상태 확인
+# (레거시) Endpoints 확인 - v1.33+에서는 deprecation 경고가 출력된다
+kubectl get endpoints my-svc
+
+# 3. Pod 상태 확인
 kubectl get pods -l app=my-app
 kubectl describe pod <pod-name>
 
-# 5. Service DNS 확인 (클러스터 내부에서)
+# 4. Service DNS 확인 (클러스터 내부에서)
 kubectl run debug --rm -it --image=busybox -- nslookup my-svc
 
-# 6. Service 직접 호출 테스트
+# 5. Service 직접 호출 테스트
 kubectl run debug --rm -it --image=curlimages/curl -- curl -v my-svc:80
 
-# 7. Pod 직접 호출 테스트 (Service 우회)
+# 6. Pod 직접 호출 테스트 (Service 우회)
 kubectl exec -it <pod-name> -- curl localhost:8080
 ```
 
-### 13.3 자주 발생하는 문제
+### 10.3 자주 발생하는 문제
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| Endpoints가 비어있음 | selector와 Pod label 불일치 | label 확인 및 수정 |
-| Endpoints는 있지만 연결 안 됨 | Readiness Probe 실패 | Probe 설정 및 애플리케이션 확인 |
+| EndpointSlice에 endpoint가 없음 | selector와 Pod label 불일치 | label 확인 및 수정 |
+| endpoint는 있지만 `ready: false` | Readiness Probe 실패 | Probe 설정 및 애플리케이션 확인 |
 | ClusterIP로 접근 안 됨 | NetworkPolicy 차단 | NetworkPolicy 규칙 확인 |
+| ClusterIP에 `ping` 응답 없음 | 정상 동작 (규칙은 Service에 정의된 port에만 적용) | `curl`이나 `nc`로 포트 확인 ([이유](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)) |
 | LoadBalancer EXTERNAL-IP가 `<pending>` | 클라우드 컨트롤러 문제 | 클라우드 권한, 할당량 확인 |
 | 외부에서 LoadBalancer 접근 안 됨 | Security Group/방화벽 | 클라우드 보안 규칙 확인 |
 
 ---
 
-## 14. 자주 쓰는 명령어
+## 11. 자주 쓰는 명령어
 
 ```bash
 # Service 목록 조회
@@ -963,8 +727,8 @@ kubectl get svc
 # Service 상세 정보
 kubectl describe svc my-svc
 
-# Endpoints 확인 (실제 Pod IP 목록)
-kubectl get endpoints my-svc
+# EndpointSlice 확인 (실제 Pod IP 목록과 Ready 상태)
+kubectl get endpointslices -l kubernetes.io/service-name=my-svc
 
 # Service 생성 (명령형)
 kubectl expose deployment my-app --port=80 --target-port=8080
@@ -975,7 +739,7 @@ kubectl delete svc my-svc
 
 ---
 
-## 15. 정리
+## 12. 정리
 
 ```mermaid
 flowchart TB
@@ -1001,17 +765,19 @@ flowchart TB
 | Pod IP로 직접 호출해도 되나요? | ❌ Pod IP는 변경됨, Service 사용 |
 | ClusterIP vs NodePort 차이? | ClusterIP는 내부만, NodePort는 외부도 가능 |
 | 프로덕션에서 뭘 써야 하나요? | LoadBalancer 또는 Ingress |
-| Source IP가 필요하면? | `externalTrafficPolicy: Local` 설정 |
+| Source IP가 필요하면? | `externalTrafficPolicy: Local` 설정 ([원리](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)) |
 
 **핵심 기억:**
-1. **Service** 는 Pod에 대한 안정적인 엔드포인트 (IP, DNS)
+1. **Service** 는 Pod에 대한 안정적인 엔드포인트 (IP, DNS). 서버가 아니라 선언이며, 실체는 각 노드 커널의 주소 변환 규칙이다
 2. **ClusterIP** 는 내부 통신, **LoadBalancer** 는 외부 노출
 3. **LoadBalancer** 타입은 NodePort와 ClusterIP의 확장형 (자동 생성)
 4. **Selector** 로 Pod를 선택, **EndpointSlice** 로 실제 목적지 관리
-5. Readiness Probe 실패 → Endpoints에서 제외 → 트래픽 차단
-6. **externalTrafficPolicy: Local** 로 Source IP 보존
+5. Readiness Probe 실패 → EndpointSlice에 `ready: false`로 표시 → 새 연결의 트래픽 대상에서 제외 (`publishNotReadyAddresses: true`는 예외)
+6. **externalTrafficPolicy: Local** 로 Source IP 보존 (원리는 [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md))
 
 > 📖 관련 문서:
+> - [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)
+> - [같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유](./같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유.md)
 > - [Kubernetes Ingress](./Kubernetes-Ingress.md)
 > - [Kubernetes Probe: Liveness, Readiness, Startup](./Kubernetes-Probe-Liveness-Readiness-Startup.md)
 
@@ -1021,8 +787,6 @@ flowchart TB
 
 - [Kubernetes Documentation - Service](https://kubernetes.io/docs/concepts/services-networking/service/) - 공식 문서
 - [Kubernetes Documentation - EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/) - 공식 문서
-- [Kubernetes Documentation - Service Traffic Policy](https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/) - 공식 문서
 - [Kubernetes Documentation - DNS for Services and Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/) - 공식 문서
-- [AWS Load Balancer Controller - Annotations](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/guide/service/annotations/) - AWS 공식 문서
-- [GKE LoadBalancer Service Parameters](https://cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer-parameters) - GCP 공식 문서
-- [Azure AKS Internal Load Balancer](https://learn.microsoft.com/en-us/azure/aks/internal-lb) - Azure 공식 문서
+- [Kubernetes Documentation - Virtual IPs and Service Proxies](https://kubernetes.io/docs/reference/networking/virtual-ips/) - 공식 문서 (proxy mode, IPVS deprecation 일정)
+- [Kubernetes Blog - Continuing the transition from Endpoints to EndpointSlices](https://kubernetes.io/blog/2025/04/24/endpoints-deprecation/) - Endpoints API deprecation
