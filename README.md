@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **223개**
+- 총 TIL 개수: **226개**
 
 - 카테고리 수: **31개**
 
@@ -195,6 +195,8 @@
 
 - [Docker의 Copy-on-Write 전략](docker/Docker의-Copy-on-Write-전략.md)
 
+- [맥에서 만든 Docker 이미지는 왜 서버에서 안 돌까 - docker buildx와 멀티플랫폼 이미지](docker/맥에서-만든-Docker-이미지는-왜-서버에서-안-돌까-docker-buildx와-멀티플랫폼-이미지.md)
+
 - [컨테이너 안의 localhost는 왜 내 컴퓨터가 아닐까 - Docker bridge와 host 네트워크](docker/컨테이너-안의-localhost는-왜-내-컴퓨터가-아닐까-Docker-bridge와-host-네트워크.md)
 
 
@@ -311,6 +313,8 @@
 
 - [Tekton의 Pipeline과 PipelineRun은 왜 따로 존재할까?](kubernetes/Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까.md)
 
+- [같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유](kubernetes/같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유.md)
+
 - [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
 
 - [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](kubernetes/내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)
@@ -320,6 +324,8 @@
 - [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](kubernetes/쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)
 
 - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까?](kubernetes/쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)
+
+- [쿠버네티스 Service에는 왜 프로세스가 없을까](kubernetes/쿠버네티스-Service에는-왜-프로세스가-없을까.md)
 
 - [쿠버네티스는 GPU를 모른다 — nvidia-device-plugin은 어떻게 GPU를 자원으로 통역하는가](kubernetes/쿠버네티스는-GPU를-모른다-nvidia-device-plugin은-어떻게-GPU를-자원으로-통역하는가.md)
 
