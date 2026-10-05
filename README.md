@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **226개**
+- 총 TIL 개수: **227개**
 
 - 카테고리 수: **31개**
 
@@ -273,23 +273,37 @@
 
 - [Helm과 Harbor를 왜 같이 써야 하는가](kubernetes/Helm과-Harbor를-왜-같이-써야-하는가.md)
 
-- [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](kubernetes/Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)
-
 - [Jenkins Job에서 Tekton EventListener로 webhook을 쏠 수 있을까?](kubernetes/Jenkins-Job에서-Tekton-EventListener로-webhook을-쏠-수-있을까.md)
 
 - [Jenkins가 있는데 왜 Tekton이 빌드할까?](kubernetes/Jenkins가-있는데-왜-Tekton이-빌드할까.md)
 
-- [kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담](kubernetes/kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md)
+- [Kubernetes Admission Webhook](kubernetes/Kubernetes-Admission-Webhook.md)
 
 - [Kubernetes ConfigMap & Secret](kubernetes/Kubernetes-ConfigMap-Secret.md)
+
+- [Kubernetes CRD, Controller, Operator](kubernetes/Kubernetes-CRD-Controller-Operator.md)
 
 - [Kubernetes DaemonSet, Job, CronJob: 특수 목적 워크로드](kubernetes/Kubernetes-DaemonSet-Job-CronJob.md)
 
 - [Kubernetes Deployment Strategy](kubernetes/Kubernetes-Deployment-Strategy.md)
 
+- [Kubernetes Egress NetworkPolicy](kubernetes/Kubernetes-Egress-NetworkPolicy.md)
+
+- [Kubernetes External Secrets Operator](kubernetes/Kubernetes-External-Secrets-Operator.md)
+
+- [Kubernetes Gateway API](kubernetes/Kubernetes-Gateway-API.md)
+
+- [Kubernetes GPU Device Plugin](kubernetes/Kubernetes-GPU-Device-Plugin.md)
+
+- [Kubernetes Image Tag, Digest](kubernetes/Kubernetes-Image-Tag-Digest.md)
+
 - [Kubernetes Ingress](kubernetes/Kubernetes-Ingress.md)
 
+- [Kubernetes Ingress vs Egress](kubernetes/Kubernetes-Ingress-vs-Egress.md)
+
 - [Kubernetes Introduction](kubernetes/Kubernetes-Introduction.md)
+
+- [Kubernetes Metrics Server, Prometheus](kubernetes/Kubernetes-Metrics-Server-Prometheus.md)
 
 - [Kubernetes Pod](kubernetes/Kubernetes-Pod.md)
 
@@ -297,39 +311,27 @@
 
 - [Kubernetes ReplicaSet & Deployment](kubernetes/Kubernetes-ReplicaSet-Deployment.md)
 
-- [Kubernetes Secret은 누가 갱신할까? ESO External Secrets Operator](kubernetes/Kubernetes-Secret은-누가-갱신할까-ESO-External-Secrets-Operator.md)
+- [Kubernetes Service Internals](kubernetes/Kubernetes-Service-Internals.md)
+
+- [Kubernetes Service LoadBalancer (Cloud)](kubernetes/Kubernetes-Service-LoadBalancer-Cloud.md)
+
+- [Kubernetes Service Mesh](kubernetes/Kubernetes-Service-Mesh.md)
+
+- [Kubernetes Service Object](kubernetes/Kubernetes-Service-Object.md)
 
 - [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](kubernetes/Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
+
+- [Kubernetes ServiceAccount, RBAC](kubernetes/Kubernetes-ServiceAccount-RBAC.md)
 
 - [Kubernetes StatefulSet](kubernetes/Kubernetes-StatefulSet.md)
 
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
 
-- [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](kubernetes/Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md)
-
-- [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)
-
 - [Tekton Triggers는 어떻게 git push를 PipelineRun으로 바꿀까?](kubernetes/Tekton-Triggers는-어떻게-git-push를-PipelineRun으로-바꿀까.md)
 
 - [Tekton의 Pipeline과 PipelineRun은 왜 따로 존재할까?](kubernetes/Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까.md)
 
-- [같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유](kubernetes/같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유.md)
-
 - [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
-
-- [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](kubernetes/내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)
-
-- [왜 Kubernetes Gateway API는 Ingress를 역할별로 쪼갰을까](kubernetes/왜-Kubernetes-Gateway-API는-Ingress를-역할별로-쪼갰을까.md)
-
-- [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](kubernetes/쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)
-
-- [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까?](kubernetes/쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)
-
-- [쿠버네티스 Service에는 왜 프로세스가 없을까](kubernetes/쿠버네티스-Service에는-왜-프로세스가-없을까.md)
-
-- [쿠버네티스는 GPU를 모른다 — nvidia-device-plugin은 어떻게 GPU를 자원으로 통역하는가](kubernetes/쿠버네티스는-GPU를-모른다-nvidia-device-plugin은-어떻게-GPU를-자원으로-통역하는가.md)
-
-- [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러, 그리고 Operator](kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)
 
 
 
