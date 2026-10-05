@@ -228,6 +228,9 @@
   "컨테이너-안의-localhost는-왜-내-컴퓨터가-아닐까-Docker-bridge와-host-네트워크": [
     "docker/network"
   ],
+  "맥에서-만든-Docker-이미지는-왜-서버에서-안-돌까-docker-buildx와-멀티플랫폼-이미지": [
+    "docker/build"
+  ],
   "명목임금-vs-실질임금-월급이-올랐는데-왜-더-가난해졌을까": [
     "economics/wage"
   ],
