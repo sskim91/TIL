@@ -1,4 +1,6 @@
-# 쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러, 그리고 Operator
+# Kubernetes CRD, Controller, Operator
+
+**쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러, 그리고 Operator**
 
 운영 중인 클러스터에서 `kubectl api-resources`를 실행하면, 쿠버네티스 공식 문서 어디에도 없는 `kind`가 수십 개 쏟아진다. 그런데 그것들도 `kubectl apply -f`로 만들어지고 `kubectl get`으로 조회된다. Deployment와 완전히 같은 방식으로 다뤄지는데, 쿠버네티스 코어에는 없는 타입이다. API는 어떻게 이렇게 늘어났고, 왜 그게 Deployment와 구별되지 않는가?
 
@@ -81,7 +83,7 @@ spec:
 
 먼저 **새 REST 엔드포인트** 가 열린다. `/apis/example.com/v1/namespaces/my-app/databases` 같은 경로가 생기고, API 서버가 이 경로의 요청을 직접 처리한다. 이 시점부터 `kubectl get databases`가 "the server doesn't have a resource type" 에러를 내지 않는다. `kubectl api-resources`에도 나타난다 — 처음의 질문, 공식 문서에 없는 `kind`가 수십 개 나오는 이유가 바로 이것이다. 누군가 이 클러스터에 CRD를 그만큼 설치했다는 뜻이다.
 
-둘째로 **스키마 검증** 이 붙는다. `openAPIV3Schema`에 적힌 구조가 그대로 검증 규칙이 되어, 오타 난 필드나 타입이 틀린 값은 apply 단계에서 거부된다. `apiextensions.k8s.io/v1`에서는 이 구조적 스키마(structural schema)가 **필수** 다 — beta 시절에는 생략할 수 있었지만 v1에서는 없으면 CRD 자체가 거부된다. API 서버가 저장 전에 요청을 검증하고 etcd에 쓰는 이 전체 흐름(인증 → 인가 → admission → 검증 → 저장)은 [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)에서 다룬다.
+둘째로 **스키마 검증** 이 붙는다. `openAPIV3Schema`에 적힌 구조가 그대로 검증 규칙이 되어, 오타 난 필드나 타입이 틀린 값은 apply 단계에서 거부된다. `apiextensions.k8s.io/v1`에서는 이 구조적 스키마(structural schema)가 **필수** 다 — beta 시절에는 생략할 수 있었지만 v1에서는 없으면 CRD 자체가 거부된다. API 서버가 저장 전에 요청을 검증하고 etcd에 쓰는 이 전체 흐름(인증 → 인가 → admission → 검증 → 저장)은 [Kubernetes Admission Webhook](Kubernetes-Admission-Webhook.md)에서 다룬다.
 
 셋째로 **기존 생태계가 전부 따라붙는다.** 이게 CRD의 진짜 가치다. 새 타입은 `kubectl`의 모든 서브커맨드(`get`, `describe`, `edit`, `apply`, `label`)를 그냥 쓸 수 있고, RBAC의 대상이 되어 `resources: ["databases"]`로 권한을 나눌 수 있고, `kubectl get -w`나 클라이언트 라이브러리의 watch가 그대로 동작하고, 라벨과 어노테이션과 `ownerReferences`도 코어 리소스와 똑같이 붙는다. 자체 API 서버를 한 줄도 쓰지 않고 이 모든 것을 얻는다.
 
@@ -227,7 +229,7 @@ flowchart TB
 
 CRD에서 이 분리를 실제로 강제하는 장치가 **status 서브리소스** 다. 앞의 CRD 예제에 있던 `subresources: { status: {} }` 한 줄이 그것이고, 켜면 세 가지가 달라진다.
 
-첫째, `/status`라는 **별도 엔드포인트** 가 생긴다. 이는 RBAC에서 `databases/status`라는 독립적인 대상이 되므로, "컨트롤러 ServiceAccount에는 status 쓰기만, 사용자에게는 spec 쓰기만" 같은 권한 분리가 가능해진다. (RBAC 문법과 ServiceAccount는 [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md)에서 다룬다.)
+첫째, `/status`라는 **별도 엔드포인트** 가 생긴다. 이는 RBAC에서 `databases/status`라는 독립적인 대상이 되므로, "컨트롤러 ServiceAccount에는 status 쓰기만, 사용자에게는 spec 쓰기만" 같은 권한 분리가 가능해진다. (RBAC 문법과 ServiceAccount는 [Kubernetes ServiceAccount, RBAC](Kubernetes-ServiceAccount-RBAC.md)에서 다룬다.)
 
 둘째, **덮어쓰기가 구조적으로 차단된다.** 공식 문서의 규칙이 명확하다 — 메인 리소스로 오는 `PUT`/`POST`/`PATCH` 요청은 `status` 변경을 무시하고, `/status`로 오는 `PUT` 요청은 `status` 외의 모든 변경을 무시한다. 사용자가 `kubectl apply`로 status를 건드릴 수도, 컨트롤러가 실수로 사용자의 spec을 되돌릴 수도 없다.
 
@@ -347,7 +349,7 @@ CRD는 **etcd에 저장되는 선언적 리소스** 에 맞는다. 개수가 적
 | 응답 | 저장된 값을 돌려준다 | 요청 시점에 계산해서 만들 수 있다 |
 | 적합한 것 | 선언적 설정 리소스 | 계산형·비영속 API, 버전 변환 세밀 제어 |
 
-이 방식의 대표 사례가 **Metrics API** 다. `kubectl top`이 보여주는 숫자는 etcd에 저장된 값이 아니라 그 순간 수집·집계된 값이라, 애초에 CRD로 표현할 수 없다. 그래서 metrics-server는 `APIService`로 등록된 aggregated API로 구현된다. 이 파이프라인의 상세는 [kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담](kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md)에서 다룬다.
+이 방식의 대표 사례가 **Metrics API** 다. `kubectl top`이 보여주는 숫자는 etcd에 저장된 값이 아니라 그 순간 수집·집계된 값이라, 애초에 CRD로 표현할 수 없다. 그래서 metrics-server는 `APIService`로 등록된 aggregated API로 구현된다. 이 파이프라인의 상세는 [Kubernetes Metrics Server, Prometheus](Kubernetes-Metrics-Server-Prometheus.md)에서 다룬다.
 
 ---
 
@@ -363,9 +365,9 @@ CRD는 **etcd에 저장되는 선언적 리소스** 에 맞는다. 개수가 적
 
 **Helm으로 설치한 오퍼레이터를 uninstall해도 CRD는 남는다.** 이건 버그가 아니라 **의도된 안전장치** 다. Helm은 `crds/` 디렉터리의 CRD를 install 시점에만 설치하고, 그 뒤로는 관여하지 않는다. 공식 문서의 표현은 "There is no support at this time for upgrading or deleting CRDs using Helm"이고, 그 이유를 "의도치 않은 데이터 손실의 위험 때문에 커뮤니티 논의를 거친 명시적 결정"이라고 밝힌다. 바로 위 함정과 이어 읽으면 납득이 된다 — CRD 삭제는 그 타입의 모든 데이터를 지우는 행동인데, `helm uninstall`의 부수 효과로 그런 일이 일어나면 안 된다. 대신 오퍼레이터를 완전히 걷어낼 때는 CRD를 사람이 명시적으로 지워야 한다는 부담이 남는다. (Helm의 릴리스 모델은 [Helm — 쿠버네티스의 패키지 매니저는 왜 필요한가](Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md)에서 다룬다.)
 
-**컨트롤러는 넓은 RBAC을 요구한다.** 컨트롤러는 자기 CR뿐 아니라 **그것으로부터 만드는 모든 리소스** 에 대한 권한이 필요하다. `Database` 오퍼레이터라면 StatefulSet·Service·Secret·PVC에 대한 생성·수정·삭제 권한을 전부 요구하고, 대상 네임스페이스를 한정할 수 없으면 ClusterRole로 올라간다. 즉 **오퍼레이터 설치는 상당한 권한을 클러스터에 상주시키는 결정** 이다. 권한 설계는 [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md)에서 다룬다.
+**컨트롤러는 넓은 RBAC을 요구한다.** 컨트롤러는 자기 CR뿐 아니라 **그것으로부터 만드는 모든 리소스** 에 대한 권한이 필요하다. `Database` 오퍼레이터라면 StatefulSet·Service·Secret·PVC에 대한 생성·수정·삭제 권한을 전부 요구하고, 대상 네임스페이스를 한정할 수 없으면 ClusterRole로 올라간다. 즉 **오퍼레이터 설치는 상당한 권한을 클러스터에 상주시키는 결정** 이다. 권한 설계는 [Kubernetes ServiceAccount, RBAC](Kubernetes-ServiceAccount-RBAC.md)에서 다룬다.
 
-**검증은 사다리로 생각하라.** "스키마로 안 되면 웹훅"이 아니다. 세 단계다. 먼저 **구조적 스키마** 로 타입·필수 필드·범위를 잡고, 그것으로 부족하면 **CEL 검증 규칙**(`x-kubernetes-validations`)을 스키마 안에 직접 넣는다 — `self.minReplicas <= self.replicas` 같은 필드 간 규칙을 웹훅 없이 표현할 수 있고, **v1.29에서 stable** 이 됐다. 쿠버네티스가 이 기능을 만든 목표 자체가 "예전에 웹훅을 만들어야 했던 검증 사례의 대다수를 흡수하는 것"이었다. 그래도 남는 것 — 클러스터 밖 상태를 조회해야 하거나, 다른 객체와 교차 검증해야 하는 경우 — 에만 **검증 웹훅** 을 꺼낸다. 웹훅의 동작 방식은 [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)에서 다룬다.
+**검증은 사다리로 생각하라.** "스키마로 안 되면 웹훅"이 아니다. 세 단계다. 먼저 **구조적 스키마** 로 타입·필수 필드·범위를 잡고, 그것으로 부족하면 **CEL 검증 규칙**(`x-kubernetes-validations`)을 스키마 안에 직접 넣는다 — `self.minReplicas <= self.replicas` 같은 필드 간 규칙을 웹훅 없이 표현할 수 있고, **v1.29에서 stable** 이 됐다. 쿠버네티스가 이 기능을 만든 목표 자체가 "예전에 웹훅을 만들어야 했던 검증 사례의 대다수를 흡수하는 것"이었다. 그래도 남는 것 — 클러스터 밖 상태를 조회해야 하거나, 다른 객체와 교차 검증해야 하는 경우 — 에만 **검증 웹훅** 을 꺼낸다. 웹훅의 동작 방식은 [Kubernetes Admission Webhook](Kubernetes-Admission-Webhook.md)에서 다룬다.
 
 **여러 버전을 공존시킬 때는 `served`와 `storage`를 구별하라.** CRD의 `spec.versions`에서 `served`는 "이 버전의 엔드포인트를 열어 둘 것인가"이고, `storage`는 "etcd에 저장할 때 어떤 버전으로 쓸 것인가"다. **`storage: true`는 정확히 하나만** 가능하다. `v1alpha1`과 `v1`을 동시에 서비스하면 API 서버는 저장 버전과 요청 버전 사이를 변환해야 하는데, 필드 이름이 그대로인 경우는 문제없지만 구조가 바뀌었으면 **conversion webhook** 을 등록해 변환을 직접 구현해야 한다. 오퍼레이터 업그레이드 시 리소스가 깨지는 사고의 흔한 원인이라, 다중 버전 CRD는 처음부터 변환 전략을 정하고 시작하는 게 좋다.
 

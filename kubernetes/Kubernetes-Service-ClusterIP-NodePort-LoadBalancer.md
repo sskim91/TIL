@@ -2,11 +2,19 @@
 
 Pod의 IP로 직접 접근하면 안 되는 이유가 뭘까?
 
+> 📚 **Service 시리즈 읽는 순서**
+> 1. [Kubernetes Service Object](./Kubernetes-Service-Object.md) - Service는 어떤 오브젝트인가
+> 2. [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) - 타입별로 어떻게 쓰는가 ← 지금 읽는 글
+> 3. [Kubernetes Service Internals](./Kubernetes-Service-Internals.md) - 내부에서 어떻게 동작하는가
+> 4. [Kubernetes Service LoadBalancer (Cloud)](./Kubernetes-Service-LoadBalancer-Cloud.md) - 클라우드 LB와는 어떻게 연결되는가
+>
+> 다음 단계: [Kubernetes Ingress](./Kubernetes-Ingress.md) - 여러 Service를 하나의 HTTP 진입점으로 묶기
+
 ## 결론부터 말하면
 
 **Service**는 Pod 집합에 대한 **안정적인 네트워크 엔드포인트**를 제공한다. Pod는 죽었다 살아나면 IP가 바뀌지만, Service의 IP는 변하지 않는다.
 
-단, Service 자체는 트래픽을 중계하는 서버가 아니다. 내부에서 실제로 어떻게 동작하는지는 [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)에서 다룬다.
+단, Service 자체는 트래픽을 중계하는 서버가 아니다. 내부에서 실제로 어떻게 동작하는지는 [Kubernetes Service Internals](./Kubernetes-Service-Internals.md)에서 다룬다.
 
 ```mermaid
 flowchart LR
@@ -317,7 +325,7 @@ flowchart LR
     style Node stroke:#FF9800,stroke-width:2px
 ```
 
-> 📖 패킷이 실제로 어떤 경로로 바뀌는지, ClusterIP에 ping이 안 되는 이유, gRPC 부하가 한 Pod에 몰리는 이유, Traffic Policy와 Session Affinity의 동작 원리는 [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)에서 다룬다.
+> 📖 패킷이 실제로 어떤 경로로 바뀌는지, ClusterIP에 ping이 안 되는 이유, gRPC 부하가 한 Pod에 몰리는 이유, Traffic Policy와 Session Affinity의 동작 원리는 [Kubernetes Service Internals](./Kubernetes-Service-Internals.md)에서 다룬다.
 
 ---
 
@@ -514,7 +522,7 @@ NAME     TYPE           CLUSTER-IP    EXTERNAL-IP    PORT(S)        AGE
 my-svc   LoadBalancer   10.96.0.10    52.10.20.30    80:31234/TCP   5m
 ```
 
-> 📖 LB를 실제로 만드는 컨트롤러, 온프레미스에서 `EXTERNAL-IP`가 `<pending>`으로 남는 이유, AWS·GKE·AKS별 어노테이션은 [같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유](./같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유.md)에서 다룬다.
+> 📖 LB를 실제로 만드는 컨트롤러, 온프레미스에서 `EXTERNAL-IP`가 `<pending>`으로 남는 이유, AWS·GKE·AKS별 어노테이션은 [Kubernetes Service LoadBalancer (Cloud)](./Kubernetes-Service-LoadBalancer-Cloud.md)에서 다룬다.
 
 ### 6.3 언제 사용하나?
 
@@ -712,7 +720,7 @@ kubectl exec -it <pod-name> -- curl localhost:8080
 | EndpointSlice에 endpoint가 없음 | selector와 Pod label 불일치 | label 확인 및 수정 |
 | endpoint는 있지만 `ready: false` | Readiness Probe 실패 | Probe 설정 및 애플리케이션 확인 |
 | ClusterIP로 접근 안 됨 | NetworkPolicy 차단 | NetworkPolicy 규칙 확인 |
-| ClusterIP에 `ping` 응답 없음 | 정상 동작 (규칙은 Service에 정의된 port에만 적용) | `curl`이나 `nc`로 포트 확인 ([이유](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)) |
+| ClusterIP에 `ping` 응답 없음 | 정상 동작 (규칙은 Service에 정의된 port에만 적용) | `curl`이나 `nc`로 포트 확인 ([이유](./Kubernetes-Service-Internals.md)) |
 | LoadBalancer EXTERNAL-IP가 `<pending>` | 클라우드 컨트롤러 문제 | 클라우드 권한, 할당량 확인 |
 | 외부에서 LoadBalancer 접근 안 됨 | Security Group/방화벽 | 클라우드 보안 규칙 확인 |
 
@@ -765,7 +773,7 @@ flowchart TB
 | Pod IP로 직접 호출해도 되나요? | ❌ Pod IP는 변경됨, Service 사용 |
 | ClusterIP vs NodePort 차이? | ClusterIP는 내부만, NodePort는 외부도 가능 |
 | 프로덕션에서 뭘 써야 하나요? | LoadBalancer 또는 Ingress |
-| Source IP가 필요하면? | `externalTrafficPolicy: Local` 설정 ([원리](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)) |
+| Source IP가 필요하면? | `externalTrafficPolicy: Local` 설정 ([원리](./Kubernetes-Service-Internals.md)) |
 
 **핵심 기억:**
 1. **Service** 는 Pod에 대한 안정적인 엔드포인트 (IP, DNS). 서버가 아니라 선언이며, 실체는 각 노드 커널의 주소 변환 규칙이다
@@ -773,11 +781,11 @@ flowchart TB
 3. **LoadBalancer** 타입은 NodePort와 ClusterIP의 확장형 (자동 생성)
 4. **Selector** 로 Pod를 선택, **EndpointSlice** 로 실제 목적지 관리
 5. Readiness Probe 실패 → EndpointSlice에 `ready: false`로 표시 → 새 연결의 트래픽 대상에서 제외 (`publishNotReadyAddresses: true`는 예외)
-6. **externalTrafficPolicy: Local** 로 Source IP 보존 (원리는 [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md))
+6. **externalTrafficPolicy: Local** 로 Source IP 보존 (원리는 [Kubernetes Service Internals](./Kubernetes-Service-Internals.md))
 
 > 📖 관련 문서:
-> - [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)
-> - [같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유](./같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유.md)
+> - [Kubernetes Service Internals](./Kubernetes-Service-Internals.md)
+> - [Kubernetes Service LoadBalancer (Cloud)](./Kubernetes-Service-LoadBalancer-Cloud.md)
 > - [Kubernetes Ingress](./Kubernetes-Ingress.md)
 > - [Kubernetes Probe: Liveness, Readiness, Startup](./Kubernetes-Probe-Liveness-Readiness-Startup.md)
 

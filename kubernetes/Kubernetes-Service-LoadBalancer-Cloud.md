@@ -1,8 +1,16 @@
-# 같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유
+# Kubernetes Service LoadBalancer (Cloud)
+
+**같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유**
 
 똑같은 `type: LoadBalancer` YAML이 AWS에서는 CLB나 NLB가 되고, GKE에서는 passthrough NLB가 되고, 온프레미스에서는 아무것도 되지 않는다. 쿠버네티스는 같은데 결과는 왜 이렇게 다를까?
 
-> Service 타입의 기본 개념은 [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)에서 다룬다.
+> 📚 **Service 시리즈 읽는 순서**
+> 1. [Kubernetes Service Object](./Kubernetes-Service-Object.md) - Service는 어떤 오브젝트인가
+> 2. [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) - 타입별로 어떻게 쓰는가
+> 3. [Kubernetes Service Internals](./Kubernetes-Service-Internals.md) - 내부에서 어떻게 동작하는가
+> 4. [Kubernetes Service LoadBalancer (Cloud)](./Kubernetes-Service-LoadBalancer-Cloud.md) - 클라우드 LB와는 어떻게 연결되는가 ← 지금 읽는 글
+>
+> 다음 단계: [Kubernetes Ingress](./Kubernetes-Ingress.md) - 여러 Service를 하나의 HTTP 진입점으로 묶기
 
 ## 결론부터 말하면
 
@@ -39,7 +47,7 @@ flowchart LR
 
 ### 1.2 Service는 선언이라는 사실에서 출발하자
 
-[쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)에서 봤듯이 Service는 etcd에 저장된 선언이고, ClusterIP는 kube-proxy가 각 노드 커널에 규칙을 써서 실체화한다. LoadBalancer 타입은 여기서 한 단계 더 나간다. 실체화해야 할 대상이 **클러스터 밖에 있는 클라우드 LB** 다. 노드 커널에 규칙을 쓰는 kube-proxy로는 AWS나 GCP에 LB를 만들 수 없다. 클라우드 API를 호출할 권한과 코드를 가진 별도의 컨트롤러가 필요하다.
+[Kubernetes Service Internals](./Kubernetes-Service-Internals.md)에서 봤듯이 Service는 etcd에 저장된 선언이고, ClusterIP는 kube-proxy가 각 노드 커널에 규칙을 써서 실체화한다. LoadBalancer 타입은 여기서 한 단계 더 나간다. 실체화해야 할 대상이 **클러스터 밖에 있는 클라우드 LB** 다. 노드 커널에 규칙을 쓰는 kube-proxy로는 AWS나 GCP에 LB를 만들 수 없다. 클라우드 API를 호출할 권한과 코드를 가진 별도의 컨트롤러가 필요하다.
 
 온프레미스에서 `<pending>`이 풀리지 않는 이유도 여기 있다. 그 선언을 읽고 LB를 만들어 줄 컨트롤러가 아무도 없기 때문이다.
 
@@ -145,7 +153,7 @@ spec:
 AWS에서 특히 조심할 함정이 두 가지 있다.
 
 - **`aws-load-balancer-type`은 생성 시에만 설정한다.** 기존 Service에 이 어노테이션을 추가하거나 바꾸면 AWS 리소스가 유출되거나 NLB가 인터넷에 노출되는 등 설정이 꼬일 수 있다고 공식 문서가 경고한다.
-- **`externalTrafficPolicy: Local`에서는 Health Check에 tcp를 쓰지 말라고 공식 문서가 경고한다.** 이유가 가장 분명한 경우는 노드의 NodePort를 거치는 `instance` 타겟이다. `Local`은 Pod가 없는 노드에 도착한 트래픽을 드롭하므로, LB는 HTTP Health Check로 Pod가 있는 노드만 골라내야 한다. 이 동작의 원리는 [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)의 Traffic Policy 절에서 다룬다.
+- **`externalTrafficPolicy: Local`에서는 Health Check에 tcp를 쓰지 말라고 공식 문서가 경고한다.** 이유가 가장 분명한 경우는 노드의 NodePort를 거치는 `instance` 타겟이다. `Local`은 Pod가 없는 노드에 도착한 트래픽을 드롭하므로, LB는 HTTP Health Check로 Pod가 있는 노드만 골라내야 한다. 이 동작의 원리는 [Kubernetes Service Internals](./Kubernetes-Service-Internals.md)의 Traffic Policy 절에서 다룬다.
 
 ### 3.2 GKE (Google Cloud)
 
@@ -255,7 +263,7 @@ spec:
 
 > 📖 관련 문서:
 > - [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
-> - [쿠버네티스 Service에는 왜 프로세스가 없을까](./쿠버네티스-Service에는-왜-프로세스가-없을까.md)
+> - [Kubernetes Service Internals](./Kubernetes-Service-Internals.md)
 > - [Kubernetes Ingress](./Kubernetes-Ingress.md)
 
 ---

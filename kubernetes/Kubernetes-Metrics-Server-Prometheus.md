@@ -1,4 +1,6 @@
-# kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담
+# Kubernetes Metrics Server, Prometheus
+
+**kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담**
 
 `kubectl top pod`은 `Metrics API not available`을 뱉는데, 같은 클러스터의 Grafana 대시보드에는 그 Pod의 CPU 그래프가 멀쩡히 그려진다. 대시보드가 데이터를 갖고 있는데 `kubectl top`은 왜 못 가져올까? 둘은 같은 데이터를 보고 있는 게 아닐까?
 
@@ -61,7 +63,7 @@ metrics-server의 가장 중요한 성질은 여기다. **모아 온 값을 메�
 
 > Metrics Server is meant only for autoscaling purposes. For example, don't use it to forward metrics to monitoring solutions, or as a source of monitoring solution metrics.
 
-그리고 "쓰지 말아야 할 경우" 목록에 **"An accurate source of resource usage metrics"** 를 직접 올려 둔다. 정확한 자원 사용량의 원천으로 쓰지 말라는 뜻이다. 오토스케일링과 `kubectl top`에 필요한 것은 "지금 목표치보다 위인가 아래인가"라는 판단 하나뿐이고, 그 판단에 히스토리는 필요 없다. 시계열을 저장하고 질의하는 일은 완전히 다른 문제이고, **그건 다른 도구의 일** 이라고 선을 그은 것이다. 코어에 최소한만 담고 나머지는 위임하는 이 태도는 [쿠버네티스가 GPU를 자원으로 통역하는 방식](쿠버네티스는-GPU를-모른다-nvidia-device-plugin은-어떻게-GPU를-자원으로-통역하는가.md)에서 본 것과 같은 철학이다.
+그리고 "쓰지 말아야 할 경우" 목록에 **"An accurate source of resource usage metrics"** 를 직접 올려 둔다. 정확한 자원 사용량의 원천으로 쓰지 말라는 뜻이다. 오토스케일링과 `kubectl top`에 필요한 것은 "지금 목표치보다 위인가 아래인가"라는 판단 하나뿐이고, 그 판단에 히스토리는 필요 없다. 시계열을 저장하고 질의하는 일은 완전히 다른 문제이고, **그건 다른 도구의 일** 이라고 선을 그은 것이다. 코어에 최소한만 담고 나머지는 위임하는 이 태도는 [쿠버네티스가 GPU를 자원으로 통역하는 방식](Kubernetes-GPU-Device-Plugin.md)에서 본 것과 같은 철학이다.
 
 ## 2. metrics-server는 CRD가 아니다 — Aggregated API Server
 
@@ -92,7 +94,7 @@ flowchart TD
 
 차이를 한 줄로 줄이면 **저장이냐 프록시냐** 다. CRD는 새로운 오브젝트 종류의 스키마를 등록하고, 그 오브젝트는 다른 코어 오브젝트처럼 kube-apiserver를 통해 **etcd에 저장** 된다. 반면 Aggregated API는 스키마를 등록하는 게 아니라 **요청을 다른 서버로 넘긴다.** 응답 본문은 그 서버가 만든다.
 
-그리고 이 선택은 필연적이다. 메트릭은 **저장 대상이 아니라 계산 대상** 이기 때문이다. 노드 200개에서 초 단위로 갱신되는 사용량을 etcd에 쓴다고 생각해 보자. etcd는 클러스터의 모든 상태가 지나가는 합의 기반 저장소인데, 거기에 초당 수천 건의 쓰기를 쏟아붓는 셈이다. 게다가 그렇게 저장한 값은 다음 수집 주기에 곧바로 쓸모없어진다. 저장할 이유가 전혀 없는 데이터를 저장 계층에 밀어넣는 구조이므로, CRD는 애초에 부적합하다. CRD가 잘 맞는 쪽 — 사용자가 선언하고 컨트롤러가 그 선언을 향해 수렴시키는 오브젝트 — 은 [CRD와 컨트롤러, 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) 노트가 다룬다.
+그리고 이 선택은 필연적이다. 메트릭은 **저장 대상이 아니라 계산 대상** 이기 때문이다. 노드 200개에서 초 단위로 갱신되는 사용량을 etcd에 쓴다고 생각해 보자. etcd는 클러스터의 모든 상태가 지나가는 합의 기반 저장소인데, 거기에 초당 수천 건의 쓰기를 쏟아붓는 셈이다. 게다가 그렇게 저장한 값은 다음 수집 주기에 곧바로 쓸모없어진다. 저장할 이유가 전혀 없는 데이터를 저장 계층에 밀어넣는 구조이므로, CRD는 애초에 부적합하다. CRD가 잘 맞는 쪽 — 사용자가 선언하고 컨트롤러가 그 선언을 향해 수렴시키는 오브젝트 — 은 [CRD와 컨트롤러, 그리고 Operator](Kubernetes-CRD-Controller-Operator.md) 노트가 다룬다.
 
 ### 2-2. 그래서 `Metrics API not available`의 정확한 의미
 
@@ -147,7 +149,7 @@ spec:
     interval: 30s
 ```
 
-Prometheus 오브젝트 쪽에는 `spec.serviceMonitorSelector`가 있어서, 어떤 `ServiceMonitor`를 자기 것으로 받아들일지 정한다. 오퍼레이터는 그 조건에 맞는 `ServiceMonitor`를 감시하다가 Prometheus 설정을 생성해 반영한다. 앱 팀은 자기 네임스페이스에 `ServiceMonitor` 하나를 배포하면 끝이고, **모니터링 팀의 설정 파일은 아무도 건드리지 않는다.** 설정 변경이 티켓이 아니라 배포가 되는 것 — 이게 이 패턴의 조직적 가치이고, Operator 패턴의 가장 흔한 실사용례다. 오퍼레이터가 선언을 감시해 실제 상태를 맞춰 가는 메커니즘 자체는 [CRD와 컨트롤러, 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) 노트가 다룬다.
+Prometheus 오브젝트 쪽에는 `spec.serviceMonitorSelector`가 있어서, 어떤 `ServiceMonitor`를 자기 것으로 받아들일지 정한다. 오퍼레이터는 그 조건에 맞는 `ServiceMonitor`를 감시하다가 Prometheus 설정을 생성해 반영한다. 앱 팀은 자기 네임스페이스에 `ServiceMonitor` 하나를 배포하면 끝이고, **모니터링 팀의 설정 파일은 아무도 건드리지 않는다.** 설정 변경이 티켓이 아니라 배포가 되는 것 — 이게 이 패턴의 조직적 가치이고, Operator 패턴의 가장 흔한 실사용례다. 오퍼레이터가 선언을 감시해 실제 상태를 맞춰 가는 메커니즘 자체는 [CRD와 컨트롤러, 그리고 Operator](Kubernetes-CRD-Controller-Operator.md) 노트가 다룬다.
 
 ## 4. 가장 흔한 혼동 — kube-state-metrics는 metrics-server가 아니다
 

@@ -164,12 +164,12 @@ spec:
 
 > **이름 함정 하나.** `ingress-nginx`(쿠버네티스 커뮤니티, 은퇴)와 `nginx-ingress`(F5/NGINX Inc., 유지보수 중)는 **하이픈 순서만 다른 별개 프로젝트** 다. 은퇴한 것은 앞의 것이다. 그리고 웹 서버 NGINX 자체는 이 일과 **아무 관계가 없다** — 은퇴한 것은 쿠버네티스 컨트롤러 하나지 NGINX 생태계가 아니다.
 
-> **서비스 메시를 쓰는 클러스터에서는 `Ingress` 리소스가 아예 없을 수 있다.** 메시의 게이트웨이가 Ingress Controller 역할을 대신하고, 라우팅 규칙은 `Ingress`가 아니라 메시 자신의 커스텀 리소스에 적히기 때문이다. `kubectl get ingress`가 비어 있는데 서비스는 정상 응답하는 상황을 만나면 [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)을 보라. 아래 6절에서 다루는 annotation 확장이 왜 생겼고 메시는 그것을 어떻게 1급 필드로 바꿨는지도 함께 다룬다.
+> **서비스 메시를 쓰는 클러스터에서는 `Ingress` 리소스가 아예 없을 수 있다.** 메시의 게이트웨이가 Ingress Controller 역할을 대신하고, 라우팅 규칙은 `Ingress`가 아니라 메시 자신의 커스텀 리소스에 적히기 때문이다. `kubectl get ingress`가 비어 있는데 서비스는 정상 응답하는 상황을 만나면 [Kubernetes Service Mesh](Kubernetes-Service-Mesh.md)을 보라. 아래 6절에서 다루는 annotation 확장이 왜 생겼고 메시는 그것을 어떻게 1급 필드로 바꿨는지도 함께 다룬다.
 
 > [!warning] ingress-nginx 은퇴 (2026-03)
 > 이 노트의 예시가 쓰는 Kubernetes 커뮤니티 컨트롤러 `ingress-nginx`(`controller: k8s.io/ingress-nginx`, `nginx.ingress.kubernetes.io/*` 어노테이션)는 2026-03에 은퇴했다. 이후 버그·보안 수정 릴리스가 없다(기존 배포와 설치 아티팩트는 그대로 남음). 공식 권장 경로는 Gateway API로의 이전이고, 기존 Ingress 리소스 변환에는 `ingress2gateway` 도구를 쓴다. Ingress API를 계속 써야 한다면 유지보수되는 다른 Ingress Controller로 교체한다. ([Kubernetes 블로그, 2025-11-11](https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/), [Steering·SRC 성명, 2026-01-29](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement/))
 
-> **서비스 메시를 쓰는 클러스터에서는 `Ingress` 리소스가 아예 없을 수 있다.** 메시의 게이트웨이가 Ingress Controller 역할을 대신하고, 라우팅 규칙은 `Ingress`가 아니라 메시 자신의 커스텀 리소스에 적히기 때문이다. `kubectl get ingress`가 비어 있는데 서비스는 정상 응답하는 상황을 만나면 [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)을 보라. 아래 6절에서 다루는 annotation 확장이 왜 생겼고 메시는 그것을 어떻게 1급 필드로 바꿨는지도 함께 다룬다.
+> **서비스 메시를 쓰는 클러스터에서는 `Ingress` 리소스가 아예 없을 수 있다.** 메시의 게이트웨이가 Ingress Controller 역할을 대신하고, 라우팅 규칙은 `Ingress`가 아니라 메시 자신의 커스텀 리소스에 적히기 때문이다. `kubectl get ingress`가 비어 있는데 서비스는 정상 응답하는 상황을 만나면 [Kubernetes Service Mesh](Kubernetes-Service-Mesh.md)을 보라. 아래 6절에서 다루는 annotation 확장이 왜 생겼고 메시는 그것을 어떻게 1급 필드로 바꿨는지도 함께 다룬다.
 
 ---
 
@@ -1207,8 +1207,8 @@ flowchart TB
 > 📖 관련 문서:
 > - [Kubernetes Service](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
 > - [Kubernetes Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md)
-> - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) — Ingress의 반대 방향과 Gateway API 전망
-> - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md) — 서비스 메시가 Ingress를 대체하는 경우
+> - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](./Kubernetes-Ingress-vs-Egress.md) — Ingress의 반대 방향과 Gateway API 전망
+> - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Kubernetes-Service-Mesh.md) — 서비스 메시가 Ingress를 대체하는 경우
 
 ---
 

@@ -1,4 +1,6 @@
-# 왜 Kubernetes Gateway API는 Ingress를 역할별로 쪼갰을까
+# Kubernetes Gateway API
+
+**왜 Kubernetes Gateway API는 Ingress를 역할별로 쪼갰을까**
 
 Ingress 하나면 되던 일을 왜 GatewayClass, Gateway, HTTPRoute, ReferenceGrant 네 가지로 나눴을까? 그리고 Route를 만들었는데 트래픽이 안 들어오는 이유는 왜 대부분 "붙지 않아서"일까?
 
@@ -39,7 +41,7 @@ flowchart TB
 | `ReferenceGrant` | 네임스페이스 | 참조 **당하는** 쪽 소유자 | 다른 네임스페이스의 참조 허용 | v1.5에서 `v1` |
 | `ListenerSet` | 네임스페이스 | 팀 / 운영자 | 공유 Gateway에 listener를 따로 붙이기 | v1.5 |
 
-> 이 노트는 2026년 9월, Gateway API **v1.6** 을 기준으로 쓴다. ingress-nginx 은퇴와 이전 경로는 [Kubernetes Ingress 12절](./Kubernetes-Ingress.md#12-2026년-현재--ingress-nginx-은퇴와-gateway-api), 메시 내부(east-west)에서 쓰는 GAMMA는 [서비스 메시 노트 6절](./Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md), 가중치로 하는 카나리 배포는 [Deployment Strategy 4.5.2](./Kubernetes-Deployment-Strategy.md)에서 다뤘다. 여기서는 리소스 모델과 "붙는 규칙"에 집중한다.
+> 이 노트는 2026년 9월, Gateway API **v1.6** 을 기준으로 쓴다. ingress-nginx 은퇴와 이전 경로는 [Kubernetes Ingress 12절](./Kubernetes-Ingress.md#12-2026년-현재--ingress-nginx-은퇴와-gateway-api), 메시 내부(east-west)에서 쓰는 GAMMA는 [서비스 메시 노트 6절](./Kubernetes-Service-Mesh.md), 가중치로 하는 카나리 배포는 [Deployment Strategy 4.5.2](./Kubernetes-Deployment-Strategy.md)에서 다뤘다. 여기서는 리소스 모델과 "붙는 규칙"에 집중한다.
 
 ---
 
@@ -505,9 +507,9 @@ v1.6부터 **새로 추가되는** 실험 리소스는 별도 API group `gateway
 
 > 📖 관련 문서:
 > - [Kubernetes Ingress](./Kubernetes-Ingress.md) — Ingress 기본과 12절 ingress-nginx 은퇴
-> - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md) — 6절 GAMMA, `parentRef`가 Service를 가리키는 메시 라우팅
+> - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Kubernetes-Service-Mesh.md) — 6절 GAMMA, `parentRef`가 Service를 가리키는 메시 라우팅
 > - [Kubernetes Deployment Strategy](./Kubernetes-Deployment-Strategy.md) — 4.5.2 HTTPRoute `weight`로 하는 카나리
-> - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) — Ingress 동결과 Gateway API 전망
+> - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](./Kubernetes-Ingress-vs-Egress.md) — Ingress 동결과 Gateway API 전망
 
 ---
 

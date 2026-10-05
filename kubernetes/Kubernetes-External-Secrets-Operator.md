@@ -1,4 +1,6 @@
-# Kubernetes Secret은 누가 갱신할까? ESO External Secrets Operator
+# Kubernetes External Secrets Operator
+
+**Kubernetes Secret은 누가 갱신할까? ESO External Secrets Operator**
 
 DB 비밀번호를 외부 비밀 저장소에서 바꾸면, Kubernetes Secret과 실행 중인 애플리케이션까지 함께 바뀔까?
 
@@ -50,7 +52,7 @@ ESO를 사용하면 역할을 다음처럼 나눌 수 있다. 여기서 외부 �
 
 ### 2.1 이름이 비슷한 네 리소스의 역할
 
-ESO는 Kubernetes API에 사용자 정의 리소스를 등록하는 CRD(CustomResourceDefinition)와, 그 리소스를 읽어 동작하는 컨트롤러를 사용한다. [CRD·컨트롤러·Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)의 구체적인 적용 사례다.
+ESO는 Kubernetes API에 사용자 정의 리소스를 등록하는 CRD(CustomResourceDefinition)와, 그 리소스를 읽어 동작하는 컨트롤러를 사용한다. [CRD·컨트롤러·Operator](Kubernetes-CRD-Controller-Operator.md)의 구체적인 적용 사례다.
 
 | 리소스 | 답하는 질문 | 범위 |
 |---|---|---|

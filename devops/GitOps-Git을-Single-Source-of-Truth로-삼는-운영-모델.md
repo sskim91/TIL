@@ -556,7 +556,7 @@ flowchart TB
 
 자가 치유는 사고성 drift를 **되돌리지만 예방하지 않는다.** 예방은 권한에서 온다.
 
-- 클러스터에 대한 쓰기 권한을 GitOps 컨트롤러의 ServiceAccount로 좁힌다. 사람 계정은 읽기 전용이 기본이다([Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](../kubernetes/Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md))
+- 클러스터에 대한 쓰기 권한을 GitOps 컨트롤러의 ServiceAccount로 좁힌다. 사람 계정은 읽기 전용이 기본이다([Kubernetes ServiceAccount, RBAC](../kubernetes/Kubernetes-ServiceAccount-RBAC.md))
 - 그래도 긴급 경로는 반드시 남긴다. **break-glass 절차** — 한시적 권한 상승, 전 과정 로깅, 지정된 사고 담당자, 그리고 **사후에 Git을 현실과 일치시키는 커밋 의무**
 - 마지막 항목이 없으면 자가 치유가 긴급 조치를 조용히 지워버리거나, 반대로 원래 장애를 다시 재현한다
 
@@ -1161,7 +1161,7 @@ GitOps가 왜 쿠버네티스에서 먼저 꽃폈는지를 4.1절에서 이미 �
 | **클라우드 리소스를 쿠버네티스 리소스로 표현** | 클라우드 API를 감싸는 CRD를 만들고, 컨트롤러가 실제 리소스를 조정한다. 그러면 기존 GitOps 루프에 그대로 들어온다 | Crossplane, AWS Controllers for Kubernetes(ACK) |
 | **IaC 도구의 실행을 클러스터 안으로 옮김** | `plan`/`apply`를 클러스터 안 컨트롤러가 주기적으로 수행한다 | Terraform Controller, OpenTofu 기반 컨트롤러 |
 
-첫 번째가 더 순수한 GitOps다. 클라우드 리소스도 결국 `kubectl get`으로 조회되고, 같은 리컨실러가 같은 방식으로 수렴시킨다([쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)).
+첫 번째가 더 순수한 GitOps다. 클라우드 리소스도 결국 `kubectl get`으로 조회되고, 같은 리컨실러가 같은 방식으로 수렴시킨다([쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/Kubernetes-CRD-Controller-Operator.md)).
 
 여기서 일반 원리를 뽑을 수 있다. **GitOps를 어떤 시스템에 적용하려면 그 시스템에 세 가지가 있어야 한다** — 상태를 선언적으로 표현할 방법, 현재 상태를 조회할 방법, 차이를 멱등하게 적용할 방법. 명령형 API만 제공하는 시스템(순차 실행 스크립트로만 조작되는 레거시 장비)에서는 GitOps 에이전트가 이 세 가지를 처음부터 만들어야 하고, 그것이 어렵기 때문에 GitOps가 잘 퍼지지 않는다.
 
@@ -1259,10 +1259,10 @@ GitOps는 단순한 배포 자동화가 아니다. **"Git이 시스템의 진실
 ## 함께 읽기
 
 > - [ArgoCD가 Synced라고 하는데 왜 서비스는 죽어 있을까](ArgoCD가-Synced라고-하는데-왜-서비스는-죽어-있을까.md) — 이 노트의 도구 층. Sync와 Health, `syncPolicy` 세 스위치, sync wave, App of Apps와 ApplicationSet, 비교 예외 설정
-> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) — 4.1절의 제어 루프가 쿠버네티스에 원래 있던 이유, 그리고 11절의 Crossplane이 가능한 이유
+> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/Kubernetes-CRD-Controller-Operator.md) — 4.1절의 제어 루프가 쿠버네티스에 원래 있던 이유, 그리고 11절의 Crossplane이 가능한 이유
 > - [Helm: 쿠버네티스의 패키지 매니저는 왜 필요한가](../kubernetes/Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md) · [내 첫 Helm Chart](../kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md) — 8절 DRY/WYSIWYG 딜레마의 한쪽 축
-> - [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](../kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md) — 3.2절 "불변 참조" 문제의 뿌리
-> - [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](../kubernetes/Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md) — 6.1절의 권한 회수를 실제로 어떻게 하는가
+> - [Kubernetes Image Tag, Digest](../kubernetes/Kubernetes-Image-Tag-Digest.md) — 3.2절 "불변 참조" 문제의 뿌리
+> - [Kubernetes ServiceAccount, RBAC](../kubernetes/Kubernetes-ServiceAccount-RBAC.md) — 6.1절의 권한 회수를 실제로 어떻게 하는가
 > - [Kubernetes ConfigMap & Secret](../kubernetes/Kubernetes-ConfigMap-Secret.md) — 9.1절이 다루는 그 Secret
 > - [Kubernetes Deployment Strategy](../kubernetes/Kubernetes-Deployment-Strategy.md) — 9.2절 Progressive Delivery가 대체하려는 기본 롤아웃
 > - [Harbor: 왜 회사들은 사내 컨테이너 레지스트리를 두는가](../kubernetes/Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가.md) — 8.3절 OCI 아티팩트를 상태 저장소로 쓰는 이야기의 전제

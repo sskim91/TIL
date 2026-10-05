@@ -1,6 +1,8 @@
-# 쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까
+# Kubernetes Egress NetworkPolicy
 
-프로덕션 클러스터를 잠그는 첫 단추는 보통 이렇게 시작한다. 네임스페이스에 `default-deny-egress`를 깔고, Pod가 통신을 시작할 수 있게 DNS(53 포트)만 열어준다. (`kind: Egress` 리소스가 따로 없고 NetworkPolicy의 `egress` 필드로 나가는 트래픽을 다룬다는 이야기, default-deny와 DNS 함정은 [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)에서 다뤘다.)
+**쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까**
+
+프로덕션 클러스터를 잠그는 첫 단추는 보통 이렇게 시작한다. 네임스페이스에 `default-deny-egress`를 깔고, Pod가 통신을 시작할 수 있게 DNS(53 포트)만 열어준다. (`kind: Egress` 리소스가 따로 없고 NetworkPolicy의 `egress` 필드로 나가는 트래픽을 다룬다는 이야기, default-deny와 DNS 함정은 [Kubernetes Ingress vs Egress](./Kubernetes-Ingress-vs-Egress.md)에서 다뤘다.)
 
 여기까지 오면 다음 요구가 자연스럽게 따라온다. **"이제 우리 결제 서비스가 외부 결제 게이트웨이(`api.payment.com`)랑 S3에만 나갈 수 있게 허용하자."** NetworkPolicy의 `egress`에 그 도메인을 적으려고 YAML을 여는 순간, 첫 번째 벽에 부딪힌다. **거기엔 도메인을 적는 칸이 없다.**
 
@@ -156,7 +158,7 @@ spec:
 
 ### 2-4. 꼭 짚어야 할 함정: FQDN 정책은 DNS 접근을 자동 허용하지 않는다
 
-여기서 [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)에서 다룬 "DNS를 열어둬라"보다 **한 단계 더 깊은 함정**이 있다. 표준화 제안 NPEP-133이 명시하는 원칙이다.
+여기서 [Kubernetes Ingress vs Egress](./Kubernetes-Ingress-vs-Egress.md)에서 다룬 "DNS를 열어둬라"보다 **한 단계 더 깊은 함정**이 있다. 표준화 제안 NPEP-133이 명시하는 원칙이다.
 
 > FQDN egress 정책은 그 자체로 워크로드에 in-cluster DNS 서비스(`kube-dns` 등)로의 통신 권한을 주지 않는다. DNS 서버로의 트래픽은 별도 규칙으로 허용해야 한다. 또한 FQDN 정책은 도메인 **해석(resolve)** 능력에는 관여하지 않고, 오직 해석된 IP로의 **통신**만 통제한다 — 즉 DNS 필터링이 아니다.
 
@@ -184,7 +186,7 @@ FQDN 정책이 표준이 아니다 보니, 환경마다 가용성이 들쭉날�
 
 도메인 허용까지 끝냈다고 하자. 그런데 외부 파트너가 이렇게 요구한다. **"우리 방화벽은 출발지 IP 화이트리스트로 동작합니다. 당신들이 우리에게 접속할 때 쓰는 고정 IP를 알려주세요."**
 
-NetworkPolicy를 아무리 들여다봐도 이걸 만족시킬 방법이 없다. NetworkPolicy의 egress는 **목적지(to)**를 통제하는 도구이지, **출발지 IP를 지정**하는 도구가 아니기 때문이다. ("고정 IP가 왜 어려운가 — Pod IP는 수시로 바뀌고 노드 IP로 SNAT되며 노드도 교체된다"는 배경은 [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) §3-2에 정리돼 있다. 여기서는 그걸 *어떻게 푸는가*에 집중한다.)
+NetworkPolicy를 아무리 들여다봐도 이걸 만족시킬 방법이 없다. NetworkPolicy의 egress는 **목적지(to)**를 통제하는 도구이지, **출발지 IP를 지정**하는 도구가 아니기 때문이다. ("고정 IP가 왜 어려운가 — Pod IP는 수시로 바뀌고 노드 IP로 SNAT되며 노드도 교체된다"는 배경은 [Kubernetes Ingress vs Egress](./Kubernetes-Ingress-vs-Egress.md) §3-2에 정리돼 있다. 여기서는 그걸 *어떻게 푸는가*에 집중한다.)
 
 ### 3-1. Egress Gateway — 트래픽을 한 노드로 모아 SNAT
 
@@ -344,7 +346,7 @@ flowchart TD
 
 기억할 한 가지. **표준 NetworkPolicy가 어디서 멈추는지를 알아야, 다음에 어떤 도구를 꺼낼지 판단할 수 있다.** egress 통제에서 "NetworkPolicy로 안 되네?"는 막다른 길이 아니라, 요구가 L3/L4·목적지·네임스페이스라는 표준의 세 경계 중 어디를 넘었는지 알려주는 신호다. 그 경계를 읽으면 FQDN 정책인지, Egress Gateway인지, cluster-wide 정책인지가 따라 나온다.
 
-> 📖 관련 문서: [쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까](./쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) — `kind: Egress`가 없는 이유, NetworkPolicy egress 기본기와 default-deny·DNS 함정, "Ingress"라는 단어의 두 얼굴
+> 📖 관련 문서: [Kubernetes Ingress vs Egress](./Kubernetes-Ingress-vs-Egress.md) — `kind: Egress`가 없는 이유, NetworkPolicy egress 기본기와 default-deny·DNS 함정, "Ingress"라는 단어의 두 얼굴
 
 ---
 

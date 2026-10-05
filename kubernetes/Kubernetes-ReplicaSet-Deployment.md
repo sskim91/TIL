@@ -769,7 +769,7 @@ selector가 변경되면 기존의 모든 ReplicaSet과 Pod가 **고아(orphan)*
 
 Deployment와 HPA를 함께 사용할 때 주의할 점이 있다.
 
-> **HPA가 참조하는 숫자는 어디서 오는가?** HPA는 Metrics API의 소비자이므로 `metrics-server`가 없으면 아예 동작하지 않고, 사용률은 절대 사용량이 아니라 **`requests` 대비 비율** 로 계산된다 — 즉 `requests`를 지정하지 않은 컨테이너는 HPA가 판단 근거를 갖지 못한다. 이 파이프라인은 [kubectl top의 숫자는 어디서 오는가 — metrics-server와 Prometheus의 역할 분담](kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md)에서 다룬다.
+> **HPA가 참조하는 숫자는 어디서 오는가?** HPA는 Metrics API의 소비자이므로 `metrics-server`가 없으면 아예 동작하지 않고, 사용률은 절대 사용량이 아니라 **`requests` 대비 비율** 로 계산된다 — 즉 `requests`를 지정하지 않은 컨테이너는 HPA가 판단 근거를 갖지 못한다. 이 파이프라인은 [Kubernetes Metrics Server, Prometheus](Kubernetes-Metrics-Server-Prometheus.md)에서 다룬다.
 
 ```yaml
 apiVersion: autoscaling/v2
@@ -1055,7 +1055,7 @@ kubectl rollout restart deployment/my-app
 > | 볼륨 마운트(디렉토리) | kubelet이 파일 내용을 갱신한다 → 단, **앱이 그 파일을 다시 읽어야** 실제 동작에 반영된다 |
 > | 볼륨 마운트 + `subPath` | 파일이 갱신되지 않는다 → **Pod 재시작 필요** |
 >
-> 자세한 갱신 동작은 [Kubernetes ConfigMap & Secret](Kubernetes-ConfigMap-Secret.md)에서, 템플릿이 변하지 않으면 왜 아무 일도 일어나지 않는지는 [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)에서 다룬다.
+> 자세한 갱신 동작은 [Kubernetes ConfigMap & Secret](Kubernetes-ConfigMap-Secret.md)에서, 템플릿이 변하지 않으면 왜 아무 일도 일어나지 않는지는 [Kubernetes Image Tag, Digest](Kubernetes-Image-Tag-Digest.md)에서 다룬다.
 
 > **자동화 팁:** Helm이나 Kustomize를 사용하면 ConfigMap/Secret 데이터의 checksum을 Pod annotation에 추가하여, 설정이 변경될 때 자동으로 롤아웃을 트리거할 수 있다. 또는 [Reloader](https://github.com/stakater/Reloader) 같은 컨트롤러를 클러스터에 설치하면, CI/CD 파이프라인 수정 없이 ConfigMap/Secret 변경 시 관련 Deployment를 자동으로 재시작해준다.
 

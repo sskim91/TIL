@@ -54,7 +54,7 @@ flowchart TB
 
 ## 1. 시작점은 Application 하나다
 
-ArgoCD를 설치하면 클러스터에 CRD(Custom Resource Definition) 몇 개가 생긴다. CRD는 쿠버네티스 API에 없던 새로운 리소스 종류를 추가하는 확장 지점이고([쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)), ArgoCD가 추가하는 것 중 가장 중요한 것이 **`Application`** 이다.
+ArgoCD를 설치하면 클러스터에 CRD(Custom Resource Definition) 몇 개가 생긴다. CRD는 쿠버네티스 API에 없던 새로운 리소스 종류를 추가하는 확장 지점이고([쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/Kubernetes-CRD-Controller-Operator.md)), ArgoCD가 추가하는 것 중 가장 중요한 것이 **`Application`** 이다.
 
 ArgoCD로 하는 거의 모든 일은 결국 이 오브젝트 하나를 쓰는 일이다.
 
@@ -553,7 +553,7 @@ CI가 같은 태그로 새 이미지를 push한다. 레지스트리의 `latest`�
 
 즉 **`:latest`를 쓰면 GitOps 파이프라인이 조용히 정지한다.** 실패 알림도 없다. 대시보드는 초록색이다.
 
-같은 뿌리에서 나오는 또 다른 증상 — 롤아웃은 일어났는데 예전 코드가 그대로 도는 문제 — 는 [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](../kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)에서 다뤘다. 결론은 같다. **불변 태그를 쓰거나 다이제스트로 고정하라.** 커밋 SHA를 태그로 쓰는 방식(`payment-api:a1b2c3d`)이 GitOps와 가장 잘 맞는다. 새 빌드마다 Git의 텍스트가 반드시 바뀌기 때문이다.
+같은 뿌리에서 나오는 또 다른 증상 — 롤아웃은 일어났는데 예전 코드가 그대로 도는 문제 — 는 [Kubernetes Image Tag, Digest](../kubernetes/Kubernetes-Image-Tag-Digest.md)에서 다뤘다. 결론은 같다. **불변 태그를 쓰거나 다이제스트로 고정하라.** 커밋 SHA를 태그로 쓰는 방식(`payment-api:a1b2c3d`)이 GitOps와 가장 잘 맞는다. 새 빌드마다 Git의 텍스트가 반드시 바뀌기 때문이다.
 
 ### 7.2 Argo CD Image Updater라는 선택지
 
@@ -578,7 +578,7 @@ CI가 같은 태그로 새 이미지를 push한다. 레지스트리의 `latest`�
 
 원인은 대체로 하나다. **Git에 적힌 것과 클러스터에 저장된 것이 실제로 다르기 때문** 이다. 다만 그 차이를 만드는 주체가 사람이 아니다.
 
-- **mutating admission webhook** 이 리소스를 저장 전에 고친다. 서비스 메시가 사이드카를 끼워 넣거나, 정책 엔진이 라벨을 붙인다([내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](../kubernetes/내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)).
+- **mutating admission webhook** 이 리소스를 저장 전에 고친다. 서비스 메시가 사이드카를 끼워 넣거나, 정책 엔진이 라벨을 붙인다([Kubernetes Admission Webhook](../kubernetes/Kubernetes-Admission-Webhook.md)).
 - **다른 컨트롤러** 가 필드를 바꾼다. HPA가 `spec.replicas`를 조정하고, `kube-controller-manager`가 CA bundle을 채운다.
 - **Helm chart의 랜덤 함수** 가 렌더링마다 다른 값을 만든다. `randAlphaNum` 같은 함수는 매번 다른 문자열을 낳으므로 Git 쪽 매니페스트 자체가 매번 달라진다.
 - **CRD의 커스텀 마샬링** 이 값을 재포맷한다. `cpu: 100m`으로 적었는데 `cpu: 0.1`로 저장되는 식이다.
@@ -731,10 +731,10 @@ GitOps는 운영 모델이고, ArgoCD는 그 모델을 집행하는 컨트롤러
 
 > - [GitOps: Git을 Single Source of Truth로 삼는 운영 모델](GitOps-Git을-Single-Source-of-Truth로-삼는-운영-모델.md) — 이 노트의 전제. GitOps가 왜 필요했고 4원칙이 무엇인가
 > - [ArgoCD에 Rollout은 없다 — Argo Rollouts가 Deployment를 대체하는 이유](ArgoCD에-Rollout은-없다-Argo-Rollouts가-Deployment를-대체하는-이유.md) — 이 노트의 자매편. sync 이후 새 버전을 사용자에게 노출하는 층, 그리고 Rollout이 `Suspended`로 보이는 이유
-> - [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](../kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md) — 7.1절 mutable 태그 문제의 뿌리
+> - [Kubernetes Image Tag, Digest](../kubernetes/Kubernetes-Image-Tag-Digest.md) — 7.1절 mutable 태그 문제의 뿌리
 > - [Helm: 쿠버네티스의 패키지 매니저는 왜 필요한가](../kubernetes/Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md) · [내 첫 Helm Chart](../kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md) — ArgoCD가 `helm template`으로만 쓰는 그 Helm
-> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) — `Application`과 `ApplicationSet`이 존재할 수 있는 이유
-> - [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](../kubernetes/내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md) — 8.1절 영구 OutOfSync의 흔한 원인
+> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/Kubernetes-CRD-Controller-Operator.md) — `Application`과 `ApplicationSet`이 존재할 수 있는 이유
+> - [Kubernetes Admission Webhook](../kubernetes/Kubernetes-Admission-Webhook.md) — 8.1절 영구 OutOfSync의 흔한 원인
 > - [Kubernetes Probe: Liveness, Readiness, Startup](../kubernetes/Kubernetes-Probe-Liveness-Readiness-Startup.md) — Health 판정이 실제로 무엇에 의존하는가
 > - [Kubernetes ConfigMap & Secret](../kubernetes/Kubernetes-ConfigMap-Secret.md) — 8.2절이 다루는 그 Secret
 > - [Kubernetes Deployment Strategy](../kubernetes/Kubernetes-Deployment-Strategy.md) — sync 이후 롤아웃이 실제로 어떻게 진행되는가

@@ -111,7 +111,7 @@ flowchart TB
 
 Google, Microsoft, Amazon, Red Hat이 모두 CNCF 멤버로 참여했다. 어느 한 회사가 Kubernetes를 독점할 수 없는 구조가 만들어졌다.
 
-**2017년, Docker Inc.가 Kubernetes 지원을 발표했다.** 자사의 Swarm 대신 경쟁자를 지원하겠다는 것이다. 이것은 사실상 항복 선언이었다.
+**2017년, Docker Inc.가 Kubernetes 지원을 발표했다.** Swarm을 버린 것은 아니고, Swarm과 나란히 Kubernetes도 고를 수 있게 하겠다는 발표였다. 그래도 자사 오케스트레이터의 경쟁자를 플랫폼에 들였다는 점에서 이것은 사실상 항복 선언이었다.
 
 ---
 
@@ -233,7 +233,7 @@ flowchart LR
     style B stroke:#FF6B6B,stroke-width:2px
 ```
 
-Istio, Linkerd 같은 서비스 메시가 이 패턴을 활용한다. 애플리케이션 코드 수정 없이 mTLS 암호화, 트래픽 관리, 분산 추적을 추가할 수 있다.
+Istio, Linkerd 같은 서비스 메시가 이 패턴을 활용한다. 애플리케이션 코드 수정 없이 mTLS 암호화와 트래픽 관리를 추가할 수 있다. 분산 추적도 프록시가 span을 보내 주지만, 여러 서비스를 거친 요청을 하나의 trace로 이으려면 애플리케이션이 받은 trace 헤더를 다음 요청으로 전달해야 한다.
 
 ### 4.3 수평 확장의 자동화
 
@@ -327,7 +327,8 @@ Kubernetes의 승리는 기술적 우월성만으로 설명되지 않는다. 정
 | [Kubernetes ReplicaSet & Deployment](./Kubernetes-ReplicaSet-Deployment.md) | Pod의 복제와 배포 관리 |
 | [Kubernetes Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md) | Liveness, Readiness, Startup Probe |
 | [Kubernetes Deployment Strategy](./Kubernetes-Deployment-Strategy.md) | Rolling, Blue/Green, Canary 배포 전략 |
-| [Kubernetes Service](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) | ClusterIP, NodePort, LoadBalancer |
+| [Service 오브젝트](./Kubernetes-Service-Object.md) | Service는 어떤 오브젝트인가 (Service 시리즈 1편, 읽는 순서 안내 포함) |
+| [Kubernetes Service](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) | ClusterIP, NodePort, LoadBalancer 타입별 사용법 (Service 시리즈 2편) |
 | [Kubernetes Ingress](./Kubernetes-Ingress.md) | HTTP 라우팅과 TLS |
 | [Kubernetes ConfigMap & Secret](./Kubernetes-ConfigMap-Secret.md) | 설정과 민감 정보 분리 |
 | [Kubernetes Volume & PersistentVolume](./Kubernetes-Volume-PersistentVolume.md) | 스토리지, PV/PVC, StorageClass |
@@ -338,12 +339,12 @@ Kubernetes의 승리는 기술적 우월성만으로 설명되지 않는다. 정
 
 | 문서 | 설명 |
 |------|------|
-| [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까](./Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md) | ServiceAccount 신원과 RBAC — 인증과 인가 |
-| [쿠버네티스는 어떻게 자기 자신을 확장할까](./쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) | CRD, 컨트롤러의 reconciliation loop, Operator |
-| [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까](./내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md) | API 요청 수명주기와 Admission Webhook |
-| [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md) | 서비스 메시, 사이드카 프록시, mTLS |
-| [kubectl top의 숫자는 어디서 오는가](./kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담.md) | metrics-server, kube-state-metrics, Prometheus |
-| [rollout restart를 했는데 왜 예전 코드가 그대로 돌까](./rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md) | 이미지 태그와 digest, imagePullPolicy |
+| [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까](./Kubernetes-ServiceAccount-RBAC.md) | ServiceAccount 신원과 RBAC — 인증과 인가 |
+| [쿠버네티스는 어떻게 자기 자신을 확장할까](./Kubernetes-CRD-Controller-Operator.md) | CRD, 컨트롤러의 reconciliation loop, Operator |
+| [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까](./Kubernetes-Admission-Webhook.md) | API 요청 수명주기와 Admission Webhook |
+| [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Kubernetes-Service-Mesh.md) | 서비스 메시, 사이드카 프록시, mTLS |
+| [kubectl top의 숫자는 어디서 오는가](./Kubernetes-Metrics-Server-Prometheus.md) | metrics-server, kube-state-metrics, Prometheus |
+| [rollout restart를 했는데 왜 예전 코드가 그대로 돌까](./Kubernetes-Image-Tag-Digest.md) | 이미지 태그와 digest, imagePullPolicy |
 
 ---
 

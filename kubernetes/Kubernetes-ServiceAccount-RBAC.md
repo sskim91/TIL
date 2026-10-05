@@ -1,4 +1,6 @@
-# Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC
+# Kubernetes ServiceAccount, RBAC
+
+**Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC**
 
 사람이 `kubectl`을 쓸 때는 kubeconfig 안의 인증서나 토큰으로 자기를 증명한다. 그런데 클러스터 **안에서** 도는 프로그램 — Pod 목록을 읽어 대시보드를 그리는 앱, 커스텀 리소스를 감시하는 컨트롤러 — 은 무엇으로 자기를 증명할까? 그리고 증명만 되면 무엇이든 할 수 있는 걸까?
 
@@ -237,7 +239,7 @@ $ curl -s --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
 
 > 쿠버네티스의 기본 자세는 **"너를 알아보긴 하지만, 그래서 뭘 해도 된다는 뜻은 아니다"** 다.
 
-참고로 API 요청이 통과해야 하는 관문은 인증과 인가에서 끝나지 않는다. 인가 뒤에는 mutating admission, 스키마 검증, validating admission이 이어지고 그다음에야 etcd에 저장된다. **그 전체 수명주기는** [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md) **가 다룬다.** 이 노트는 앞의 두 관문만 본다.
+참고로 API 요청이 통과해야 하는 관문은 인증과 인가에서 끝나지 않는다. 인가 뒤에는 mutating admission, 스키마 검증, validating admission이 이어지고 그다음에야 etcd에 저장된다. **그 전체 수명주기는** [Kubernetes Admission Webhook](Kubernetes-Admission-Webhook.md) **가 다룬다.** 이 노트는 앞의 두 관문만 본다.
 
 ---
 
@@ -503,7 +505,7 @@ Groups      [system:serviceaccounts system:serviceaccounts:my-app system:authent
 
 `view`가 Secret을 제외하는 이유와 `edit`이 사실상 SA 권한까지 얻는다는 설명이 같은 곳을 가리킨다. **Secret을 읽는 것 = ServiceAccount 토큰을 읽는 것 = 그 신원이 되는 것.** 이 노트 전체가 이 등식 위에 서 있다. 그래서 "읽기 권한 정도야"라고 `secrets`의 `get`을 넘기면 안 된다. `list`와 `watch`도 응답 본문에 Secret 내용이 전부 들어오므로 `get`과 같은 급이다.
 
-네 역할은 **ClusterRole aggregation** 을 쓰도록 만들어져 있어서, CRD 같은 커스텀 리소스를 `rbac.authorization.k8s.io/aggregate-to-edit: "true"` 라벨을 붙인 ClusterRole로 이 역할들에 얹을 수 있다. 커스텀 리소스를 도입할 때 `edit`/`view` 사용자가 그것도 다룰 수 있게 하는 표준 방법이다. (컨트롤러가 **왜** 넓은 권한을 요구하게 되는지는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)에서 다룬다.)
+네 역할은 **ClusterRole aggregation** 을 쓰도록 만들어져 있어서, CRD 같은 커스텀 리소스를 `rbac.authorization.k8s.io/aggregate-to-edit: "true"` 라벨을 붙인 ClusterRole로 이 역할들에 얹을 수 있다. 커스텀 리소스를 도입할 때 `edit`/`view` 사용자가 그것도 다룰 수 있게 하는 표준 방법이다. (컨트롤러가 **왜** 넓은 권한을 요구하게 되는지는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)에서 다룬다.)
 
 ---
 
@@ -524,7 +526,7 @@ Groups      [system:serviceaccounts system:serviceaccounts:my-app system:authent
 | 자원 | **ResourceQuota / LimitRange** | 한 네임스페이스가 노드 자원을 고갈시켜 다른 팀을 죽인다 |
 | 워크로드 특권 | **Pod Security Admission** (Baseline·Restricted) | 특권 Pod로 노드를 장악해 위의 모든 통제를 우회한다 |
 
-네트워크 축이 왜 `NetworkPolicy` 하나로 끝나지 않는지는 [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)에 정리돼 있다. 요점은 같다 — **격리는 단일 리소스가 아니라 겹쳐 쌓는 통제의 결과** 다.
+네트워크 축이 왜 `NetworkPolicy` 하나로 끝나지 않는지는 [Kubernetes Egress NetworkPolicy](Kubernetes-Egress-NetworkPolicy.md)에 정리돼 있다. 요점은 같다 — **격리는 단일 리소스가 아니라 겹쳐 쌓는 통제의 결과** 다.
 
 ---
 

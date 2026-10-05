@@ -1,4 +1,6 @@
-# 쿠버네티스는 GPU를 모른다 — nvidia-device-plugin은 어떻게 GPU를 자원으로 통역하는가
+# Kubernetes GPU Device Plugin
+
+**쿠버네티스는 GPU를 모른다 — nvidia-device-plugin은 어떻게 GPU를 자원으로 통역하는가**
 
 쿠버네티스가 GPU를 직접 관리하는 걸까? 스케줄러의 내장 자원 목록에 GPU는 없는데, 어떻게 `nvidia.com/gpu: 1` 같은 요청을 처리할 수 있을까?
 

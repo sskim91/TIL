@@ -524,7 +524,7 @@ tkn pipelinerun logs -f       # 실행 로그 스트리밍
    - 같은 Task의 Step들은 한 Pod 안이라 **네트워크 네임스페이스와 마운트된 볼륨** 을 공유한다(환경변수는 공유되지 않는다). 그 대가로 (a) Step은 순차 실행만 가능하고 (b) 컨테이너가 전부 동시에 떠서 리소스 예약과 (c) 4096 byte Result 한도에 물린다.
 
 3. **Tekton 리소스는 CRD로 정의된 Custom Resource다**
-   - Tekton을 설치하는 일의 실체는 `tasks.tekton.dev`·`pipelines.tekton.dev`·`pipelineruns.tekton.dev` 같은 **CRD를 등록하고 컨트롤러를 띄우는 것** 이다. 우리가 쓰는 `Task`·`Pipeline`·`PipelineRun`은 그 CRD가 정의한 **Custom Resource** 다. 그래서 `kubectl apply`로 다뤄지고 RBAC이 걸리며, `PipelineRun`을 만들면 컨트롤러가 그것을 감시해 `TaskRun`과 Pod로 펼친다. 이 확장 메커니즘 자체는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)에서 다룬다.
+   - Tekton을 설치하는 일의 실체는 `tasks.tekton.dev`·`pipelines.tekton.dev`·`pipelineruns.tekton.dev` 같은 **CRD를 등록하고 컨트롤러를 띄우는 것** 이다. 우리가 쓰는 `Task`·`Pipeline`·`PipelineRun`은 그 CRD가 정의한 **Custom Resource** 다. 그래서 `kubectl apply`로 다뤄지고 RBAC이 걸리며, `PipelineRun`을 만들면 컨트롤러가 그것을 감시해 `TaskRun`과 Pod로 펼친다. 이 확장 메커니즘 자체는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)에서 다룬다.
 
 4. **데이터 전달과 제어는 도구를 나눠 쓴다**
    - 작은 값은 **Result**(짧은 문자열), 큰 덩어리는 **Workspace**(볼륨). Result는 `$(results.x.path)` 경로에 **파일로 써서** 넘기며, `echo`가 붙이는 개행을 반드시 제거해야 한다. Task 순서는 `runAfter`와 `results` 참조로, 병렬은 의존을 안 걸어서, 조건부는 `when`으로, 정리 작업은 `finally`로 제어한다. **`$(tasks.X.results.Y)` 참조는 데이터 의존성과 순서 의존성을 동시에 만든다** — `runAfter`만 보고 DAG를 판단하면 안 된다.

@@ -1,4 +1,6 @@
-# Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들
+# Kubernetes Service Mesh
+
+**Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들**
 
 `kubectl get ingress --all-namespaces`가 비어 있는데 브라우저로는 서비스가 열린다. 그러면 라우팅 규칙은 대체 어디에 적혀 있는 걸까?
 
@@ -28,7 +30,7 @@ kubectl get gateway.networking.istio.io,virtualservice -A  # Istio 자체 API �
 kubectl get pod -o jsonpath='{.items[*].spec.containers[*].name}'
 ```
 
-쿠버네티스가 자기 API에 없던 이런 리소스를 어떻게 가질 수 있는지는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)에서 다룬다. 여기서는 **왜** 그런 리소스를 따로 만들었고, 왜 앱마다 프록시를 붙이는가에 집중한다.
+쿠버네티스가 자기 API에 없던 이런 리소스를 어떻게 가질 수 있는지는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)에서 다룬다. 여기서는 **왜** 그런 리소스를 따로 만들었고, 왜 앱마다 프록시를 붙이는가에 집중한다.
 
 | 관심사 | Ingress + Ingress Controller | 서비스 메시 |
 |--------|------------------------------|-------------|
@@ -123,7 +125,7 @@ flowchart TB
 
 ### 1-5. 그런데 그 프록시는 내 YAML에 없다
 
-여기서 처음의 두 번째 미스터리가 남는다. Deployment에 컨테이너를 하나만 적었는데 왜 `2/2`인가? 답은 짧다 — **API 서버가 Pod를 저장하기 전에, 메시의 webhook이 요청 본문을 고쳐 프록시 컨테이너를 끼워 넣는다.** 이 mutating admission webhook의 동작 원리는 [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)이 소유하므로 여기서는 링크만 걸어 둔다.
+여기서 처음의 두 번째 미스터리가 남는다. Deployment에 컨테이너를 하나만 적었는데 왜 `2/2`인가? 답은 짧다 — **API 서버가 Pod를 저장하기 전에, 메시의 webhook이 요청 본문을 고쳐 프록시 컨테이너를 끼워 넣는다.** 이 mutating admission webhook의 동작 원리는 [Kubernetes Admission Webhook](Kubernetes-Admission-Webhook.md)이 소유하므로 여기서는 링크만 걸어 둔다.
 
 ---
 
@@ -146,7 +148,7 @@ flowchart TB
 
 서비스 메시는 이 빈칸을 채우면서, 동시에 north-south도 **같은 모델** 로 표현한다. 메시의 게이트웨이는 결국 "메시 경계에 서 있는 프록시"이고, 사이드카는 "Pod 경계에 서 있는 프록시"다. 둘 다 프록시이므로 같은 문법으로 설정할 수 있다. 그래서 메시를 도입하면 Ingress Controller와 별개로 게이트웨이를 하나 더 두는 대신, 게이트웨이가 Ingress Controller 역할까지 흡수하는 구성이 자연스러워진다. **"Ingress로는 부족한 이유"의 정확한 답은 "Ingress는 절반의 방향만 다룬다"** 다.
 
-(`Ingress`라는 단어가 `Ingress` 리소스와 NetworkPolicy의 `ingress` 방향을 동시에 가리켜 생기는 혼란, 그리고 `kind: Egress`가 없는 비대칭은 [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)에서 정리했다.)
+(`Ingress`라는 단어가 `Ingress` 리소스와 NetworkPolicy의 `ingress` 방향을 동시에 가리켜 생기는 혼란, 그리고 `kind: Egress`가 없는 비대칭은 [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](Kubernetes-Ingress-vs-Egress.md)에서 정리했다.)
 
 ```mermaid
 flowchart LR
@@ -236,7 +238,7 @@ spec:
 
 메시의 컨트롤 플레인은 내부에 CA(인증 기관)를 두고, **워크로드마다 짧은 수명의 X.509 인증서** 를 발급한다. Istio의 경우 각 Pod의 에이전트가 키를 만들고 CSR을 `istiod`에 보내면, `istiod`가 자격을 검증해 서명하고, 프록시는 이를 받아 상호 TLS(mTLS)에 사용한다. 에이전트는 만료를 감시하며 주기적으로 갱신을 반복한다. 애플리케이션 코드는 이 과정을 전혀 모른다.
 
-이 인증서에 담기는 **신원(identity)** 이 무엇인지가 중요하다. 쿠버네티스에서 그 신원은 **ServiceAccount** 를 기반으로 만들어진다. 인가 정책에서 보이는 principal 형태가 `cluster.local/ns/production/sa/checkout`처럼 네임스페이스와 ServiceAccount로 구성되는 이유다. ServiceAccount가 왜 워크로드 신원의 기반이 되는지는 [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md)를 보라.
+이 인증서에 담기는 **신원(identity)** 이 무엇인지가 중요하다. 쿠버네티스에서 그 신원은 **ServiceAccount** 를 기반으로 만들어진다. 인가 정책에서 보이는 principal 형태가 `cluster.local/ns/production/sa/checkout`처럼 네임스페이스와 ServiceAccount로 구성되는 이유다. ServiceAccount가 왜 워크로드 신원의 기반이 되는지는 [Kubernetes ServiceAccount, RBAC](Kubernetes-ServiceAccount-RBAC.md)를 보라.
 
 그 위에 정책 두 개가 얹힌다. **PeerAuthentication** 은 mTLS를 어느 강도로 요구할지 정한다 — `STRICT`은 mTLS만 받고, `PERMISSIVE`는 mTLS와 평문을 모두 받는다(메시로 점진 이행할 때 쓰는 모드이며, 메시 전역 기본값이 설정돼 있지 않으면 `PERMISSIVE`다). **AuthorizationPolicy** 는 "누가 무엇을 할 수 있는지"를 정한다.
 
@@ -264,7 +266,7 @@ spec:
 
 ### 3-2. IP로는 "누구인지"를 말할 수 없다
 
-여기서 [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)에서 다룬 이야기와 정면으로 이어진다. NetworkPolicy는 CNI가 커널의 패킷 필터로 집행하는 **L3/L4 규칙** 이다. 커널이 패킷에서 볼 수 있는 것은 출발지·목적지 IP와 포트뿐이다.
+여기서 [Kubernetes Egress NetworkPolicy](Kubernetes-Egress-NetworkPolicy.md)에서 다룬 이야기와 정면으로 이어진다. NetworkPolicy는 CNI가 커널의 패킷 필터로 집행하는 **L3/L4 규칙** 이다. 커널이 패킷에서 볼 수 있는 것은 출발지·목적지 IP와 포트뿐이다.
 
 그런데 Pod IP는 Pod가 재시작될 때마다 바뀌고, 회수돼 다른 Pod에 재활용된다. "방금 이 IP에서 온 요청이 정말 결제 서비스인가?"를 IP만으로 확신할 방법이 없다. NetworkPolicy가 라벨 셀렉터로 이 문제를 상당 부분 우회하지만(`podSelector`로 지정하면 CNI가 해당 Pod의 현재 IP를 추적한다), 그것은 여전히 **"어떤 IP를 허용할지 계산하는 방식"** 이고, 요청 자체가 그 신원을 **증명** 하지는 않는다. 메시의 mTLS는 요청마다 상대가 인증서로 자기 신원을 증명하게 만든다는 점에서 층이 다르다.
 
@@ -401,7 +403,7 @@ Istio는 ztunnel이 자원 예약 과다 문제를 없애 준다고 설명하며
 
 이 문제를 표준으로 풀려는 시도가 두 번 있었다. 첫 번째는 **SMI(Service Mesh Interface)** 였다. 벤더 중립 CRD 집합으로 메시를 설정하겠다는 CNCF Sandbox 프로젝트였고, 여러 메시가 부분적으로 구현했다. 그러나 **CNCF는 2023년 10월 3일 SMI 프로젝트를 아카이브했다.** 아카이브 사유는 명확하다 — 유지관리자들이 노력을 **Gateway API의 GAMMA** 로 통합하기로 결정했기 때문이다. 오래된 자료에서 SMI를 보게 되면, 그것은 역사적 표준이라는 뜻이다.
 
-두 번째이자 현재의 답은 **Gateway API** 다. Ingress의 후계 표준으로 설계됐고(전망은 [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md)에서 다뤘다), 원래는 north-south만 겨냥했다. 여기서 메시 관점의 핵심이 등장한다.
+두 번째이자 현재의 답은 **Gateway API** 다. Ingress의 후계 표준으로 설계됐고(전망은 [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](Kubernetes-Ingress-vs-Egress.md)에서 다뤘다), 원래는 north-south만 겨냥했다. 여기서 메시 관점의 핵심이 등장한다.
 
 **GAMMA(Gateway API for Mesh Management and Administration)** 는 2022년에 시작된 워크스트림으로, Gateway API를 east-west 트래픽에도 쓸 수 있게 정의하는 것이 목표다. 그리고 현재 상태가 중요하다 — **GAMMA의 메시 지원은 Gateway API의 Standard Channel에 v1.1.0부터 포함되어 GA로 간주된다.**
 
@@ -481,10 +483,10 @@ spec:
    - SMI는 2023년 10월 CNCF에서 아카이브되며 GAMMA로 통합됐다. GAMMA의 메시 지원은 Gateway API Standard Channel에 v1.1.0부터 포함되어 GA이며, `HTTPRoute`의 `parentRef`를 Gateway 대신 Service로 두면 east-west 라우팅이 된다. 새 라우팅 규칙은 메시 고유 CRD보다 Gateway API를 먼저 검토할 만하다.
 
 > 관련 문서
-> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) — 메시 CRD가 어떻게 존재할 수 있는가
-> - [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md) — 사이드카 주입의 기술적 메커니즘
-> - [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md) — 워크로드 신원의 기반
-> - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까.md) · [쿠버네티스 Egress 통제는 왜 NetworkPolicy 하나로 끝나지 않을까](쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md)
+> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md) — 메시 CRD가 어떻게 존재할 수 있는가
+> - [Kubernetes Admission Webhook](Kubernetes-Admission-Webhook.md) — 사이드카 주입의 기술적 메커니즘
+> - [Kubernetes ServiceAccount, RBAC](Kubernetes-ServiceAccount-RBAC.md) — 워크로드 신원의 기반
+> - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](Kubernetes-Ingress-vs-Egress.md) · [Kubernetes Egress NetworkPolicy](Kubernetes-Egress-NetworkPolicy.md)
 > - [Kubernetes Ingress](Kubernetes-Ingress.md) · [Kubernetes Deployment Strategy](Kubernetes-Deployment-Strategy.md) · [Kubernetes Pod](Kubernetes-Pod.md) · [Kubernetes DaemonSet Job CronJob](Kubernetes-DaemonSet-Job-CronJob.md)
 
 ---

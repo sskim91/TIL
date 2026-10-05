@@ -1,4 +1,6 @@
-# 내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook
+# Kubernetes Admission Webhook
+
+**내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook**
 
 컨테이너를 하나만 정의했는데 `READY 2/2`가 뜬다. 반대로 문제없어 보이는 YAML이 "정책 위반"으로 거부당한다. 나는 그런 검사를 설정한 적이 없다. 누가 내 리소스를 고치고, 누가 거부하는가?
 
@@ -93,7 +95,7 @@ sequenceDiagram
 
 1·2단계에서 판단하는 것은 "이 요청을 보낸 주체가 누구고 무엇을 할 수 있는가"이지 오브젝트의 내용이 아니다. 반면 admission 단계는 공식 문서 표현대로 **"인가 모듈이 볼 수 있는 속성에 더해, 생성·수정되는 오브젝트의 내용 자체에 접근할 수 있다"**. 그래서 "replica가 5개를 넘으면 안 된다", "이미지 태그에 `latest`를 쓰면 안 된다" 같은 판단은 인가가 아니라 admission의 일이다.
 
-ServiceAccount 신원과 RBAC verb 문법 같은 1·2단계의 상세는 [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC](Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC.md)에서 다룬다. 이 노트는 3~5단계에 집중한다.
+ServiceAccount 신원과 RBAC verb 문법 같은 1·2단계의 상세는 [Kubernetes ServiceAccount, RBAC](Kubernetes-ServiceAccount-RBAC.md)에서 다룬다. 이 노트는 3~5단계에 집중한다.
 
 또 하나 중요한 전제. **admission은 읽기 요청에는 걸리지 않는다.** 공식 문서가 못 박아 두듯 admission controller는 오브젝트를 생성·수정·삭제·프록시 연결하는 요청에만 작동하고, 단순히 읽는 요청에는 개입하지 않는다. 그래서 `kubectl get`이 느려지는 일은 없지만, `kubectl apply`는 웹훅 개수만큼 느려진다.
 
@@ -113,7 +115,7 @@ ServiceAccount 신원과 RBAC verb 문법 같은 1·2단계의 상세는 [Pod는
 
 admission은 저장 **전** 에 끼어든다. 이 위치가 컨트롤러와 admission을 완전히 다른 도구로 만든다.
 
-컨트롤러는 이미 저장된 상태를 관찰하고 원하는 상태로 수렴시킨다(desired vs observed의 reconciliation loop는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)가 다룬다). 즉 컨트롤러 방식으로 정책을 강제하면 **잘못된 오브젝트가 일단 클러스터에 들어온 뒤** 누군가 그것을 고치거나 지운다. 그 사이의 시간 동안 규칙을 어긴 Pod가 실제로 떠 있을 수 있다.
+컨트롤러는 이미 저장된 상태를 관찰하고 원하는 상태로 수렴시킨다(desired vs observed의 reconciliation loop는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)가 다룬다). 즉 컨트롤러 방식으로 정책을 강제하면 **잘못된 오브젝트가 일단 클러스터에 들어온 뒤** 누군가 그것을 고치거나 지운다. 그 사이의 시간 동안 규칙을 어긴 Pod가 실제로 떠 있을 수 있다.
 
 admission은 그 창을 없앤다. 규칙을 어긴 오브젝트는 **애초에 클러스터의 사실이 되지 못한다.** 사용자에게는 `kubectl apply`가 실패하고 그 자리에서 이유가 보인다. "잘못된 상태를 나중에 고치기"와 "잘못된 상태가 생기지 않게 하기"의 차이이며, 정책 강제를 admission에 두는 이유다.
 
@@ -272,7 +274,7 @@ flowchart LR
 
 여기서 왜 **전 클러스터에 걸지 않고 라벨로 좁히는가** 가 핵심이다. 만약 selector 없이 모든 네임스페이스에 주입한다면 `kube-system`의 컨트롤 플레인 구성요소, CNI·CSI 플러그인 Pod, DNS Pod에까지 프록시가 주입된다. 그러면 클러스터의 네트워킹 자체가 아직 뜨지 않은 프록시에 의존하게 되고, 클러스터가 부팅되지 못한다. 공식 good practices 문서가 명시적으로 권고하는 바도 같다 — `kube-system` 네임스페이스의 오브젝트 매칭을 피하고, `kube-node-lease` 네임스페이스의 Lease 오브젝트는 절대 mutate하지 말라(노드 업그레이드가 실패할 수 있다). 웹훅에서 **범위를 좁히는 것은 최적화가 아니라 안전 장치다.**
 
-(사이드카·서비스 메시를 **왜** 쓰는가, 그 가치와 비용은 [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)이 다룬다. Pod 안에서 init/sidecar 컨테이너가 어떤 수명주기를 갖는지는 [Kubernetes-Pod](Kubernetes-Pod.md)에 있다. 이 노트는 "어떻게 들어왔는가"만 책임진다.)
+(사이드카·서비스 메시를 **왜** 쓰는가, 그 가치와 비용은 [Kubernetes Service Mesh](Kubernetes-Service-Mesh.md)이 다룬다. Pod 안에서 init/sidecar 컨테이너가 어떤 수명주기를 갖는지는 [Kubernetes-Pod](Kubernetes-Pod.md)에 있다. 이 노트는 "어떻게 들어왔는가"만 책임진다.)
 
 ### 3-4. 웹훅은 반드시 HTTPS다 — caBundle과 인증서 만료 장애
 
@@ -453,7 +455,7 @@ spec:
 
 이 구조를 알면 공급망 보안이 왜 admission에 걸리는지도 보인다. [Helm과 Harbor를 왜 같이 써야 하는가](Helm과-Harbor를-왜-같이-써야-하는가.md)에서 다룬 이미지 서명 검증이 그 예다. "서명되지 않은 이미지를 쓰는 Pod를 거부한다"는 규칙은 레지스트리에 서명을 조회해야 하니 CEL로는 표현할 수 없다 — 즉 5-2절 표의 "외부 API 호출이 필요한 판단"에 해당하고, 그래서 정책 엔진의 **validating 웹훅** 으로 구현된다. 그리고 admission이므로 서명 없는 이미지의 Pod는 **애초에 etcd에 들어오지 못한다.**
 
-CRD로 만든 커스텀 리소스를 검증할 때도 같은 웹훅 메커니즘이 쓰인다. 다만 공식 문서는 CRD의 경우 웹훅보다 **내장 검증·기본값 기능(OpenAPI 스키마, CEL validation rules)을 먼저 쓰라** 고 권한다. CRD와 컨트롤러 쪽 상세는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)에 있다.
+CRD로 만든 커스텀 리소스를 검증할 때도 같은 웹훅 메커니즘이 쓰인다. 다만 공식 문서는 CRD의 경우 웹훅보다 **내장 검증·기본값 기능(OpenAPI 스키마, CEL validation rules)을 먼저 쓰라** 고 권한다. CRD와 컨트롤러 쪽 상세는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)에 있다.
 
 ---
 

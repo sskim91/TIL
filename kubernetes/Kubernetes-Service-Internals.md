@@ -1,8 +1,16 @@
-# 쿠버네티스 Service에는 왜 프로세스가 없을까
+# Kubernetes Service Internals
+
+**쿠버네티스 Service에는 왜 프로세스가 없을까**
 
 ClusterIP는 분명히 있는데 그 IP를 가진 서버는 어디에도 없다. 그럼 `curl http://my-svc`는 누가 받아서 Pod로 넘겨주는 걸까?
 
-> Service의 기본 개념과 타입(ClusterIP, NodePort, LoadBalancer)은 [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)에서 먼저 다룬다. 이 글은 그 Service가 내부에서 실제로 어떻게 동작하는지를 파고든다.
+> 📚 **Service 시리즈 읽는 순서**
+> 1. [Kubernetes Service Object](./Kubernetes-Service-Object.md) - Service는 어떤 오브젝트인가
+> 2. [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) - 타입별로 어떻게 쓰는가
+> 3. [Kubernetes Service Internals](./Kubernetes-Service-Internals.md) - 내부에서 어떻게 동작하는가 ← 지금 읽는 글
+> 4. [Kubernetes Service LoadBalancer (Cloud)](./Kubernetes-Service-LoadBalancer-Cloud.md) - 클라우드 LB와는 어떻게 연결되는가
+>
+> 다음 단계: [Kubernetes Ingress](./Kubernetes-Ingress.md) - 여러 Service를 하나의 HTTP 진입점으로 묶기
 
 ## 결론부터 말하면
 
@@ -311,7 +319,7 @@ Service가 서버가 아니라 커널 규칙이라는 사실을 모르면, 정�
 
 > 📖 관련 문서:
 > - [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
-> - [같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유](./같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유.md)
+> - [Kubernetes Service LoadBalancer (Cloud)](./Kubernetes-Service-LoadBalancer-Cloud.md)
 
 ---
 

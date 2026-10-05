@@ -259,7 +259,7 @@ docker buildx imagetools create -t registry.example.com/myapp:1.0 \
   registry.example.com/myapp:1.0-arm64
 ```
 
-`imagetools inspect`의 `Digest:` 줄에 찍히는 값이 목차 전체의 digest다. 이 값을 배포 설정에 고정하는 이유와 방법은 [rollout-restart를 했는데 왜 예전 코드가 그대로 돌까 - 이미지 태그와 다이제스트](../kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)에서 다룬다.
+`imagetools inspect`의 `Digest:` 줄에 찍히는 값이 목차 전체의 digest다. 이 값을 배포 설정에 고정하는 이유와 방법은 [rollout-restart를 했는데 왜 예전 코드가 그대로 돌까 - 이미지 태그와 다이제스트](../kubernetes/Kubernetes-Image-Tag-Digest.md)에서 다룬다.
 
 ### 3.3 빌드 인자: 지금 어느 CPU에서, 어느 CPU용으로 빌드하는가
 
@@ -409,7 +409,7 @@ docker run --privileged --rm tonistiigi/binfmt --install all
    - 플랫폼을 Dockerfile에 하드코딩하지 말고 빌드 명령의 `--platform`으로 정한다
 
 > 📖 관련 문서:
-> - [rollout-restart를 했는데 왜 예전 코드가 그대로 돌까 - 이미지 태그와 다이제스트](../kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md)
+> - [rollout-restart를 했는데 왜 예전 코드가 그대로 돌까 - 이미지 태그와 다이제스트](../kubernetes/Kubernetes-Image-Tag-Digest.md)
 > - [Jenkins가 있는데 왜 Tekton이 빌드할까](../kubernetes/Jenkins가-있는데-왜-Tekton이-빌드할까.md) (쿠버네티스 안에서 Docker daemon 없이 BuildKit 같은 빌더로 이미지를 만드는 이유)
 > - [Docker의 Copy-on-Write 전략](./Docker의-Copy-on-Write-전략.md) (이미지 레이어 구조)
 

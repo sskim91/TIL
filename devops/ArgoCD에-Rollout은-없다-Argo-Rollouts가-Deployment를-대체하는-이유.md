@@ -97,7 +97,7 @@ readinessProbe:
 
 ## 2. Rollout — Deployment의 자리를 뺏는 CRD
 
-Argo Rollouts는 이 셋을 채우기 위해 쿠버네티스 API를 확장한다. CRD로 새 리소스 종류를 등록하고, 그것을 감시하는 컨트롤러를 띄우는 전형적인 Operator 패턴이다([쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md)).
+Argo Rollouts는 이 셋을 채우기 위해 쿠버네티스 API를 확장한다. CRD로 새 리소스 종류를 등록하고, 그것을 감시하는 컨트롤러를 띄우는 전형적인 Operator 패턴이다([쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/Kubernetes-CRD-Controller-Operator.md)).
 
 설치하면 CRD 다섯 개가 생긴다. 역할로 묶으면 세 덩어리다.
 
@@ -787,6 +787,6 @@ Argo Rollouts를 한 문장으로 요약하면 이렇다. **Argo Rollouts는 "�
 > - [Kubernetes Deployment Strategy](../kubernetes/Kubernetes-Deployment-Strategy.md) — Rolling Update·Blue/Green·Canary 전략 자체의 개념과 순수 쿠버네티스 구현
 > - [Kubernetes ReplicaSet & Deployment](../kubernetes/Kubernetes-ReplicaSet-Deployment.md) — 컨트롤러가 실제로 조작하는 그 ReplicaSet
 > - [Kubernetes Probe: Liveness, Readiness, Startup](../kubernetes/Kubernetes-Probe-Liveness-Readiness-Startup.md) — 1.1절에서 배신당하는 그 readiness probe
-> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator.md) — `Rollout`이 존재할 수 있는 이유
-> - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](../kubernetes/Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md) — 4.1절의 `trafficRouting`이 조작하는 대상
-> - [rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트](../kubernetes/rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트.md) — 이름이 비슷하지만 다른 이야기. `kubectl rollout`은 Deployment의 명령어다
+> - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/Kubernetes-CRD-Controller-Operator.md) — `Rollout`이 존재할 수 있는 이유
+> - [Kubernetes Service Mesh](../kubernetes/Kubernetes-Service-Mesh.md) — 4.1절의 `trafficRouting`이 조작하는 대상
+> - [Kubernetes Image Tag, Digest](../kubernetes/Kubernetes-Image-Tag-Digest.md) — 이름이 비슷하지만 다른 이야기. `kubectl rollout`은 Deployment의 명령어다

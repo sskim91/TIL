@@ -1,4 +1,6 @@
-# rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트
+# Kubernetes Image Tag, Digest
+
+**rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트**
 
 CI가 빌드를 끝내고 같은 태그(`my-app:1.0`)로 레지스트리에 새 이미지를 푸시했다. 나는 `kubectl rollout restart deployment/my-app`을 실행했다. Pod는 실제로 전부 새로 떴다 — `kubectl get pods`의 AGE가 `10s`다. 그런데 접속해 보면 동작은 예전 코드 그대로다.
 
@@ -231,7 +233,7 @@ image: my-app@sha256:45b23dee08af5e43a7fea6c4cf9c25ccf269ee113168c19722f87876677
 
 실무에서 이 값은 손으로 적는 게 아니다. **CI가 푸시 직후 digest를 회수해 매니페스트에 기록** 한다. `docker push`나 `docker buildx build --push`의 출력에는 푸시된 digest가 찍히고, `docker buildx imagetools inspect my-app:1.0` 같은 명령으로도 조회할 수 있다. 그 값을 Helm values나 Kustomize 이미지 필드에 넣어 커밋하는 것이 표준 흐름이다.
 
-단점도 정직하게 짚자. 첫째, **사람이 읽을 수 없다.** `sha256:45b23d...`만 보고 그게 어떤 릴리스인지 알 수 있는 사람은 없다. 그래서 태그와 digest를 함께 적는 형태(`image: my-app:1.0@sha256:...`)를 쓰기도 하는데, 이때 **pull에 쓰이는 것은 digest뿐** 이고 태그는 사람을 위한 주석 역할만 한다. 둘째, **갱신 자동화가 없으면 관리가 고통스럽다.** 릴리스마다 64자 해시를 바꿔 넣어야 하니, CI나 이미지 업데이트 자동화(Argo CD Image Updater, Renovate 등) 없이는 오래 못 간다. 이 손 작업을 아예 없애는 방향으로, Pod 생성 시점에 태그를 digest로 치환해 주는 서드파티 admission controller를 쓰는 선택지도 있다 — 공식 문서도 그런 컨트롤러의 존재를 언급한다. (요청을 가로채 오브젝트를 고쳐 쓰는 그 메커니즘 자체는 [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook](내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook.md)이 다룬다.)
+단점도 정직하게 짚자. 첫째, **사람이 읽을 수 없다.** `sha256:45b23d...`만 보고 그게 어떤 릴리스인지 알 수 있는 사람은 없다. 그래서 태그와 digest를 함께 적는 형태(`image: my-app:1.0@sha256:...`)를 쓰기도 하는데, 이때 **pull에 쓰이는 것은 digest뿐** 이고 태그는 사람을 위한 주석 역할만 한다. 둘째, **갱신 자동화가 없으면 관리가 고통스럽다.** 릴리스마다 64자 해시를 바꿔 넣어야 하니, CI나 이미지 업데이트 자동화(Argo CD Image Updater, Renovate 등) 없이는 오래 못 간다. 이 손 작업을 아예 없애는 방향으로, Pod 생성 시점에 태그를 digest로 치환해 주는 서드파티 admission controller를 쓰는 선택지도 있다 — 공식 문서도 그런 컨트롤러의 존재를 언급한다. (요청을 가로채 오브젝트를 고쳐 쓰는 그 메커니즘 자체는 [Kubernetes Admission Webhook](Kubernetes-Admission-Webhook.md)이 다룬다.)
 
 > digest를 기반으로 **이미지에 서명하고 공급망을 검증** 하는 이야기 — Cosign, Notation, 그리고 Kyverno로 검증되지 않은 이미지를 막는 정책 — 는 [Helm과 Harbor를 왜 같이 써야 하는가](Helm과-Harbor를-왜-같이-써야-하는가.md)가 다룬다. 이 글은 "무엇이 떴는지 확정할 수 있는가"까지만 책임진다.
 

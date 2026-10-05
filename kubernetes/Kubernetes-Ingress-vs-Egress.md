@@ -1,4 +1,6 @@
-# 쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까?
+# Kubernetes Ingress vs Egress
+
+**쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까?**
 
 쿠버네티스 매니페스트를 뒤지다 보면 `kind: Ingress`를 만난다. 이름이 "들어오는 트래픽(ingress)"이니, 자연스럽게 짝꿍을 기대하게 된다. **"들어오는 게 있으면 나가는 것도 있겠지? `kind: Egress`도 있을 거야."** 그런데 아무리 찾아도 `kind: Egress`는 나오지 않는다. 대신 NetworkPolicy 안에서 `egress:`라는 필드를 보게 되고, 동시에 거기서도 `ingress:`가 또 튀어나온다. 분명 방금 `kind: Ingress`를 봤는데, 왜 NetworkPolicy 안에 또 `ingress`가 있는 걸까?
 
@@ -156,7 +158,7 @@ spec:
 
 ## 3. Egress — 짝꿍 리소스가 없는 "나가는 트래픽"
 
-> [!note] 자세한 내용은 [쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까](./쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까.md) 참고
+> [!note] 자세한 내용은 [Kubernetes Egress NetworkPolicy](./Kubernetes-Egress-NetworkPolicy.md) 참고
 
 이제 첫 번째 직관 붕괴를 정면으로 마주할 차례다. Ingress가 이렇게 잘 정의된 리소스라면, 반대 방향인 Egress도 `kind: Egress`로 깔끔하게 있어야 할 것 같다. 그런데 없다.
 
@@ -359,7 +361,7 @@ NetworkPolicy는 이런 변화와 무관하게 현역 표준으로 그대로 쓰
 
 ---
 
-> **덧붙임 — Gateway API 말고 다른 답도 있다.** Ingress의 표현력 한계를 서비스 메시로 넘어서는 길도 있고, 실제로 그 길을 택한 클러스터에는 `Ingress` 리소스가 하나도 없다. 그 경우 north-south(외부→클러스터)와 east-west(서비스↔서비스)를 하나의 모델로 다루게 되는데, 이 노트가 말한 "비대칭"이 거기서 어떻게 해소되는지는 [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들](Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들.md)에서 다룬다.
+> **덧붙임 — Gateway API 말고 다른 답도 있다.** Ingress의 표현력 한계를 서비스 메시로 넘어서는 길도 있고, 실제로 그 길을 택한 클러스터에는 `Ingress` 리소스가 하나도 없다. 그 경우 north-south(외부→클러스터)와 east-west(서비스↔서비스)를 하나의 모델로 다루게 되는데, 이 노트가 말한 "비대칭"이 거기서 어떻게 해소되는지는 [Kubernetes Service Mesh](Kubernetes-Service-Mesh.md)에서 다룬다.
 
 ---
 

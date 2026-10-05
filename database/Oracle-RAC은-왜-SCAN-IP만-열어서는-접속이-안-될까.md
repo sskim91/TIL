@@ -182,7 +182,7 @@ pool = oracledb.create_pool(
 
 ## 5. 쿠버네티스 egress 통제 환경에서 RAC에 접속하기
 
-이제 무대를 옮기자. 애플리케이션이 쿠버네티스에서 돌고, 클러스터에는 default-deny egress가 깔려 있다. (egress 통제의 기본기와 세 가지 벽 — FQDN 미지원·출발지 IP·네임스페이스 범위 — 은 [[쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까]]에서 다뤘다. 여기서는 그 도구들을 RAC이라는 목적지에 맞춰 조립한다.)
+이제 무대를 옮기자. 애플리케이션이 쿠버네티스에서 돌고, 클러스터에는 default-deny egress가 깔려 있다. (egress 통제의 기본기와 세 가지 벽 — FQDN 미지원·출발지 IP·네임스페이스 범위 — 은 [[Kubernetes-Egress-NetworkPolicy]]에서 다뤘다. 여기서는 그 도구들을 RAC이라는 목적지에 맞춰 조립한다.)
 
 환경을 이렇게 가정한다.
 
@@ -291,7 +291,7 @@ spec:
 
 `matchPattern`의 기준은 우리가 짐작하는 이름이 아니라 **클라이언트가 실제로 DNS에 질의하는 이름** — 즉 `LOCAL_LISTENER`에 등록되어 redirect로 돌아오는 바로 그 값이다. FQDN 엔진은 질의된 이름으로만 IP를 학습하므로, redirect가 `node1-vip`(짧은 이름)로 오는데 패턴을 FQDN으로 잡았거나 그 반대라면 매칭이 어긋난다. DBA에게 `LOCAL_LISTENER` 등록값을 확인받고 패턴을 맞추는 게 순서다.
 
-다만 RAC 앞에서는 FQDN 정책의 평소 약점들이 전부 증폭된다는 걸 알고 선택해야 한다. **`LOCAL_LISTENER`가 호스트명이 아니라 IP로 등록된 클러스터라면** 클라이언트가 DNS 질의 없이 곧장 그 IP로 연결하므로 FQDN 엔진이 학습할 기회 자체가 없고, **JVM처럼 DNS를 캐시하는 런타임은** 엔진의 TTL 만료와 어긋나 멀쩡한 연결이 드롭되기도 한다(이 함정의 일반론은 [[쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까]] §2-4). DB처럼 **IP가 사실상 고정된 사내 인프라는** FQDN 정책의 장점(IP 변동 추적)이 살지 않는 대상이므로, 필자라면 RAC 구간은 5-1의 CIDR `ipBlock`으로 열고 FQDN 정책은 IP가 실제로 변하는 외부 SaaS에 아껴 쓰겠다.
+다만 RAC 앞에서는 FQDN 정책의 평소 약점들이 전부 증폭된다는 걸 알고 선택해야 한다. **`LOCAL_LISTENER`가 호스트명이 아니라 IP로 등록된 클러스터라면** 클라이언트가 DNS 질의 없이 곧장 그 IP로 연결하므로 FQDN 엔진이 학습할 기회 자체가 없고, **JVM처럼 DNS를 캐시하는 런타임은** 엔진의 TTL 만료와 어긋나 멀쩡한 연결이 드롭되기도 한다(이 함정의 일반론은 [[Kubernetes-Egress-NetworkPolicy]] §2-4). DB처럼 **IP가 사실상 고정된 사내 인프라는** FQDN 정책의 장점(IP 변동 추적)이 살지 않는 대상이므로, 필자라면 RAC 구간은 5-1의 CIDR `ipBlock`으로 열고 FQDN 정책은 IP가 실제로 변하는 외부 SaaS에 아껴 쓰겠다.
 
 ### 5-3. DB 쪽 방화벽이 출발지 IP를 요구할 때 — Egress Gateway
 
@@ -350,7 +350,7 @@ egress를 다 뚫었다면 애플리케이션 설정은 4장과 완전히 동일
    - VIP 하나 누락, ONS 6200 차단, Egress Gateway `destinationCIDRs`의 VIP 누락 — 모두 "될 때도 있고 안 될 때도 있는" 증상을 만든다
    - RAC 접속 문제는 항상 "1번째 연결(SCAN)과 2번째 연결(VIP)을 분리해서" 추적한다
 
-> 📖 관련 문서: [[쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까]] — FQDN 정책·Egress Gateway·cluster-wide 정책의 일반론, [[쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까]] — default-deny와 DNS 함정
+> 📖 관련 문서: [[Kubernetes-Egress-NetworkPolicy]] — FQDN 정책·Egress Gateway·cluster-wide 정책의 일반론, [[Kubernetes-Ingress-vs-Egress]] — default-deny와 DNS 함정
 
 ---
 

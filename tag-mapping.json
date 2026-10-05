@@ -315,7 +315,7 @@
   "Kubernetes-Ingress": [
     "kubernetes/ingress"
   ],
-  "왜-Kubernetes-Gateway-API는-Ingress를-역할별로-쪼갰을까": [
+  "Kubernetes-Gateway-API": [
     "kubernetes/ingress"
   ],
   "Kubernetes-Introduction": [
@@ -333,11 +333,14 @@
   "Kubernetes-Service-ClusterIP-NodePort-LoadBalancer": [
     "kubernetes/service"
   ],
-  "쿠버네티스-Service에는-왜-프로세스가-없을까": [
+  "Kubernetes-Service-Object": [
+    "kubernetes/service"
+  ],
+  "Kubernetes-Service-Internals": [
     "kubernetes/service",
     "kubernetes/networking"
   ],
-  "같은-LoadBalancer-Service가-클라우드마다-다른-LB가-되는-이유": [
+  "Kubernetes-Service-LoadBalancer-Cloud": [
     "kubernetes/service",
     "kubernetes/networking"
   ],
@@ -359,10 +362,10 @@
   "내-첫-Helm-Chart-helm-create부터-helm-install까지": [
     "kubernetes/helm"
   ],
-  "쿠버네티스-Ingress와-Egress는-왜-대칭이-아닐까": [
+  "Kubernetes-Ingress-vs-Egress": [
     "kubernetes/ingress"
   ],
-  "쿠버네티스는-GPU를-모른다-nvidia-device-plugin은-어떻게-GPU를-자원으로-통역하는가": [
+  "Kubernetes-GPU-Device-Plugin": [
     "kubernetes/gpu"
   ],
   "C10K-문제의-역사와-해결": [
@@ -633,7 +636,7 @@
   "왜-Ansible은-에이전트-없이-수천-대의-서버를-관리할까": [
     "devops/ansible"
   ],
-  "Ingress-리소스가-하나도-없는데-트래픽은-어떻게-들어올까-서비스-메시가-대체하는-것들": [
+  "Kubernetes-Service-Mesh": [
     "kubernetes/ingress"
   ],
   "Jenkins-Job에서-Tekton-EventListener로-webhook을-쏠-수-있을까": [
@@ -642,7 +645,7 @@
   "Jenkins가-있는데-왜-Tekton이-빌드할까": [
     "devops/cicd"
   ],
-  "Pod는-어떻게-쿠버네티스-API에-자기를-증명할까-ServiceAccount와-RBAC": [
+  "Kubernetes-ServiceAccount-RBAC": [
     "kubernetes/rbac"
   ],
   "Tekton-Triggers는-어떻게-git-push를-PipelineRun으로-바꿀까": [
@@ -651,25 +654,25 @@
   "Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까": [
     "devops/cicd"
   ],
-  "kubectl-top의-숫자는-어디서-오는가-metrics-server와-Prometheus의-역할-분담": [
+  "Kubernetes-Metrics-Server-Prometheus": [
     "kubernetes/observability"
   ],
-  "rollout-restart를-했는데-왜-예전-코드가-그대로-돌까-이미지-태그와-다이제스트": [
+  "Kubernetes-Image-Tag-Digest": [
     "kubernetes/deployment"
   ],
-  "내가-만들지-않은-컨테이너가-왜-Pod에-들어와-있을까-Admission-Webhook": [
+  "Kubernetes-Admission-Webhook": [
     "kubernetes/admission"
   ],
-  "쿠버네티스-Egress-통제는-왜-NetworkPolicy-하나로-끝나지-않을까": [
+  "Kubernetes-Egress-NetworkPolicy": [
     "kubernetes/networking"
   ],
-  "쿠버네티스는-어떻게-자기-자신을-확장할까-CRD와-컨트롤러-그리고-Operator": [
+  "Kubernetes-CRD-Controller-Operator": [
     "kubernetes/operator"
   ],
   "왜-사내-시스템들은-로그인을-LDAP에-물어볼까": [
     "security/ldap"
   ],
-  "Kubernetes-Secret은-누가-갱신할까-ESO-External-Secrets-Operator": [
+  "Kubernetes-External-Secrets-Operator": [
     "kubernetes/config"
   ],
   "Apache-Iceberg는-왜-디렉토리-대신-파일을-추적할까": [
