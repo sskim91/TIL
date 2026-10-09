@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **227개**
+- 총 TIL 개수: **231개**
 
 - 카테고리 수: **31개**
 
@@ -247,7 +247,15 @@
 
 - [JSpecify - Java의 Null 안전성 표준](java/JSpecify-Java의-Null-안전성-표준.md)
 
+- [Netty ByteBuf — GC가 있는 자바에서 왜 메모리를 직접 release()할까?](java/Netty-ByteBuf-GC가-있는-자바에서-왜-메모리를-직접-release-할까.md)
+
 - [Netty Channel Pipeline 인바운드와 아웃바운드 흐름](java/Netty-Channel-Pipeline-인바운드와-아웃바운드-흐름.md)
+
+- [Netty Codec — 디코더는 왜 데이터가 모자라면 그냥 return할까?](java/Netty-Codec-디코더는-왜-데이터가-모자라면-그냥-return할까.md)
+
+- [Netty EventLoop — 스레드 하나가 수천 연결을 맡는 규칙과 그 대가](java/Netty-EventLoop-스레드-하나가-수천-연결을-맡는-규칙과-그-대가.md)
+
+- [Netty — 자바에 이미 NIO가 있는데 왜 Netty를 쓸까?](java/Netty-자바에-이미-NIO가-있는데-왜-Netty를-쓸까.md)
 
 - [sshj-현대적인 Java SSH 라이브러리](java/sshj-현대적인-Java-SSH-라이브러리.md)
 
