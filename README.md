@@ -17,6 +17,10 @@
 
 ### agent
 
+- [AI Agent — 효과적인 Agent 구축하기, Anthropic 가이드](agent/AI-Agent-효과적인-Agent-구축하기-Anthropic-가이드.md)
+
+- [AI Agent — 효과적인 에이전트 구축하기](agent/AI-Agent-효과적인-에이전트-구축하기.md)
+
 - [AI Agent 워크플로 패턴 - 프롬프트 체이닝](agent/AI-Agent-워크플로-패턴-프롬프트-체이닝.md)
 
 - [AI Agent와 Agentic AI](agent/AI-Agent와-Agentic-AI.md)
@@ -24,10 +28,6 @@
 - [LangChain Agent 생성 및 사용법](agent/LangChain-Agent-생성-및-사용법.md)
 
 - [LLM Agent란 무엇인가](agent/LLM-Agent란-무엇인가.md)
-
-- [효과적인 AI Agent 구축하기 - Anthropic 가이드](agent/효과적인-AI-Agent-구축하기-Anthropic-가이드.md)
-
-- [효과적인 에이전트 구축하기](agent/효과적인-에이전트-구축하기.md)
 
 
 
@@ -37,11 +37,21 @@
 
 - [AI 코딩 어시스턴트 컨텍스트 파일 작성 가이드](ai/AI-코딩-어시스턴트-컨텍스트-파일-작성-가이드.md)
 
+- [BM25 — 왜 Elasticsearch는 TF-IDF 대신 BM25를 쓸까?](ai/BM25-왜-Elasticsearch는-TF-IDF-대신-BM25를-쓸까.md)
+
 - [Dense Vector 검색은 왜 거리가 아니라 각도로 유사도를 잴까?](ai/Dense-Vector-검색은-왜-거리가-아니라-각도로-유사도를-잴까.md)
 
 - [GGUF와 양자화 - 서민도 로컬에서 LLM을 돌릴 수 있는 이유](ai/GGUF와-양자화-서민도-로컬에서-LLM을-돌릴-수-있는-이유.md)
 
 - [Google Antigravity: 에이전트 우선 개발 환경](ai/Google-Antigravity-에이전트-우선-개발-환경.md)
+
+- [Hybrid Search — 왜 RAG 검색은 BM25와 벡터 검색을 둘 다 돌릴까?](ai/Hybrid-Search-왜-RAG-검색은-BM25와-벡터-검색을-둘-다-돌릴까.md)
+
+- [LLM Local Inference — Apple Silicon이 NVIDIA GPU를 이기는 순간](ai/LLM-Local-Inference-Apple-Silicon이-NVIDIA-GPU를-이기는-순간.md)
+
+- [LLM Precision — 프로덕션 LLM 서빙에서 FP32를 아무도 안 쓰는 이유](ai/LLM-Precision-프로덕션-LLM-서빙에서-FP32를-아무도-안-쓰는-이유.md)
+
+- [LLM Sampling — 왜 LLM API에는 temperature 같은 다이얼이 달려 있을까](ai/LLM-Sampling-왜-LLM-API에는-temperature-같은-다이얼이-달려-있을까.md)
 
 - [LLM 데이터 전처리의 중요성](ai/LLM-데이터-전처리의-중요성.md)
 
@@ -55,29 +65,19 @@
 
 - [Multi-turn Conversation (멀티턴 대화)](ai/Multi-turn-Conversation-멀티턴-대화.md)
 
+- [Reranker — 왜 빠른 검색 뒤에 느린 모델을 또 붙일까?](ai/Reranker-왜-빠른-검색-뒤에-느린-모델을-또-붙일까.md)
+
+- [RRF — 왜 하이브리드 검색은 점수 대신 순위로 결과를 합칠까?](ai/RRF-왜-하이브리드-검색은-점수-대신-순위로-결과를-합칠까.md)
+
+- [Synonym Dictionary — 왜 검색엔진은 아직도 동의어 사전을 손으로 관리할까?](ai/Synonym-Dictionary-왜-검색엔진은-아직도-동의어-사전을-손으로-관리할까.md)
+
 - [Synthetic Data: AI 학습의 비밀 무기](ai/Synthetic-Data-AI-학습의-비밀-무기.md)
 
 - [Vector DB, AI 시대에 갑자기 뜬 이유](ai/Vector-DB-AI-시대에-갑자기-뜬-이유.md)
 
 - [vLLM - GPU 위의 LLM은 누가 서빙하는가](ai/vLLM-GPU-위의-LLM은-누가-서빙하는가.md)
 
-- [로컬 LLM 추론 — Apple Silicon이 NVIDIA GPU를 이기는 순간](ai/로컬-LLM-추론-Apple-Silicon이-NVIDIA-GPU를-이기는-순간.md)
-
-- [왜 Elasticsearch는 TF-IDF 대신 BM25를 쓸까?](ai/왜-Elasticsearch는-TF-IDF-대신-BM25를-쓸까.md)
-
-- [왜 LLM API에는 temperature 같은 다이얼이 달려 있을까](ai/왜-LLM-API에는-temperature-같은-다이얼이-달려-있을까.md)
-
-- [왜 RAG 검색은 BM25와 벡터 검색을 둘 다 돌릴까?](ai/왜-RAG-검색은-BM25와-벡터-검색을-둘-다-돌릴까.md)
-
-- [왜 검색엔진은 아직도 동의어 사전을 손으로 관리할까?](ai/왜-검색엔진은-아직도-동의어-사전을-손으로-관리할까.md)
-
-- [왜 빠른 검색 뒤에 느린 모델을 또 붙일까?](ai/왜-빠른-검색-뒤에-느린-모델을-또-붙일까.md)
-
-- [왜 하이브리드 검색은 점수 대신 순위로 결과를 합칠까?](ai/왜-하이브리드-검색은-점수-대신-순위로-결과를-합칠까.md)
-
-- [컴퓨터에게 단어의 의미를 가르치는 법](ai/컴퓨터에게-단어의-의미를-가르치는-법.md)
-
-- [프로덕션 LLM 서빙에서 FP32를 아무도 안 쓰는 이유](ai/프로덕션-LLM-서빙에서-FP32를-아무도-안-쓰는-이유.md)
+- [Word Embedding — 컴퓨터에게 단어의 의미를 가르치는 법](ai/Word-Embedding-컴퓨터에게-단어의-의미를-가르치는-법.md)
 
 
 
@@ -97,11 +97,15 @@
 
 - [FastAPI에는 왜 세션이 없을까](backend/FastAPI에는-왜-세션이-없을까.md)
 
-- [마이크로서비스 통신 패턴: 동기 vs 비동기](backend/마이크로서비스-통신-패턴-동기-vs-비동기.md)
+- [Microservices — 통신 패턴, 동기 vs 비동기](backend/Microservices-통신-패턴-동기-vs-비동기.md)
 
 
 
 ### computer-science
+
+- [Async — 비동기의 계층 구조, async/await는 빙산의 일각](computer-science/Async-비동기의-계층-구조-async-await는-빙산의-일각.md)
+
+- [Back Pressure — 빠른 Producer가 시스템을 죽인다](computer-science/Back-Pressure-빠른-Producer가-시스템을-죽인다.md)
 
 - [Cardinality - 컴퓨터 과학에서의 의미와 활용](computer-science/Cardinality-컴퓨터-과학에서의-의미와-활용.md)
 
@@ -109,31 +113,41 @@
 
 - [DAG - 방향 비순환 그래프](computer-science/DAG-방향-비순환-그래프.md)
 
+- [Fixed-Length Message — 왜 은행은 JSON 대신 전문을 주고받을까](computer-science/Fixed-Length-Message-왜-은행은-JSON-대신-전문을-주고받을까.md)
+
 - [Git LFS는 왜 파일 대신 포인터를 커밋할까](computer-science/Git-LFS는-왜-파일-대신-포인터를-커밋할까.md)
 
 - [Pub/Sub 패턴](computer-science/Pub-Sub-패턴.md)
 
+- [Sync vs Async — 동기-비동기, 블로킹-논블로킹](computer-science/Sync-vs-Async-동기-비동기-블로킹-논블로킹.md)
+
 - [URN은 왜 '주소'가 아니라 '이름'일까?](computer-science/URN은-왜-주소가-아니라-이름일까.md)
 
-- [공변과 반공변은 제네릭 전용 문법이 아니다](computer-science/공변과-반공변은-제네릭-전용-문법이-아니다.md)
+- [Variance — 공변과 반공변은 제네릭 전용 문법이 아니다](computer-science/Variance-공변과-반공변은-제네릭-전용-문법이-아니다.md)
 
-- [동기-비동기, 블로킹-논블로킹](computer-science/동기-비동기-블로킹-논블로킹.md)
-
-- [비동기의 계층 구조 - async/await는 빙산의 일각](computer-science/비동기의-계층-구조-async-await는-빙산의-일각.md)
-
-- [빠른 Producer가 시스템을 죽인다 — Back Pressure](computer-science/빠른-Producer가-시스템을-죽인다-Back-Pressure.md)
-
-- [왜 가상머신에는 네트워크 모드가 4개나 있을까](computer-science/왜-가상머신에는-네트워크-모드가-4개나-있을까.md)
-
-- [왜 은행은 JSON 대신 '전문(電文)'을 주고받을까](computer-science/왜-은행은-JSON-대신-전문을-주고받을까.md)
+- [VM Network Mode — 왜 가상머신에는 네트워크 모드가 4개나 있을까](computer-science/VM-Network-Mode-왜-가상머신에는-네트워크-모드가-4개나-있을까.md)
 
 
 
 ### database
 
+- [ACID — 데이터베이스 트랜잭션과 격리 수준](database/ACID-데이터베이스-트랜잭션과-격리-수준.md)
+
 - [Apache Iceberg는 왜 디렉토리 대신 파일을 추적할까?](database/Apache-Iceberg는-왜-디렉토리-대신-파일을-추적할까.md)
 
 - [BigQuery는 왜 인덱스 없이 페타바이트를 스캔할까](database/BigQuery는-왜-인덱스-없이-페타바이트를-스캔할까.md)
+
+- [Composite Index — 복합 인덱스와 컬럼 순서의 비밀](database/Composite-Index-복합-인덱스와-컬럼-순서의-비밀.md)
+
+- [Covering Index — 커버링 인덱스](database/Covering-Index-커버링-인덱스.md)
+
+- [Data Mart — 마트 테이블 이해하기](database/Data-Mart-마트-테이블-이해하기.md)
+
+- [Index Break-Even Point — 옵티마이저와 인덱스 손익분기점](database/Index-Break-Even-Point-옵티마이저와-인덱스-손익분기점.md)
+
+- [Index Design — 인덱스 설계 가이드라인](database/Index-Design-인덱스-설계-가이드라인.md)
+
+- [Index — 데이터베이스 인덱스 기초](database/Index-데이터베이스-인덱스-기초.md)
 
 - [MVCC와 MySQL의 Gap Lock](database/MVCC와-MySQL의-Gap-Lock.md)
 
@@ -145,23 +159,9 @@
 
 - [PostgreSQL의 WAL은 어떻게 ACID와 복제를 동시에 책임지는가](database/PostgreSQL의-WAL은-어떻게-ACID와-복제를-동시에-책임지는가.md)
 
+- [Primary Key — 대리키 vs 자연키, 기본키 설계 전략](database/Primary-Key-대리키-vs-자연키-기본키-설계-전략.md)
+
 - [Redis String vs Hash: 언제 무엇을 써야 하는가](database/Redis-String-vs-Hash-언제-무엇을-써야-하는가.md)
-
-- [대리키 vs 자연키 - 기본키 설계 전략](database/대리키-vs-자연키-기본키-설계-전략.md)
-
-- [데이터베이스 ACID와 트랜잭션 격리 수준](database/데이터베이스-ACID와-트랜잭션-격리-수준.md)
-
-- [데이터베이스 옵티마이저와 인덱스 손익분기점](database/데이터베이스-옵티마이저와-인덱스-손익분기점.md)
-
-- [데이터베이스 인덱스 기초](database/데이터베이스-인덱스-기초.md)
-
-- [마트 테이블(Data Mart) 이해하기](database/마트-테이블-Data-Mart-이해하기.md)
-
-- [복합 인덱스와 컬럼 순서의 비밀](database/복합-인덱스와-컬럼-순서의-비밀.md)
-
-- [인덱스 설계 가이드라인](database/인덱스-설계-가이드라인.md)
-
-- [커버링 인덱스](database/커버링-인덱스.md)
 
 
 
@@ -173,43 +173,43 @@
 
 ### devops
 
+- [Ansible — 왜 에이전트 없이 수천 대의 서버를 관리할까](devops/Ansible-왜-에이전트-없이-수천-대의-서버를-관리할까.md)
+
 - [ArgoCD가 Synced라고 하는데 왜 서비스는 죽어 있을까](devops/ArgoCD가-Synced라고-하는데-왜-서비스는-죽어-있을까.md)
 
 - [ArgoCD에 Rollout은 없다 — Argo Rollouts가 Deployment를 대체하는 이유](devops/ArgoCD에-Rollout은-없다-Argo-Rollouts가-Deployment를-대체하는-이유.md)
 
 - [GitOps: Git을 Single Source of Truth로 삼는 운영 모델](devops/GitOps-Git을-Single-Source-of-Truth로-삼는-운영-모델.md)
 
+- [Miniconda3 — 폐쇄망에서 Python 환경 구축하기](devops/Miniconda3-폐쇄망에서-Python-환경-구축하기.md)
+
 - [tmux - 터미널 멀티플렉서의 모든 것](devops/tmux-터미널-멀티플렉서의-모든-것.md)
-
-- [왜 Ansible은 에이전트 없이 수천 대의 서버를 관리할까](devops/왜-Ansible은-에이전트-없이-수천-대의-서버를-관리할까.md)
-
-- [폐쇄망에서 Miniconda3로 Python 환경 구축하기](devops/폐쇄망에서-Miniconda3로-Python-환경-구축하기.md)
 
 
 
 ### docker
 
+- [Docker Buildx — 맥에서 만든 이미지는 왜 서버에서 안 돌까, 멀티플랫폼 이미지](docker/Docker-Buildx-맥에서-만든-이미지는-왜-서버에서-안-돌까-멀티플랫폼-이미지.md)
+
 - [Docker MCP Toolkit](docker/Docker-MCP-Toolkit.md)
+
+- [Docker Network — 컨테이너 안의 localhost는 왜 내 컴퓨터가 아닐까, bridge와 host](docker/Docker-Network-컨테이너-안의-localhost는-왜-내-컴퓨터가-아닐까-bridge와-host.md)
 
 - [Dockerfile과 docker-compose의 차이](docker/Dockerfile과-docker-compose의-차이.md)
 
 - [Docker의 Copy-on-Write 전략](docker/Docker의-Copy-on-Write-전략.md)
 
-- [맥에서 만든 Docker 이미지는 왜 서버에서 안 돌까 - docker buildx와 멀티플랫폼 이미지](docker/맥에서-만든-Docker-이미지는-왜-서버에서-안-돌까-docker-buildx와-멀티플랫폼-이미지.md)
-
-- [컨테이너 안의 localhost는 왜 내 컴퓨터가 아닐까 - Docker bridge와 host 네트워크](docker/컨테이너-안의-localhost는-왜-내-컴퓨터가-아닐까-Docker-bridge와-host-네트워크.md)
-
 
 
 ### economics
 
-- [명목임금 vs 실질임금 - 월급이 올랐는데 왜 더 가난해졌을까?](economics/명목임금-vs-실질임금-월급이-올랐는데-왜-더-가난해졌을까.md)
+- [Real Wage — 명목임금 vs 실질임금, 월급이 올랐는데 왜 더 가난해졌을까?](economics/Real-Wage-명목임금-vs-실질임금-월급이-올랐는데-왜-더-가난해졌을까.md)
 
 
 
 ### frontend
 
-- [프론트엔드 개발의 변화](frontend/프론트엔드-개발의-변화.md)
+- [Frontend Evolution — 프론트엔드 개발의 변화](frontend/Frontend-Evolution-프론트엔드-개발의-변화.md)
 
 
 
@@ -235,6 +235,8 @@
 
 - [Java I/O가 중요한 진짜 이유](java/Java-IO가-중요한-진짜-이유.md)
 
+- [Java — 프로그래밍 언어의 진화와 추상화](java/Java-프로그래밍-언어의-진화와-추상화.md)
+
 - [Java 객체 직렬화의 모든 것](java/Java-객체-직렬화의-모든-것.md)
 
 - [Java가 발전해도 Guava가 여전히 쓰이는 이유](java/Java가-발전해도-Guava가-여전히-쓰이는-이유.md)
@@ -248,8 +250,6 @@
 - [Netty Channel Pipeline 인바운드와 아웃바운드 흐름](java/Netty-Channel-Pipeline-인바운드와-아웃바운드-흐름.md)
 
 - [sshj-현대적인 Java SSH 라이브러리](java/sshj-현대적인-Java-SSH-라이브러리.md)
-
-- [프로그래밍 언어의 진화와 추상화](java/프로그래밍-언어의-진화와-추상화.md)
 
 
 
@@ -268,6 +268,8 @@
 ### kubernetes
 
 - [Harbor — 왜 회사들은 사내 컨테이너 레지스트리를 두는가](kubernetes/Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가.md)
+
+- [Helm — 내 첫 Helm Chart, `helm create`부터 `helm install`까지](kubernetes/Helm-내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
 
 - [Helm — 쿠버네티스의 패키지 매니저는 왜 필요한가](kubernetes/Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md)
 
@@ -331,8 +333,6 @@
 
 - [Tekton의 Pipeline과 PipelineRun은 왜 따로 존재할까?](kubernetes/Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까.md)
 
-- [내 첫 Helm Chart — `helm create`부터 `helm install`까지](kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md)
-
 
 
 ### langgraph
@@ -373,9 +373,9 @@
 
 - [L4와 L7 로드밸런서의 차이](network/L4와-L7-로드밸런서의-차이.md)
 
-- [VPN은 어떻게 나를 회사망 안으로 데려가는가](network/VPN은-어떻게-나를-회사망-안으로-데려가는가.md)
+- [Network Direction — Upstream, Downstream, Ingress, Egress 용어 정리](network/Network-Direction-Upstream-Downstream-Ingress-Egress-용어-정리.md)
 
-- [네트워크 방향 용어 정리-Upstream, Downstream, Ingress, Egress](network/네트워크-방향-용어-정리-Upstream-Downstream-Ingress-Egress.md)
+- [VPN은 어떻게 나를 회사망 안으로 데려가는가](network/VPN은-어떻게-나를-회사망-안으로-데려가는가.md)
 
 
 
@@ -405,7 +405,7 @@
 
 ### product-analytics
 
-- [왜 서비스 회사는 DAU/MAU 정의에 그토록 집착할까?](product-analytics/왜-서비스-회사는-DAU-MAU-정의에-그토록-집착할까.md)
+- [DAU/MAU — 왜 서비스 회사는 그 정의에 그토록 집착할까?](product-analytics/DAU-MAU-왜-서비스-회사는-그-정의에-그토록-집착할까.md)
 
 
 
@@ -501,6 +501,8 @@
 
 - [Redis Stream - Pub/Sub의 한계를 넘어선 영속적 메시징](redis/Redis-Stream-Pub-Sub의-한계를-넘어선-영속적-메시징.md)
 
+- [Redis XFetch — 왜 락 없이도 캐시 스탬피드를 막을까](redis/Redis-XFetch-왜-락-없이도-캐시-스탬피드를-막을까.md)
+
 - [Redis 고급 실행 패턴 - Pub/Sub부터 Lua Script까지](redis/Redis-고급-실행-패턴-Pub-Sub부터-Lua-Script까지.md)
 
 - [Redis 운영에서 반드시 알아야 할 것들 - KEYS의 함정과 영속성 전략](redis/Redis-운영에서-반드시-알아야-할-것들-KEYS의-함정과-영속성-전략.md)
@@ -511,27 +513,25 @@
 
 - [Redis의 정체와 4가지 아키텍처 진화 과정](redis/Redis의-정체와-4가지-아키텍처-진화-과정.md)
 
-- [왜 XFetch는 락 없이도 캐시 스탬피드를 막을까](redis/왜-XFetch는-락-없이도-캐시-스탬피드를-막을까.md)
-
 
 
 ### security
 
+- [KDF — 키 유도 함수는 정확히 무엇이고 왜 필요할까?](security/KDF-키-유도-함수는-정확히-무엇이고-왜-필요할까.md)
+
 - [Kerberos는 어떻게 비밀번호를 보내지 않고 로그인시킬까](security/Kerberos는-어떻게-비밀번호를-보내지-않고-로그인시킬까.md)
+
+- [LDAP — 왜 사내 시스템들은 로그인을 LDAP에 물어볼까](security/LDAP-왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md)
 
 - [MITM (Man-In-The-Middle) 중간자 공격](security/MITM-Man-In-The-Middle-중간자-공격.md)
 
 - [NTLM은 왜 30년 만에 퇴출될까](security/NTLM은-왜-30년-만에-퇴출될까.md)
 
+- [Password Hashing — 왜 SHA-256으로 비밀번호를 저장하면 안 될까?](security/Password-Hashing-왜-SHA-256으로-비밀번호를-저장하면-안-될까.md)
+
 - [PII (Personally Identifiable Information)](security/PII-Personally-Identifiable-Information.md)
 
 - [SSH 터널링을 통한 안전한 데이터베이스 접속](security/SSH-터널링을-통한-안전한-데이터베이스-접속.md)
-
-- [왜 SHA-256으로 비밀번호를 저장하면 안 될까?](security/왜-SHA-256으로-비밀번호를-저장하면-안-될까.md)
-
-- [왜 사내 시스템들은 로그인을 LDAP에 물어볼까](security/왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md)
-
-- [키 유도 함수(KDF)는 정확히 무엇이고 왜 필요할까?](security/키-유도-함수-KDF는-정확히-무엇이고-왜-필요할까.md)
 
 
 
@@ -565,13 +565,13 @@
 
 - [A/B 테스트](testing/A-B-테스트.md)
 
-- [실무 테스팅 방법론 총정리](testing/실무-테스팅-방법론-총정리.md)
+- [Canary Deployment — 카나리 배포](testing/Canary-Deployment-카나리-배포.md)
 
-- [카나리 배포](testing/카나리-배포.md)
+- [Feature Flag — 피처 플래그](testing/Feature-Flag-피처-플래그.md)
 
-- [테스트 피라미드](testing/테스트-피라미드.md)
+- [Test Pyramid — 테스트 피라미드](testing/Test-Pyramid-테스트-피라미드.md)
 
-- [피처 플래그](testing/피처-플래그.md)
+- [Testing Methodology — 실무 테스팅 방법론 총정리](testing/Testing-Methodology-실무-테스팅-방법론-총정리.md)
 
 
 
@@ -583,13 +583,13 @@
 
 - [KaTeX Quirks Mode 경고 해결](web/KaTeX-Quirks-Mode-경고-해결.md)
 
+- [OAuth 2.1 — 브라우저는 어떻게 토큰을 받아오는가, PKCE와 BFF의 시퀀스를 끝까지 따라가기](web/OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md)
+
 - [Server-Sent Events (SSE)](web/Server-Sent-Events-SSE.md)
 
+- [Token Storage — 토큰을 어디에 둘 것인가, Cookie, Authorization Header, Storage 5종 완전 비교](web/Token-Storage-토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)
+
 - [Web Crypto API와 Passkey, DPoP — 브라우저에서 진짜 보안이 필요할 때](web/Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때.md)
-
-- [브라우저는 어떻게 토큰을 받아오는가 — OAuth 2.1, PKCE, BFF의 시퀀스를 끝까지 따라가기](web/브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)
-
-- [토큰을 어디에 둘 것인가 — Cookie, Authorization Header, Storage 5종 완전 비교](web/토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)
 
 
 
