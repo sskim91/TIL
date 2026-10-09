@@ -228,7 +228,7 @@ Spring Security Kerberos 같은 SPNEGO 필터는 Kerberos 토큰만 검증하므
    - NTLM 운영 로그로 사용처를 찾고, IP 접속을 FQDN으로 바꾸고, SPN을 정리한다
    - HTTP에서 `Negotiate TlRMTVNTUA...` 가 보이면 Kerberos fallback을 의심한다
 
-관련 노트: [Kerberos는 어떻게 비밀번호를 보내지 않고 로그인시킬까](./Kerberos는-어떻게-비밀번호를-보내지-않고-로그인시킬까.md), [왜 사내 시스템들은 로그인을 LDAP에 물어볼까](./왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md), [MITM - Man In The Middle 중간자 공격](./MITM-Man-In-The-Middle-중간자-공격.md)
+관련 노트: [Kerberos는 어떻게 비밀번호를 보내지 않고 로그인시킬까](./Kerberos는-어떻게-비밀번호를-보내지-않고-로그인시킬까.md), [LDAP — 왜 사내 시스템들은 로그인을 LDAP에 물어볼까](./LDAP-왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md), [MITM - Man In The Middle 중간자 공격](./MITM-Man-In-The-Middle-중간자-공격.md)
 
 ---
 

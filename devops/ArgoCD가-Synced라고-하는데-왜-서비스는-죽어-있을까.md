@@ -732,7 +732,7 @@ GitOps는 운영 모델이고, ArgoCD는 그 모델을 집행하는 컨트롤러
 > - [GitOps: Git을 Single Source of Truth로 삼는 운영 모델](GitOps-Git을-Single-Source-of-Truth로-삼는-운영-모델.md) — 이 노트의 전제. GitOps가 왜 필요했고 4원칙이 무엇인가
 > - [ArgoCD에 Rollout은 없다 — Argo Rollouts가 Deployment를 대체하는 이유](ArgoCD에-Rollout은-없다-Argo-Rollouts가-Deployment를-대체하는-이유.md) — 이 노트의 자매편. sync 이후 새 버전을 사용자에게 노출하는 층, 그리고 Rollout이 `Suspended`로 보이는 이유
 > - [Kubernetes Image Tag, Digest](../kubernetes/Kubernetes-Image-Tag-Digest.md) — 7.1절 mutable 태그 문제의 뿌리
-> - [Helm: 쿠버네티스의 패키지 매니저는 왜 필요한가](../kubernetes/Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md) · [내 첫 Helm Chart](../kubernetes/내-첫-Helm-Chart-helm-create부터-helm-install까지.md) — ArgoCD가 `helm template`으로만 쓰는 그 Helm
+> - [Helm: 쿠버네티스의 패키지 매니저는 왜 필요한가](../kubernetes/Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md) · [내 첫 Helm Chart](../kubernetes/Helm-내-첫-Helm-Chart-helm-create부터-helm-install까지.md) — ArgoCD가 `helm template`으로만 쓰는 그 Helm
 > - [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](../kubernetes/Kubernetes-CRD-Controller-Operator.md) — `Application`과 `ApplicationSet`이 존재할 수 있는 이유
 > - [Kubernetes Admission Webhook](../kubernetes/Kubernetes-Admission-Webhook.md) — 8.1절 영구 OutOfSync의 흔한 원인
 > - [Kubernetes Probe: Liveness, Readiness, Startup](../kubernetes/Kubernetes-Probe-Liveness-Readiness-Startup.md) — Health 판정이 실제로 무엇에 의존하는가

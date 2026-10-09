@@ -174,7 +174,7 @@ VPN을 켜면 `utun` 인터페이스에 내부 IP가 붙어 있고 라우팅 테
 
 - [Forward Proxy와 Reverse Proxy — 누구의 대리인인가](../proxy/Forward-Proxy와-Reverse-Proxy-누구의-대리인인가.md) — VPN과 같은 진영인 Forward Proxy의 본진
 - [SSH 터널링을 통한 안전한 데이터베이스 접속](../security/SSH-터널링을-통한-안전한-데이터베이스-접속.md) — 같은 터널링 원리의 포트 단위 버전
-- [네트워크 방향 용어 정리](../network/네트워크-방향-용어-정리-Upstream-Downstream-Ingress-Egress.md) — 터널 트래픽의 Ingress/Egress 관점
+- [네트워크 방향 용어 정리](../network/Network-Direction-Upstream-Downstream-Ingress-Egress-용어-정리.md) — 터널 트래픽의 Ingress/Egress 관점
 
 ---
 

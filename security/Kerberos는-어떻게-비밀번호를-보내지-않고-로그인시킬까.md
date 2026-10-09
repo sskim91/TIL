@@ -198,7 +198,7 @@ KerberosServiceAuthenticationProvider kerberosProvider(UserDetailsService uds) {
 // + SpnegoEntryPoint(401 Negotiate 응답), SpnegoAuthenticationProcessingFilter 등록
 ```
 
-여기서 겪는 오류는 대부분 2절의 원리로 설명된다. 브라우저가 서버를 IP나 SPN과 다른 이름으로 부르면 티켓을 못 받아 NTLM 토큰(`TlRMTVNTUA...`)이 오고, keytab의 키 버전(kvno)이 AD의 서비스 계정 비밀번호 변경을 따라가지 못하면 복호화가 실패하고, 서버 시계가 어긋나면 skew 오류가 난다. 신원 확인은 Kerberos가, 그룹·권한 조회는 LDAP이 맡는 조합이 일반적이다. ([왜 사내 시스템들은 로그인을 LDAP에 물어볼까](./왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md) 참고)
+여기서 겪는 오류는 대부분 2절의 원리로 설명된다. 브라우저가 서버를 IP나 SPN과 다른 이름으로 부르면 티켓을 못 받아 NTLM 토큰(`TlRMTVNTUA...`)이 오고, keytab의 키 버전(kvno)이 AD의 서비스 계정 비밀번호 변경을 따라가지 못하면 복호화가 실패하고, 서버 시계가 어긋나면 skew 오류가 난다. 신원 확인은 Kerberos가, 그룹·권한 조회는 LDAP이 맡는 조합이 일반적이다. ([LDAP — 왜 사내 시스템들은 로그인을 LDAP에 물어볼까](./LDAP-왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md) 참고)
 
 ---
 
@@ -222,7 +222,7 @@ KerberosServiceAuthenticationProvider kerberosProvider(UserDetailsService uds) {
    - Kerberoasting, Pass-the-Ticket, Golden Ticket, 그리고 RC4가 남아 있다면 Overpass-the-Hash
    - 진짜 목표는 "NTLM + RC4"에서 "AES 기반 Kerberos"로의 전환이다
 
-관련 노트: [NTLM은 왜 30년 만에 퇴출될까](./NTLM은-왜-30년-만에-퇴출될까.md), [왜 사내 시스템들은 로그인을 LDAP에 물어볼까](./왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md)
+관련 노트: [NTLM은 왜 30년 만에 퇴출될까](./NTLM은-왜-30년-만에-퇴출될까.md), [LDAP — 왜 사내 시스템들은 로그인을 LDAP에 물어볼까](./LDAP-왜-사내-시스템들은-로그인을-LDAP에-물어볼까.md)
 
 ---
 

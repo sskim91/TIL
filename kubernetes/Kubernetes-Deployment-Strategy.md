@@ -368,7 +368,7 @@ kubectl delete deployment my-app-blue
 
 ## 4. Canary 배포: 일부만 먼저 배포
 
-> [!note] 자세한 내용은 [카나리-배포](../testing/카나리-배포.md) 참고
+> [!note] 자세한 내용은 [Canary-Deployment-카나리-배포](../testing/Canary-Deployment-카나리-배포.md) 참고
 
 ### 4.1 동작 원리
 

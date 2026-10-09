@@ -185,7 +185,7 @@ sequenceDiagram
 
 이 분리에서 가장 의외인 부분은 **리프레시 토큰은 JWT가 아니어도 된다(그리고 안 쓰는 게 권장된다)** 는 것이다. 왜냐하면 리프레시 토큰은 어차피 매번 DB를 조회해 유효성을 확인해야 하기 때문이다. 즉 stateless가 아니다. 그렇다면 굳이 JWT 형태일 필요가 없다. `crypto.randomBytes(64)` 같은 무작위 문자열(opaque token)이면 충분하고, 그 편이 토큰 안에 정보를 노출하지 않는다는 점에서 더 안전하다.
 
-토큰을 어디에 저장할지(Cookie/Authorization/Storage)에 따른 공격 표면 차이는 별도 문서에서 다룬다. 여기서 [`web/토큰을-어디에-둘-것인가...`](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md) 를 함께 읽으면 좋다.
+토큰을 어디에 저장할지(Cookie/Authorization/Storage)에 따른 공격 표면 차이는 별도 문서에서 다룬다. 여기서 [`web/Token-Storage-토큰을-어디에-둘-것인가...`](Token-Storage-토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md) 를 함께 읽으면 좋다.
 
 ---
 
@@ -433,5 +433,5 @@ DPoP의 동작 메커니즘과 브라우저 환경에서의 구현은 [`web/Web-
 - [OWASP -- JSON Web Token Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html)
 - [Okta Developer -- Refresh access tokens and rotate refresh tokens](https://developer.okta.com/docs/guides/refresh-tokens/main/)
 - [Spring Security 6 -- OAuth2 Resource Server (JWT)](https://docs.spring.io/spring-security/reference/servlet/oauth2/resource-server/jwt.html)
-- 관련 TIL: [`web/토큰을-어디에-둘-것인가...`](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md), [`web/브라우저는-어떻게-토큰을-받아오는가...`](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md), [`web/Web-Crypto-API와-Passkey-DPoP...`](Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때.md)
+- 관련 TIL: [`web/Token-Storage-토큰을-어디에-둘-것인가...`](Token-Storage-토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md), [`web/OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가...`](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md), [`web/Web-Crypto-API와-Passkey-DPoP...`](Web-Crypto-API와-Passkey-DPoP-브라우저에서-진짜-보안이-필요할-때.md)
 - <https://datatracker.ietf.org/doc/draft-ietf-oauth-rfc8725bis/>

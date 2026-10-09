@@ -1,6 +1,6 @@
 # Web Crypto API와 Passkey, DPoP — 브라우저에서 진짜 보안이 필요할 때
 
-[2-1편](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)이 "토큰을 어디에 둘 것인가"를, [2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)이 "그 토큰을 어떻게 받아오는가"를 닫았다면, 이 글은 그 두 글이 공유한 한 가지 전제를 정면으로 흔든다. **브라우저는 정말 비밀을 못 가지는가.** 그리고 만약 가질 수 있다면, 그 진보가 토큰·세션·인증 각각에 어디까지 닿는가.
+[2-1편](Token-Storage-토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)이 "토큰을 어디에 둘 것인가"를, [2-2편](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md)이 "그 토큰을 어떻게 받아오는가"를 닫았다면, 이 글은 그 두 글이 공유한 한 가지 전제를 정면으로 흔든다. **브라우저는 정말 비밀을 못 가지는가.** 그리고 만약 가질 수 있다면, 그 진보가 토큰·세션·인증 각각에 어디까지 닿는가.
 
 ## 결론부터 말하면
 
@@ -35,7 +35,7 @@ flowchart TD
 
 ## 1. 왜 다시 디바이스의 키인가
 
-[2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)의 결론은 단순했다. **브라우저는 `client_secret`을 안전하게 보관할 수 없다.** SPA는 본질적으로 Public Client이고, [RFC 10017 (구 draft-ietf-oauth-browser-based-apps, BCP, 2026-08)](https://www.rfc-editor.org/rfc/rfc10017)은 그래서 BFF를 1순위로 권고했다. 토큰의 책임을 백엔드 세션으로 옮기는 일이었다.
+[2-2편](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md)의 결론은 단순했다. **브라우저는 `client_secret`을 안전하게 보관할 수 없다.** SPA는 본질적으로 Public Client이고, [RFC 10017 (구 draft-ietf-oauth-browser-based-apps, BCP, 2026-08)](https://www.rfc-editor.org/rfc/rfc10017)은 그래서 BFF를 1순위로 권고했다. 토큰의 책임을 백엔드 세션으로 옮기는 일이었다.
 
 그러나 모든 자리에서 BFF가 가능한 것은 아니다. **토큰이 어쩔 수 없이 브라우저로 내려와야 하는 자리** -- 정적 호스팅만 가능한 SPA, BFF를 운영할 인력이 없는 작은 팀, 모바일·데스크톱 앱과 토큰을 공유해야 하는 통합 환경 -- 가 여전히 많다. 그리고 BFF로 토큰을 가린다 해도, **세션 쿠키 자체가 도난되면 다른 디바이스에서 그대로 사용된다는 위협**은 남는다.
 
@@ -72,7 +72,7 @@ await crypto.subtle.wrapKey('pkcs8', keyPair.privateKey, wrappingKey, alg);
 
 ### 2.2 IndexedDB가 살릴 수 있는 정확한 이유
 
-[2-1편 §2.4](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md#24-indexeddb)에서 짧게 언급했던 자리를 본격적으로 풀어 보자. **IndexedDB는 `CryptoKey` 객체를 그대로 저장할 수 있다.**
+[2-1편 §2.4](Token-Storage-토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md#24-indexeddb)에서 짧게 언급했던 자리를 본격적으로 풀어 보자. **IndexedDB는 `CryptoKey` 객체를 그대로 저장할 수 있다.**
 
 ```javascript
 const tx = db.transaction('keys', 'readwrite');
@@ -208,7 +208,7 @@ sequenceDiagram
 | 같은 origin XSS, 토큰만 evil.com으로 송신 | 다른 디바이스에서 사용 가능 | **사용 불가**(키는 못 빼냈으므로) |
 | 같은 origin XSS, 페이지 점령 후 같은 페이지에서 호출 | 즉시 사용 가능 | mint는 가능 — 페이지가 열린 동안만 |
 
-마지막 줄이 핵심이다. **DPoP는 XSS를 무효화하지 않는다.** XSS가 발생한 페이지가 열려 있는 동안 공격자는 그 키로 proof JWT를 새로 만들 수 있다. WorkOS 가이드는 그래서 *"short access token lifetimes matter even more under DPoP"* 라고 정리한다. DPoP가 닫는 위협은 정확히 **"토큰이 디바이스 밖으로 나간 뒤"** 의 사용이다. 페이지 안에서 일어나는 mint는 [2-1편 §4](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md#4-공격-시나리오-매트릭스)의 session riding과 같은 자리에 머문다.
+마지막 줄이 핵심이다. **DPoP는 XSS를 무효화하지 않는다.** XSS가 발생한 페이지가 열려 있는 동안 공격자는 그 키로 proof JWT를 새로 만들 수 있다. WorkOS 가이드는 그래서 *"short access token lifetimes matter even more under DPoP"* 라고 정리한다. DPoP가 닫는 위협은 정확히 **"토큰이 디바이스 밖으로 나간 뒤"** 의 사용이다. 페이지 안에서 일어나는 mint는 [2-1편 §4](Token-Storage-토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md#4-공격-시나리오-매트릭스)의 session riding과 같은 자리에 머문다.
 
 ### 3.5 mTLS가 아니라 왜 DPoP인가
 
@@ -218,7 +218,7 @@ sequenceDiagram
 
 DPoP는 그 자리를 애플리케이션 계층으로 끌어내려 답한다. **TLS는 그대로(서버 인증), 키 소유 증명은 HTTP 헤더로(`DPoP`).** 브라우저가 가진 것 -- Web Crypto API와 fetch 한 번으로 충분하다. 이 단순함이 DPoP를 *"브라우저용 sender-constraining 표준"* 의 사실상 유일한 답으로 만들었다.
 
-[2-2편의 결정 트리](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md#결론부터-말하면)에서 BFF가 1순위, Browser-only가 3순위였던 이유는 토큰의 노출 표면이었다. **DPoP를 켜면 Browser-only의 노출 표면 일부가 닫힌다.** 정확히는 "토큰이 디바이스 밖으로 나간 뒤"의 사용이 닫히고, "페이지 안의 mint"는 여전히 남는다. 그래서 BFF를 대체하지 못하지만, BFF가 어려운 자리에서 BFF에 가장 가까이 가는 길이 된다.
+[2-2편의 결정 트리](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md#결론부터-말하면)에서 BFF가 1순위, Browser-only가 3순위였던 이유는 토큰의 노출 표면이었다. **DPoP를 켜면 Browser-only의 노출 표면 일부가 닫힌다.** 정확히는 "토큰이 디바이스 밖으로 나간 뒤"의 사용이 닫히고, "페이지 안의 mint"는 여전히 남는다. 그래서 BFF를 대체하지 못하지만, BFF가 어려운 자리에서 BFF에 가장 가까이 가는 길이 된다.
 
 ## 4. WebAuthn / Passkey — 인증 자체를 디바이스 키로
 
@@ -295,7 +295,7 @@ WebAuthn 표준에는 정확히 짚어 둘 용어가 셋 있다.
 
 ## 5. Passkey × OAuth/OIDC — 1차 인증의 자리
 
-[2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)이 그린 시퀀스에서 사용자가 IdP에 비밀번호를 입력하던 자리를 떠올려 보자. 그 자리가 곧 Passkey가 들어가는 자리다.
+[2-2편](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md)이 그린 시퀀스에서 사용자가 IdP에 비밀번호를 입력하던 자리를 떠올려 보자. 그 자리가 곧 Passkey가 들어가는 자리다.
 
 ```mermaid
 sequenceDiagram
@@ -368,7 +368,7 @@ flowchart LR
 
 > **Web Crypto** 가 *"브라우저 안에 키가 살 수 있다"*는 토대를 깔고, **DPoP** 가 그 토대 위에서 *"토큰을 그 키에 묶는다"*, **WebAuthn** 이 한 단계 더 내려가 *"인증 자체를 키로 만든다."*
 
-[2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)이 마지막 줄로 남긴 *"Web Crypto API와 Passkey가 어떻게 토큰의 책임을 디바이스 안의 키로 옮겨가는가"* 의 답이 여기서 닫힌다 -- **세 자리에 나누어, 그러나 같은 비대칭 키 모델로.**
+[2-2편](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md)이 마지막 줄로 남긴 *"Web Crypto API와 Passkey가 어떻게 토큰의 책임을 디바이스 안의 키로 옮겨가는가"* 의 답이 여기서 닫힌다 -- **세 자리에 나누어, 그러나 같은 비대칭 키 모델로.**
 
 ## 7. 결정 가이드 — 언제 무엇을 쓰는가
 
@@ -458,10 +458,10 @@ Spring Security 6.4+는 `oneTimeTokenLogin()` DSL을 함께 도입해 매직 링
 - 브라우저 안의 JavaScript는 여전히 비밀을 못 가진다. 그러나 **`extractable: false`** 가 박힌 `CryptoKey`는 본문이 노출되지 않은 채 사용 가능한 *불투명 핸들* 이다.
 - 그 핸들이 사는 자리 -- IndexedDB -- 가 곧 **DPoP의 키 보관소** 이기도 하다. DPoP는 [RFC 9449](https://datatracker.ietf.org/doc/html/rfc9449)가 정의한 `cnf.jkt`로 토큰을 그 키에 묶고, 매 요청마다 짧은 수명의 proof JWT가 *"이 키를 가진 자가 이 시점에 이 URL을 호출했다"* 를 증명한다. **bearer 모델이 안고 있던 도난 위협을 application 계층에서 닫는다.**
 - DPoP가 닫지 못하는 한 가지 -- 페이지가 열린 동안의 임의 mint -- 는 다음 층에서 닫힌다. **WebAuthn / Passkey** 가 키를 OS·하드웨어 영역으로 끌어내려, mint 자체가 사용자 확인 프롬프트 뒤에 있게 만든다. 그리고 서명 안에 origin과 RP ID가 함께 들어가므로, 사용자가 가짜 사이트에 속아도 *디바이스가* 속지 않는다 -- **이것이 phishing-resistance의 정확한 출처다.**
-- 셋은 **OAuth를 대체하지 않는다.** Passkey는 IdP의 1차 인증을, DPoP는 그 IdP가 발급한 토큰을 키에 묶는 일을 맡는다. 풀스택은 **BFF + Passkey + DPoP** -- [2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)의 BFF 권고 위에 두 표준이 자연스럽게 겹쳐 앉는다.
+- 셋은 **OAuth를 대체하지 않는다.** Passkey는 IdP의 1차 인증을, DPoP는 그 IdP가 발급한 토큰을 키에 묶는 일을 맡는다. 풀스택은 **BFF + Passkey + DPoP** -- [2-2편](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md)의 BFF 권고 위에 두 표준이 자연스럽게 겹쳐 앉는다.
 - Spring 생태계에서 이 풀스택은 **Spring Security 6.4의 `webAuthn()`** + **Spring Authorization Server 1.5의 DPoP**(Spring Security 7.0부터는 Spring Security에 통합) + **resource server의 `cnf.jkt` 검증** 으로 구체화된다. 한 곳에 모든 것이 있고, 추가 인프라 없이 단일 프레임워크 안에서 결합된다.
 
-[1편](Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때.md)이 *"브라우저 HTTP는 왜 다른가"* 를, [2-1편](토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)이 *"토큰을 어디에 둘 것인가"* 를, [2-2편](브라우저는-어떻게-토큰을-받아오는가-OAuth-2.1-PKCE-BFF의-시퀀스를-끝까지-따라가기.md)이 *"그 토큰이 어떻게 도착하는가"* 를 닫았다면, 이 2-3편이 닫는 것은 그 모든 글의 **공통 전제** 다. **브라우저는 비밀을 못 가진다 -- 그러나 디바이스는 가질 수 있다.** 한 발의 진보가, 토큰의 사용·세션의 도난·사용자 인증이라는 세 자리에 같은 비대칭 키 모델을 동시에 깔아 둔다.
+[1편](Fetch-AbortController-CORS-백엔드-개발자가-브라우저-HTTP를-만날-때.md)이 *"브라우저 HTTP는 왜 다른가"* 를, [2-1편](Token-Storage-토큰을-어디에-둘-것인가-Cookie-Authorization-Header-Storage-5종-완전-비교.md)이 *"토큰을 어디에 둘 것인가"* 를, [2-2편](OAuth-2.1-브라우저는-어떻게-토큰을-받아오는가-PKCE와-BFF의-시퀀스를-끝까지-따라가기.md)이 *"그 토큰이 어떻게 도착하는가"* 를 닫았다면, 이 2-3편이 닫는 것은 그 모든 글의 **공통 전제** 다. **브라우저는 비밀을 못 가진다 -- 그러나 디바이스는 가질 수 있다.** 한 발의 진보가, 토큰의 사용·세션의 도난·사용자 인증이라는 세 자리에 같은 비대칭 키 모델을 동시에 깔아 둔다.
 
 이 시리즈는 여기서 매듭짓는다. 다음 글이 있다면, 그것은 같은 모델이 브라우저 밖 -- 모바일·IoT·엣지 디바이스 -- 으로 어떻게 흘러가는지를 보는 글이 될 것이다.
 

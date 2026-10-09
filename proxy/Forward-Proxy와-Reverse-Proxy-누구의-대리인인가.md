@@ -217,7 +217,7 @@ flowchart LR
 
 같은 패킷이 흐르는데, **위치가 클라이언트 측이면 Forward** , **서버 측이면 Reverse** 다. "Forward냐 Reverse냐"는 절대적 속성이 아니라 **상대적 관점** 이라는 것이 이 그림에서 드러난다.
 
-> **참고.** 위 토폴로지에서 트래픽 방향과 관련된 용어(Upstream/Downstream, Ingress/Egress)가 어떻게 적용되는지는 [네트워크 방향 용어 정리](../network/네트워크-방향-용어-정리-Upstream-Downstream-Ingress-Egress.md) 에 따로 정리해두었다. Forward Proxy는 사내망 입장에서 Egress, Reverse Proxy는 데이터센터 입장에서 Ingress 경로에 놓인다.
+> **참고.** 위 토폴로지에서 트래픽 방향과 관련된 용어(Upstream/Downstream, Ingress/Egress)가 어떻게 적용되는지는 [네트워크 방향 용어 정리](../network/Network-Direction-Upstream-Downstream-Ingress-Egress-용어-정리.md) 에 따로 정리해두었다. Forward Proxy는 사내망 입장에서 Egress, Reverse Proxy는 데이터센터 입장에서 Ingress 경로에 놓인다.
 
 ## 6. 비슷해서 자주 헷갈리는 것들
 
@@ -283,7 +283,7 @@ VPN은 사실상 "더 낮은 계층에서 동작하는 Forward Proxy"라고 봐�
 
 - [NGINX 리버스 프록시와 로드밸런싱 완전 정복](../nginx/NGINX-리버스-프록시와-로드밸런싱-완전-정복.md) — 실제 NGINX 설정 레벨로 Reverse Proxy를 더 깊이
 - [L4와 L7 로드밸런서의 차이](../network/L4와-L7-로드밸런서의-차이.md) — Reverse Proxy의 계층 차이
-- [네트워크 방향 용어 정리](../network/네트워크-방향-용어-정리-Upstream-Downstream-Ingress-Egress.md) — Upstream/Downstream, Ingress/Egress 관점
+- [네트워크 방향 용어 정리](../network/Network-Direction-Upstream-Downstream-Ingress-Egress-용어-정리.md) — Upstream/Downstream, Ingress/Egress 관점
 - [Bastion Host](../infra/Bastion-Host.md) · [SSH ProxyJump](../infra/SSH-ProxyJump.md) — Forward Proxy의 SSH 영역 사촌
 
 ---

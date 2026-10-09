@@ -2,7 +2,7 @@
 
 `pip install`이 안 되는 환경에서 Python 패키지를 어떻게 설치할까? 금융권, 공공기관의 필수 스킬.
 
-> [!note] 이 노트는 pip편이다. conda편은 [폐쇄망에서-Miniconda3로-Python-환경-구축하기](../devops/폐쇄망에서-Miniconda3로-Python-환경-구축하기.md) 참고
+> [!note] 이 노트는 pip편이다. conda편은 [Miniconda3-폐쇄망에서-Python-환경-구축하기](../devops/Miniconda3-폐쇄망에서-Python-환경-구축하기.md) 참고
 
 ## 결론부터 말하면
 
