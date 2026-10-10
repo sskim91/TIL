@@ -259,7 +259,7 @@
     "infra/bastion"
   ],
   "SSH-ProxyJump": [
-    "infra/ssh"
+    "network/ssh"
   ],
   "Jackson-3.0": [
     "java/jackson"
@@ -503,7 +503,7 @@
     "python/deployment"
   ],
   "TanStack-Query가-탄생한-이유": [
-    "react/tanstack-query"
+    "frontend/tanstack-query"
   ],
   "Redis-운영에서-반드시-알아야-할-것들-KEYS의-함정과-영속성-전략": [
     "redis/operations"
@@ -542,7 +542,7 @@
     "security/pii"
   ],
   "SSH-터널링을-통한-안전한-데이터베이스-접속": [
-    "security/ssh"
+    "network/ssh"
   ],
   "Password-Hashing-왜-SHA-256으로-비밀번호를-저장하면-안-될까": [
     "security/password"
@@ -566,22 +566,23 @@
     "spring/boot"
   ],
   "Spring-Framework-7-API-Versioning": [
-    "spring/spring-framework"
+    "spring/core",
+    "spring/web"
   ],
   "Spring-Framework-7-HTTP-Service-Client": [
-    "spring/spring-framework"
+    "spring/integration"
   ],
   "Spring-Framework-7-RestTestClient": [
-    "spring/spring-framework"
+    "spring/testing"
   ],
   "Spring-Framework-7.0": [
-    "spring/spring-framework"
+    "spring/core"
   ],
   "Spring의-@EventListener": [
     "spring/event"
   ],
   "Spring의-DI와-IoC": [
-    "spring/di"
+    "spring/ioc"
   ],
   "A-B-테스트": [
     "testing/ab-test"
