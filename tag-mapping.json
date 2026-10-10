@@ -551,19 +551,19 @@
     "security/kdf"
   ],
   "Spring-AI-Agentic-Patterns-Part1-Agent-Skills": [
-    "spring/spring-ai"
+    "spring/ai"
   ],
   "Spring-AI-Agentic-Patterns-Part2-AskUserQuestionTool": [
-    "spring/spring-ai"
+    "spring/ai"
   ],
   "Spring-AI-Agentic-Patterns-Part3-TodoWriteTool": [
-    "spring/spring-ai"
+    "spring/ai"
   ],
   "Spring-Boot-4.0-마이그레이션-가이드": [
-    "spring/spring-boot"
+    "spring/boot"
   ],
   "Spring-Boot에서-JSP를-권장하지-않는-이유": [
-    "spring/spring-boot"
+    "spring/boot"
   ],
   "Spring-Framework-7-API-Versioning": [
     "spring/spring-framework"
