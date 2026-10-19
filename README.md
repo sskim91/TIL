@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **231개**
+- 총 TIL 개수: **232개**
 
 - 카테고리 수: **31개**
 
@@ -108,6 +108,8 @@
 - [Back Pressure — 빠른 Producer가 시스템을 죽인다](computer-science/Back-Pressure-빠른-Producer가-시스템을-죽인다.md)
 
 - [Cardinality - 컴퓨터 과학에서의 의미와 활용](computer-science/Cardinality-컴퓨터-과학에서의-의미와-활용.md)
+
+- [Concurrency — 동시성은 빠른 컨텍스트 스위칭이 아니다](computer-science/Concurrency-동시성은-빠른-컨텍스트-스위칭이-아니다.md)
 
 - [Concurrency와 Parallelism - 동시성과 병렬성](computer-science/Concurrency와-Parallelism-동시성과-병렬성.md)
 
