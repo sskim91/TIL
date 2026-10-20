@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **232개**
+- 총 TIL 개수: **234개**
 
 - 카테고리 수: **31개**
 
@@ -219,6 +219,8 @@
 
 - [Bastion Host](infra/Bastion-Host.md)
 
+- [KVM — 왜 QEMU와 libvirt가 함께 등장할까?](infra/KVM-왜-QEMU와-libvirt가-함께-등장할까.md)
+
 - [SSH ProxyJump](infra/SSH-ProxyJump.md)
 
 
@@ -284,6 +286,8 @@
 - [Helm — 쿠버네티스의 패키지 매니저는 왜 필요한가](kubernetes/Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md)
 
 - [Helm과 Harbor를 왜 같이 써야 하는가](kubernetes/Helm과-Harbor를-왜-같이-써야-하는가.md)
+
+- [Istio Ingress Gateway — Ingress가 있는데 왜 VirtualService를 따로 쓸까](kubernetes/Istio-Ingress-Gateway-Ingress가-있는데-왜-VirtualService를-따로-쓸까.md)
 
 - [Jenkins Job에서 Tekton EventListener로 webhook을 쏠 수 있을까?](kubernetes/Jenkins-Job에서-Tekton-EventListener로-webhook을-쏠-수-있을까.md)
 
