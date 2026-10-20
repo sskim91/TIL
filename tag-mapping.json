@@ -330,6 +330,9 @@
   "Kubernetes-Gateway-API": [
     "kubernetes/ingress"
   ],
+  "Istio-Ingress-Gateway-Ingress가-있는데-왜-VirtualService를-따로-쓸까": [
+    "kubernetes/ingress"
+  ],
   "Kubernetes-Introduction": [
     "kubernetes/intro"
   ],
