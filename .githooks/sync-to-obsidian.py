@@ -17,6 +17,7 @@ TIL -> Obsidian 동기화 스크립트
 
 ■ 병합 원칙 (노트별, Wiki/.til-sync-state.json 기준):
   - title·source·본문·topics·tags는 TIL 값, related_notes·created는 Wiki 값을 유지한다.
+  - updated는 신규·본문 변경 시 한국 시간 오늘, 메타데이터 정리·무변경 시 기존 값 유지.
   - Wiki 본문이 마지막 동기화 이후 수정됐으면 본문은 두고 frontmatter만 병합하고
     "이관 필요"로 보고한다.
   - Wiki에서 지운 노트(state: synced, Wiki 파일 없음)는 retired로 기록하고
@@ -49,7 +50,8 @@ import sys
 import tempfile
 import unicodedata
 from collections import defaultdict
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 # ============================================================
@@ -250,7 +252,7 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
     else:
         targets = set(til_index)
 
-    today = date.today().isoformat()
+    today = datetime.now(ZoneInfo("Asia/Seoul")).date().isoformat()
     results: dict[str, list[str]] = {a: [] for a in ACTIONS}
     migrate: list[tuple[str, str]] = []
     conflicts: list[tuple[str, str]] = []
