@@ -1,10 +1,20 @@
 # TIL (Today I Learned)
 
-> 🤖 Learning with AI
+> 🤖 Learning with AI — 글을 쓴 AI는 자기 글을 리뷰하지 않고, 나머지 두 AI가 교차 리뷰한다
 
->
+```mermaid
+flowchart LR
+    CC["✍️ Claude Code 작성"] --> R1["🔍 Codex + Gemini 리뷰"]
+    CX["✍️ Codex 작성"] --> R2["🔍 Claude + Gemini 리뷰"]
+    R1 --> OK["✅ 모두 PASS → 커밋"]
+    R2 --> OK
 
-> ✍️ Claude Code 작성 | 🔍 Gemini 리뷰
+    style CC fill:#1565C0,color:#fff
+    style CX fill:#1565C0,color:#fff
+    style R1 fill:#E65100,color:#fff
+    style R2 fill:#E65100,color:#fff
+    style OK fill:#2E7D32,color:#fff
+```
 
 
 ## 📊 통계
