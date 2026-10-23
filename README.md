@@ -9,7 +9,7 @@
 
 ## 📊 통계
 
-- 총 TIL 개수: **234개**
+- 총 TIL 개수: **236개**
 
 - 카테고리 수: **31개**
 
@@ -98,6 +98,10 @@
 - [FastAPI에는 왜 세션이 없을까](backend/FastAPI에는-왜-세션이-없을까.md)
 
 - [Microservices — 통신 패턴, 동기 vs 비동기](backend/Microservices-통신-패턴-동기-vs-비동기.md)
+
+- [Temporal Schedule — Jenkins로 돌리던 배치를 Temporal로 옮기면 무엇이 달라질까?](backend/Temporal-Schedule-Jenkins로-돌리던-배치를-Temporal로-옮기면-무엇이-달라질까.md)
+
+- [Temporal — 서버가 죽어도 코드가 멈춘 줄부터 다시 실행된다면?](backend/Temporal-서버가-죽어도-코드가-멈춘-줄부터-다시-실행된다면.md)
 
 
 
