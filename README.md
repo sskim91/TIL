@@ -19,7 +19,7 @@ flowchart LR
 
 ## 📊 통계
 
-- 총 TIL 개수: **236개**
+- 총 TIL 개수: **238개**
 
 - 카테고리 수: **31개**
 
@@ -309,6 +309,8 @@ flowchart LR
 
 - [Kubernetes Admission Webhook](kubernetes/Kubernetes-Admission-Webhook.md)
 
+- [Kubernetes Architecture](kubernetes/Kubernetes-Architecture.md)
+
 - [Kubernetes ConfigMap & Secret](kubernetes/Kubernetes-ConfigMap-Secret.md)
 
 - [Kubernetes CRD, Controller, Operator](kubernetes/Kubernetes-CRD-Controller-Operator.md)
@@ -354,6 +356,8 @@ flowchart LR
 - [Kubernetes ServiceAccount, RBAC](kubernetes/Kubernetes-ServiceAccount-RBAC.md)
 
 - [Kubernetes StatefulSet](kubernetes/Kubernetes-StatefulSet.md)
+
+- [Kubernetes Troubleshooting From Apply to Request](kubernetes/Kubernetes-Troubleshooting-From-Apply-to-Request.md)
 
 - [Kubernetes Volume과 Persistent Storage](kubernetes/Kubernetes-Volume-PersistentVolume.md)
 
