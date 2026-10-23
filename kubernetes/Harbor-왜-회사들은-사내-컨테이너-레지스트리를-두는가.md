@@ -1,62 +1,46 @@
 # Harbor — 왜 회사들은 사내 컨테이너 레지스트리를 두는가
 
+> **개발자를 위한 쉬운 쿠버네티스 · 확장 읽기** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서)
+
 자바 개발자에게 사내 Nexus가 있다면, 컨테이너 시대의 사내 Nexus가 Harbor다.
 
 ## 결론부터 말하면
 
-**Harbor는 자체 호스팅 컨테이너 레지스트리다 — 컨테이너 이미지와 Helm Chart, OCI Artifact를 저장하면서 취약점 스캐닝, 이미지 서명, 접근 제어, 다른 레지스트리와의 동기화까지 한 묶음으로 제공한다.** 본질적으로는 CNCF Distribution(옛 Docker Registry)이라는 베이스 엔진 위에 엔터프라이즈 기능을 얹은 완성품이다. 2014년 VMware China에서 만들어져 2016년 오픈소스화, 2020년 6월 CNCF Graduated로 졸업했다. 2024년 7월 Mirantis가 자사 MSR(Docker Trusted Registry의 후신) 4.0을 Harbor 기반으로 재구축하면서, 사실상 **"사내 컨테이너 레지스트리 = Harbor"** 가 시장 표준이 되었다.
+**Harbor는 컨테이너 이미지와 Helm Chart 같은 OCI artifact를 저장하고, 접근 제어·스캔·서명 관련 정책·복제를 제공하는 자체 호스팅 레지스트리다.** 사내에 배포 원본을 보관하고 공급 경로를 통제할 수 있지만, Harbor를 설치했다는 사실만으로 이미지의 안전성이나 Pod의 실행이 보장되지는 않는다. 이미지를 받는 주체는 앱 Pod를 담당하는 Node의 kubelet/runtime이며, Harbor는 그 요청에 artifact를 제공한다.
 
-```mermaid
-timeline
-    title Harbor가 표준이 되기까지
-    2014 : VMware China에서 시작 (사내 프로젝트)
-    2016 : 오픈소스화
-    2018 : CNCF 기증 (Sandbox 단계)
-    2018-11 : Incubating 단계로 승격
-    2020-06 : CNCF Graduated 졸업 (최초의 OCI 호환 OSS 레지스트리)
-    2022 : Cosign 통합 (Sigstore 시대 진입)
-    2024-07 : Mirantis MSR 4.0이 Harbor 기반으로 재구축
-```
+[이미지의 tag와 digest](Kubernetes-Image-Tag-Digest.md)에서 배운 이미지 식별 문제를 공급 경로로 확장한다. 본문의 `registry.example.com/book/order-api:1.0.0`은 가상의 주문 API 이미지이며 실제 공개 이미지가 아니다. Harbor를 그 DNS 이름으로 서비스한다고 가정해 역할을 설명한다.
 
 | 핵심 기능 | 한 줄 요약 | 자바 세계 비유 |
 |----------|-----------|----------------|
 | **취약점 스캔** | Trivy로 이미지 푸시 시 자동 스캔 | Nexus IQ / Snyk |
 | **RBAC + Projects** | 프로젝트 단위로 권한 분리 + LDAP/OIDC | Nexus의 Realm/Role |
-| **이미지 서명** | Cosign / Notary로 신원 보증 | jar 서명 (jarsigner) |
+| **이미지 서명** | Cosign / Notation 서명과 검증 정책 | jar 서명 (jarsigner) |
 | **Replication** | Docker Hub, ECR, 다른 Harbor와 동기화 | Maven 미러 |
-| **Proxy Cache** | Docker Hub를 캐싱해 rate limit 회피 | Maven Central 프록시 |
+| **Proxy Cache** | upstream 요청을 줄이는 캐시 | Maven Central 프록시 |
 | **OCI Artifact** | 이미지 + **Helm Chart** + SBOM 일체 저장 | Maven repo의 multi-packaging |
 
 ---
 
 ## 1. 왜 Docker Hub만으로는 안 되는가
 
-### 1.1 Pull Rate Limit — 2024년 12월의 사건
+### 1.1 Pull Rate Limit — 빌드와 재시작도 공급망에 의존한다
 
 Docker Hub는 컨테이너 시대의 Maven Central이다. 무료고, 거의 모든 공식 이미지가 거기 있고, `docker pull nginx`만 치면 작동한다. 그런데 2020년부터 Docker Inc.는 운영비 부담을 이유로 **풀 요청에 제한**을 걸기 시작했다.
 
-**현재 적용 정책** (2026-09 기준, [Docker 공식 문서](https://docs.docker.com/docker-hub/usage/))
+**현재 적용 정책** (2026-10-23 확인, [Docker 공식 문서](https://docs.docker.com/docker-hub/usage/))
 
 | 계정 유형 | 풀 제한 |
 |----------|---------|
 | 익명 사용자 | 6시간당 **100회** |
 | Personal (무료 가입) | 6시간당 **200회** |
-| Pro / Team / Business (유료) | 무제한 (구독 등급별 정책 차이) |
+| Pro / Team / Business (유료) | 무제한 (fair use 조건과 abuse 제한 별도) |
 
-**시도/예고됐던 정책** (참고용)
-
-| 시점 | 익명 풀 제한 | 인증된 풀 제한 | 결과 |
-|------|-------------|---------------|------|
-| 2024-12 발표(날짜 확인 필요), 2025-04-01 시행 예정 | 시간당 10회 (수치 확인 필요) | 시간당 40회 (수치 확인 필요) | 2025-04-08 Docker가 "2025-04-01 예정 변경을 시행하지 않았다"고 공지, 기존 6시간당 100/200 유지. 향후 시행은 최소 6개월 전 예고 |
-
-> 2025-04-01 시행 예정 변경이 있었고 시행되지 않았다는 사실은 [Docker 블로그(2025-02-21 게시, 2025-04-08 업데이트)](https://www.docker.com/blog/revisiting-docker-hub-policies-prioritizing-developer-experience/)로 확인된다. 다만 원 발표의 정확한 날짜와 "시간당 10/40회" 수치는 Docker 1차 출처에서 확인하지 못했다(2026-09 기준).
-
-현재 적용 중인 6시간당 100회만 해도 CI/CD 파이프라인을 운영해 본 사람은 즉시 알 것이다. 빌드 컨테이너가 베이스 이미지를 받아오고, 의존성 단계마다 풀이 일어나며, **단일 NAT 게이트웨이 뒤에서 동작하는 사내 CI 환경에서는 익명 풀의 경우 IP 하나로 모든 빌드가 합산**된다 (인증된 풀은 IP가 아닌 계정 기준으로 카운트되지만, 익명 풀이 발생하는 경로가 하나라도 있으면 NAT IP가 통째로 차감된다). 멀티 스테이지 빌드 한 번에 베이스 이미지 여러 장이 풀되는 경우도 흔하므로, 사내 빌드가 활발하면 6시간당 100회를 빠르게 소진하고 `429 Too Many Requests`를 마주친다. 2024년 12월에 예고된 강화안("시간당 10회", 수치 확인 필요)이 결국 시행되지 않은 것도 업계 반발이 그만큼 컸기 때문이다 — 정책이 한 번 강화 시도됐다는 사실 자체가 **"Docker Hub 의존은 언제든 끊길 수 있는 리스크"** 임을 모두에게 학습시켰고, 이것이 사내 레지스트리 채택을 가속화한 결정적 사건이었다.
+현재 적용 중인 6시간당 100회만 해도 CI/CD 파이프라인을 운영해 본 사람은 즉시 알 것이다. 빌드 컨테이너가 베이스 이미지를 받아오고, 의존성 단계마다 풀이 일어나며, **단일 NAT 게이트웨이 뒤에서 동작하는 사내 CI 환경에서는 익명 풀의 경우 IP 하나로 모든 빌드가 합산**된다 (인증된 풀은 IP가 아닌 계정 기준으로 카운트되지만, 익명 풀이 발생하는 경로가 하나라도 있으면 NAT IP가 통째로 차감된다). 멀티 스테이지 빌드 한 번에 베이스 이미지 여러 장이 풀되는 경우도 흔하므로, 사내 빌드가 활발하면 6시간당 100회를 빠르게 소진하고 `429 Too Many Requests`를 마주친다. 정책의 과거 연혁보다 운영상 중요한 사실은 이미지 pull이 외부 서비스의 가용성·인증·사용량 정책에 의존한다는 점이다. Node에 캐시가 없는 상태의 재시작은 빌드하지 않는 날에도 이 의존성을 드러낸다.
 
 ```mermaid
 flowchart LR
     subgraph Before[Docker Hub 직접 풀]
-        CI1[CI Runner #1] -->|pull nginx| Hub1[Docker Hub<br>rate limit IP 기준]
+        CI1[CI Runner #1] -->|pull nginx| Hub1[Docker Hub<br>익명: IP 기준<br>인증: 계정 조건 기준]
         CI2[CI Runner #2] -->|pull nginx| Hub1
         CI3[CI Runner #3] -->|pull nginx| Hub1
         CI4[K8s Node 재시작] -->|pull nginx| Hub1
@@ -71,21 +55,21 @@ flowchart LR
     style CI4 fill:#37474F,color:#fff
 ```
 
-이게 단순히 "불편함"이 아니라 **서비스 장애**로 직결된다는 점이 핵심이다. 쿠버네티스가 Pod를 다른 노드로 재스케줄링할 때 해당 노드에 이미지가 없으면 풀을 하는데, 이 풀이 rate limit에 막히면 Pod가 뜨지 않는다. 자바로 치면 Maven Central이 갑자기 시간당 10번만 응답하기 시작한 격이다.
+이게 단순히 "불편함"이 아니라 **서비스 장애**로 직결된다는 점이 핵심이다. 쿠버네티스가 Pod를 다른 노드로 재스케줄링할 때 해당 노드에 이미지가 없으면 풀을 하는데, 이 풀이 rate limit에 막히면 Pod가 뜨지 않는다. 자바로 치면 Maven 저장소 접근이 실패해 새 빌드를 시작하지 못하는 상황과 닮았다.
 
-해결책은 본질적으로 두 가지다. 첫째, **유료 Docker 구독**을 결제한다. 둘째, **사내 레지스트리를 둔다.** 후자가 Harbor의 가장 큰 실용적 가치다.
+대응은 요구사항에 따라 달라진다. 첫째, **유료 Docker 구독**을 결제한다. 둘째, **사내 레지스트리를 둔다.** 사내 미러·캐시·승인된 이미지 반입을 함께 설계하면 upstream 의존을 줄일 수 있다. 다만 레지스트리 운영과 용량·백업 책임도 생긴다.
 
-### 1.2 보안 — 이미지는 "OS 통째로"다
+### 1.2 보안 — 이미지 안에 애플리케이션 의존성도 들어 있다
 
-두 번째 이유는 보안이다. Docker 이미지의 정체를 생각해보면 명확하다. **이미지는 사실상 미니 운영체제다.** `nginx:1.27` 이미지 안에는 OpenSSL, glibc, 수십 개의 시스템 패키지가 들어있다. 그리고 그중 어느 하나에라도 CVE가 있으면 컨테이너 전체가 취약해진다.
+두 번째 이유는 보안이다. Docker 이미지의 정체를 생각해보면 명확하다. 이미지는 실행 파일·라이브러리·설정 등 user space 파일과 실행 메타데이터를 묶는다. VM 디스크가 guest OS와 guest kernel을 포함하는 것과 달리, 일반적인 컨테이너는 실행 호스트의 kernel을 공유한다. 컨테이너가 VM 안에서 실행된다면 그 호스트는 해당 VM이다. `nginx:1.27` 이미지 안에는 OpenSSL, glibc, 수십 개의 시스템 패키지가 들어있다. 포함된 패키지에 CVE가 있으면 사용 경로와 설정에 따라 공격 가능성을 검토해야 한다.
 
 2021년 12월의 **Log4Shell**(CVE-2021-44228)은 이 점을 모두에게 강제로 학습시킨 사건이다. 자바 라이브러리 하나의 취약점이 전 세계 컨테이너 이미지에 박혀 있었다. 사용자가 직접 Log4j를 안 썼더라도 **빌드 단계에서 Maven/Gradle이 끌어온 의존성의 의존성**으로 들어오는 경우가 흔했고, 더 깊이는 **베이스 이미지가 묶고 있는 OS 시스템 패키지** 자체의 취약점도 별개 축으로 존재한다. 즉 컨테이너 이미지의 공격 표면은 (1) 베이스 이미지에 내장된 OS 패키지, (2) 빌드 시 더해진 애플리케이션 라이브러리 — 이 두 층 모두 스캔되어야 한다.
 
-이 시점부터 업계는 **"이미지를 신뢰할 수 있는가"를 푸시 시점에 검증** 해야 한다는 합의에 도달했다. Docker Hub의 공식 이미지조차 1주 단위로 새 취약점이 발견된다. 우리가 받아 쓰는 이미지가 지금 이 순간 안전한지 모른다면, 운영 책임을 질 수 없다.
+스캔은 푸시 시점의 한 번으로 끝나지 않는다. 같은 digest라도 이후 DB 갱신으로 새로운 취약점이 발견될 수 있다. 스캔 결과의 시각·DB 버전·정책을 함께 보고 다시 스캔하는 이유다. 결과에 취약점이 없다는 것은 알려진 취약점 탐지 정책을 통과했다는 뜻이며, 악성 코드·설정 오류·애플리케이션 논리까지 안전하다는 증명은 아니다.
 
 ### 1.3 거버넌스 — 누가 무엇을 푸시했는가
 
-세 번째는 운영 거버넌스다. 회사 안에서 누가 어떤 이미지를 푸시했는지, 누가 풀했는지, 어떤 이미지가 prod에 배포된 적이 있는지 — 이런 감사 추적이 Docker Hub로는 어렵다. 사내 정책으로 "외부 미상 이미지는 prod에 못 들어간다"를 강제하려면 결국 사내 게이트가 있어야 하고, 그 게이트가 사내 레지스트리다.
+세 번째는 운영 거버넌스다. 회사 안에서 누가 어떤 이미지를 푸시했는지, 누가 풀했는지, 어떤 이미지가 prod에 배포된 적이 있는지 — 이런 감사 추적이 Docker Hub로는 어렵다. 사내 레지스트리는 승인 원본을 모으는 지점이 된다. 다만 누가 실제 prod에 배포했는지는 registry 로그만으로 완성되지 않는다. 배포 선언·Kubernetes audit·실행 이미지 digest를 연결해야 하며, 다른 registry 사용을 제한하려면 admission이나 네트워크 정책이 별도로 필요하다.
 
 ---
 
@@ -97,7 +81,7 @@ flowchart LR
 
 Harbor는 **Trivy**(Aqua Security가 만든 오픈소스 스캐너)를 내장한다. 설치 시 `install.sh --with-trivy` 한 줄로 스캐너 자체를 활성화하고, 추가로 프로젝트 설정에서 **"Automatically scan images on push"** 옵션을 켜야 푸시 직후 자동 스캔이 동작한다 (설치만으로는 자동 스캔이 켜지지 않는다는 점이 자주 헷갈리는 부분이다). 활성화하면 Harbor가 OS 패키지(Alpine/Debian/RHEL 등)와 애플리케이션 의존성(npm/PyPI/RubyGems 등)을 스캔해 CVE 목록을 만든다.
 
-운영상 강력한 점은 **"Critical 취약점이 있으면 풀을 막는다"** 같은 정책 게이트를 걸 수 있다는 것이다. 개발자가 무심코 푸시한 이미지가 prod에 들어가는 경로 자체를 차단한다.
+운영상 강력한 점은 **"Critical 취약점이 있으면 풀을 막는다"** 같은 정책 게이트를 걸 수 있다는 것이다. 설정한 severity·allowlist·스캔 결과 정책에 따라 해당 Harbor 프로젝트의 pull을 제한할 수 있다. 다른 registry, 이미 캐시된 이미지, 예외 권한까지 같은 정책으로 자동 통제되는 것은 아니다.
 
 ### 2.2 RBAC + 프로젝트 분리
 
@@ -113,7 +97,7 @@ Harbor는 이미지를 **프로젝트** 단위로 묶는다. 각 프로젝트는
 
 LDAP/AD/OIDC 통합이 있어 사내 SSO 인프라에 그대로 연결된다. 자바 개발자가 사내 Nexus에서 Maven repo별로 권한을 분리하던 그 모델을 컨테이너 세계에 옮겨놓았다고 보면 된다.
 
-### 2.3 Cosign / Notary로 이미지 서명
+### 2.3 Cosign / Notation으로 이미지 서명
 
 이미지가 진짜 우리 빌드 시스템이 만든 것인지 어떻게 증명할까? 답은 **디지털 서명**이다. Harbor의 서명 체계는 시대별로 다음과 같이 진화했다.
 
@@ -123,25 +107,27 @@ LDAP/AD/OIDC 통합이 있어 사내 SSO 인프라에 그대로 연결된다. �
 | **Cosign** (Sigstore) | 2021~, Harbor v2.5(2022)에 통합 | **현재 권장** — 서명을 레지스트리 안에 일반 OCI artifact로 저장 |
 | **Notation** (Notary v2 계열) | 2023~ | 현재 권장 — OCI Referrers 기반의 표준화된 서명 모델 |
 
-Harbor 공식 문서는 더 이상 Notary v1을 안내하지 않고 **Cosign 또는 Notation**을 사용하도록 권장한다. 두 방식 모두 별도 서명 서버 없이 레지스트리 자체에 서명을 OCI Artifact 형태로 저장한다는 공통점이 있다. 별도 서명 인프라가 필요 없고, AWS KMS, GCP KMS, HashiCorp Vault 같은 키 관리 시스템과 연동된다. Harbor는 프로젝트에 "Cosign 서명이 없으면 풀 금지" 옵션을 걸 수 있어, 검증되지 않은 이미지가 클러스터로 새어 나가는 길을 막는다.
+서명은 artifact의 digest와 서명자를 암호학적으로 연결한다. Harbor는 Cosign·Notation 서명 artifact를 보관하고 content trust 정책을 제공한다. [Harbor 2.15.0 문서](https://goharbor.io/docs/2.15.0/working-with-projects/project-configuration/implementing-content-trust/)에는 프로젝트별로 Cosign·Notation 검증 정책을 활성화해 pull을 제한하는 기능이 설명되어 있다(2026-10-23 확인). 이 기능을 사용하려면 실제 설치 버전과 정책 설정을 확인해야 한다.
 
-Kubernetes 어드미션 컨트롤러(Kyverno, OPA Gatekeeper)와 결합하면 **"클러스터에 들어오는 모든 이미지는 Harbor의 우리 키로 서명되어야 한다"** 같은 엄격한 정책을 강제할 수 있다 — 이것이 **공급망 보안(Supply Chain Security)** 의 기본 아키텍처다.
+여기서 서명 저장, 정책 활성화, 신뢰할 키나 identity의 결정은 각각 구분한다. 이미지가 서명되었다는 사실만으로 우리 조직의 승인된 빌드라는 결론이 나오지 않는다. 서명 키·KMS 접근과 검증자의 신뢰 정책이 맞아야 한다. keyless 서명처럼 외부 identity·투명성 로그에 의존하는 방식은 에어갭에서 추가 설계가 필요하다.
+
+Kubernetes admission에서 Kyverno 같은 도구로 이미지 참조와 서명을 확인하면 다른 registry를 통한 배포 경로에도 정책을 적용할 수 있다. 다만 registry pull 정책과 admission은 실행 위치가 다르다. 전자는 artifact 제공 시점, 후자는 API 저장 전 요청 판정 시점이다. Pod가 이미 실행 중인지, 어떤 리소스와 namespace가 정책 대상인지도 별도로 확인한다.
 
 ### 2.4 Replication — 멀티 클러스터와 폐쇄망
 
-큰 조직은 클러스터가 하나가 아니다. dev/stg/prod, 리전별, 클라우드별로 클러스터가 흩어진다. Harbor는 다른 Harbor 인스턴스, Docker Hub, ECR, GCR, GHCR 등과 **이미지를 동기화**할 수 있다. 단 동기화 규칙은 **Push 또는 Pull 중 하나의 단방향**으로만 설정한다 — 외부 레지스트리와 양방향 실시간 동기화는 무한 루프 위험과 외부 API 제약 때문에 지원되지 않으므로, 필요한 방향에 맞게 규칙을 따로 두는 식이다.
+큰 조직은 클러스터가 하나가 아니다. dev/stg/prod, 리전별, 클라우드별로 클러스터가 흩어진다. Harbor는 다른 Harbor 인스턴스, Docker Hub, ECR, GCR, GHCR 등과 **이미지를 동기화**할 수 있다. 단 동기화 규칙은 **Push 또는 Pull 중 하나의 단방향**으로 설정한다. 필요한 전송 방향에 맞게 규칙을 따로 두고 대상 registry와 동기화 범위를 확인한다.
 
 ```mermaid
 flowchart LR
     Hub[Docker Hub<br>공개 이미지]
     Harbor1[Harbor<br>본사 데이터센터]
     Harbor2[Harbor<br>리전 A]
-    Harbor3[Harbor<br>폐쇄망 - 망분리 환경]
+    Harbor3[Harbor<br>통제된 연결이 있는 제한망]
     ECR[AWS ECR]
 
     Hub -.->|pull-through cache| Harbor1
     Harbor1 -->|push replication| Harbor2
-    Harbor1 -->|periodic push| Harbor3
+    Harbor1 -->|허용된 연결로 복제| Harbor3
     Harbor1 -->|push to cloud| ECR
 
     style Hub fill:#1565C0,color:#fff
@@ -151,7 +137,9 @@ flowchart LR
     style ECR fill:#37474F,color:#fff
 ```
 
-특히 **폐쇄망(air-gapped)** 환경에서 빛난다. 인터넷이 안 되는 클러스터에 이미지를 어떻게 넣을까? Harbor를 망 안에 두고, 주기적으로 외부 Harbor에서 복제해 들이는 방식이 표준이다. CERN처럼 전 세계 170개 사이트가 협업하는 컴퓨팅 그리드에서도 Harbor의 replication이 핵심 도구로 쓰인다고 한다.
+네트워크가 통제되어도 복제 대상에 연결할 수 있는 제한망에서는 replication이 유용하다. 그러나 완전한 air-gap에는 외부 Harbor에서 periodic push할 경로 자체가 없다. 승인된 매체·반입 구간을 통해 이미지와 서명·연관 artifact를 옮기고 내부 레지스트리에 적재하는 절차가 필요하다. replication 작업이 성공한 artifact 목록과 실제 내부 digest를 대조해야 한다.
+
+**에어갭 환경에서 짚어볼 점.** 앱 이미지 외에도 설치 hook, 스캐너, controller가 쓰는 이미지가 필요하다. Trivy의 취약점 DB와 언어별 DB 갱신 경로, CA·DNS·registry 인증, OCI referrer와 멀티아키텍처 manifest의 보존을 함께 확인한다. Chart 파일 하나를 반입하는 것으로 이 조건들이 충족되지는 않는다.
 
 ### 2.5 Proxy Cache — Rate Limit의 정공법
 
@@ -161,11 +149,11 @@ flowchart LR
 2. Harbor 캐시에 유효한 사본이 있으면 그대로 반환한다.
 3. 없거나 upstream의 mutable tag(`latest`, `1.27` 같은 가변 태그)가 갱신되었으면 Harbor가 Docker Hub에서 받아와 캐시를 갱신하고 반환한다.
 
-결과적으로 Docker Hub로의 풀은 **동일 아키텍처/동일 digest 기준 캐시 히트인 한 사내에 처음 들어올 때 한 번만** 일어난다. 모든 CI runner와 K8s 노드가 같은 이미지를 받아도 Hub 카운터는 1만 증가한다 (멀티 아키텍처 이미지는 arch별 manifest가 별도로 카운트될 수 있다). 단 캐시 미스 시점에는 Harbor의 아웃바운드 IP 기준으로 여전히 Docker Hub의 rate limit를 소모한다는 점은 알아두자 — 캐시가 무한히 안전망이 되는 것은 아니다.
+결과적으로 Docker Hub로의 풀은 **동일 아키텍처/동일 digest 기준 캐시 히트인 한 사내에 최초 다운로드 이후에는 캐시에서** 일어난다. 같은 캐시를 재사용하면 Hub에 실제 다운로드하는 요청을 줄일 수 있다 (멀티 아키텍처 이미지는 arch별 manifest가 별도로 카운트될 수 있다). 단 캐시 미스 시점에 Docker Hub로 나가는 pull에는 여전히 사용량 정책이 적용된다. 익명 pull은 Harbor의 outbound IP, 인증된 pull은 해당 계정 조건을 기준으로 집계된다는 점은 알아두자 — 캐시가 무한히 안전망이 되는 것은 아니다.
 
 > ⚠️ **Proxy Cache 프로젝트의 제약**: 이 프로젝트는 외부 레지스트리의 **읽기 전용(pull-only) 미러**로만 동작한다. 사용자가 사내 빌드 이미지를 여기에 직접 푸시할 수 없다. 따라서 실무에서는 외부 캐싱용 프로젝트(`dockerhub-cache`)와 사내 빌드 저장용 프로젝트(`service-prod`)를 명확히 분리해 운영한다.
 
-**설정 순서 (Harbor 공식 문서 main 기준, 2026-09):**
+**설정 순서 (Harbor 공식 문서 main, 2026-10-23 확인):**
 
 1. **Registry Endpoint 먼저 만든다.** 대상 레지스트리(Docker Hub 등)를 registry endpoint로 등록한다. 지원 대상은 Harbor, Docker Hub, Docker registry, AWS ECR, Azure ACR, Google GCR, Quay, GitHub Container Registry, JFrog Artifactory다. 여기 넣는 접근 계정으로 Docker Hub 인증 풀 한도를 쓰게 되고, 그 계정이 볼 수 있는 이미지는 캐시 프로젝트 사용자 누구나 풀할 수 있으니 권한을 최소로 둔다.
 2. **Projects > New Project**에서 **Proxy Cache** 슬라이더를 켜고 위 endpoint를 고른다. Bandwidth로 upstream 풀 속도를 제한할 수 있다(-1은 무제한).
@@ -201,7 +189,7 @@ OCI(Open Container Initiative) 명세가 진화하면서, 컨테이너 레지스
 
 ## 3. 아키텍처 — Harbor는 결국 "Distribution + α"
 
-Harbor를 설치하면 약 **10개의 컨테이너**가 뜬다. 이름만 봐도 역할이 보인다.
+Harbor는 하나의 레지스트리 프로세스에 UI만 붙인 구성이 아니다. 설치 방식과 외부 DB·Redis 사용 여부에 따라 구성과 replica 수가 달라진다. 아래는 역할을 보여 주는 개념도이며 실제 모든 요청이 portal을 경유한다는 네트워크 경로도는 아니다. CLI와 runtime의 registry API 요청은 웹 UI를 통과하지 않는다.
 
 ```mermaid
 flowchart TB
@@ -213,7 +201,7 @@ flowchart TB
     Registry[registry<br>= CNCF Distribution]
     Trivy[trivy-adapter<br>취약점 스캐너]
     Job[jobservice<br>replication / GC 작업]
-    Log[log<br>감사 로그]
+    Log[log<br>컴포넌트 로그 수집]
 
     User -->|HTTPS| Portal
     Portal --> Core
@@ -237,41 +225,26 @@ flowchart TB
 
 여기서 가장 흥미로운 점은 **`registry` 컨테이너의 정체**다. 이것이 바로 **CNCF Distribution**(옛 Docker Registry)이다. 즉 **Harbor는 Distribution을 그대로 품고 그 위에 자체 컨트롤 플레인을 얹은 구조**다.
 
-```mermaid
-flowchart LR
-    Distribution[CNCF Distribution<br>= OCI 표준 레지스트리 엔진]
-    Harbor[Harbor<br>= Distribution + Trivy + RBAC + Replication + UI + ...]
-    Mirantis[Mirantis MSR 2025+<br>= Harbor 기반]
-    OVH[OVHcloud MPR<br>= Harbor 기반]
+감사 로그는 기본적으로 database에 저장하며, 설정에 따라 외부 syslog endpoint로 전달할 수 있다. `log` collector가 모으는 컴포넌트 운영 로그와 감사 기록의 저장·보존 정책을 같은 것으로 보지 않는다. 외부 전달 시 DB 저장을 생략하는 옵션을 사용한다면 감사 기록의 보관·백업 책임도 그 설정에 맞춰 확인한다.
 
-    Distribution --> Harbor
-    Harbor --> Mirantis
-    Harbor --> OVH
-
-    style Distribution fill:#1565C0,color:#fff
-    style Harbor fill:#2E7D32,color:#fff
-    style Mirantis fill:#37474F,color:#fff
-    style OVH fill:#37474F,color:#fff
-```
-
-비유하자면 **Distribution은 엔진, Harbor는 그 엔진으로 만든 완성차**다. 그리고 2025년 들어서는 Mirantis(MSR)나 OVHcloud Managed Private Registry 같은 **상업 제품들이 Harbor 위에서 다시 만들어지는** 흐름이 정착됐다. 사내 컨테이너 레지스트리 영역에서 Harbor가 사실상 표준 플랫폼이 된 것이다.
+Distribution은 OCI registry API로 manifest와 blob을 제공하는 기반이고, Harbor core·jobservice·DB 등이 프로젝트 권한과 복제·정리 작업을 관리한다. 그래서 Harbor를 도입하면 registry 저장소뿐 아니라 DB·Redis·작업 큐·인증서·복구 절차도 운영 대상이 된다. 사내 공급 경로의 가용성이 이 서비스에 모이기 때문이다.
 
 ---
 
 ## 4. Helm 시리즈와의 연결 — 신뢰 체인 완성
 
-이전 글에서 본 Helm 4의 변화 중 하나가 **OCI digest 기반 공급망 보안 강화 + 재현 가능 빌드** 였다 — 차트 서명 자체는 Helm v2 시절부터 provenance 기능으로 존재했지만, Helm 4는 OCI 레지스트리에 저장된 digest로 차트를 고정 설치하고 검증하는 흐름을 정식 지원한다. 차트도 컨테이너 이미지와 같은 수준의 공급망 보안을 받아야 한다는 방향이다. Harbor는 그 방향에 정확히 맞물린다.
+Chart를 받은 Helm 실행 주체와 이미지를 받는 Node는 서로 다른 클라이언트다. Chart가 Harbor에 있다는 이유로 Node의 pull 인증이 자동 구성되지 않고, Node가 이미지를 받을 수 있다는 이유로 배포 도구가 private Chart를 받을 수 있는 것도 아니다.
 
-| 단계 | 도구 | 무엇을 신뢰하는가 |
-|------|------|------------------|
-| **빌드** | CI/CD | 우리 빌드 시스템이 빌드한 결과물 |
-| **저장** | **Harbor** | 우리 레지스트리에 있는 아티팩트 |
-| **서명** | **Cosign in Harbor** | 우리 키로 서명된 것 |
-| **검증** | Kyverno / OPA Gatekeeper | 서명이 맞는 것만 클러스터 진입 |
-| **배포** | **Helm** | 검증된 Chart로만 설치 |
-| **롤백** | Helm rollback / git revert | 검증된 과거 상태로만 복귀 |
+| 단계 | 실행 주체 | 별도로 확인할 사실 |
+|------|-----------|-------------------|
+| 빌드·테스트 | CI의 실행 환경 | 선택한 소스 revision과 테스트 결과 |
+| 저장·스캔 | Harbor와 scanner | push digest, 스캔 종료와 정책 결과 |
+| 서명 | 키를 사용할 수 있는 서명 작업 | 승인된 digest에 대한 서명과 identity |
+| Chart 렌더링·적용 | Helm 또는 GitOps 도구 | Chart 고정 참조, values, API 결과 |
+| Pod 이미지 pull | Node의 kubelet/runtime | registry 접근·인증·CA·image pull 결과 |
+| 실행·준비 | 앱 컨테이너와 kubelet | startup·readiness와 실제 응답 |
 
-각 단계의 도구가 따로따로 있는 것 같지만, **Harbor가 중앙 저장소이자 검증 지점**으로 자리잡으면 전체가 하나의 신뢰 체인으로 묶인다. 이 그림이 2026년 기준 클라우드 네이티브 보안의 베이스라인이다.
+서명·스캔·배포 이력을 digest로 연결하면 문제가 생겼을 때 원본을 추적할 수 있다. Harbor는 이 기록을 모을 수 있는 지점이며, 각 검증을 실제로 실행하고 실패 시 중단하는 정책은 파이프라인과 클러스터의 책임으로 남는다.
 
 ---
 
@@ -279,23 +252,20 @@ flowchart LR
 
 Harbor만이 답은 아니다. 상황에 따른 선택지를 정리하면 다음과 같다.
 
-| 옵션 | 강점 | 약점 | 언제 |
-|------|------|------|------|
-| **Harbor** | 풍부한 OSS 기능, 셀프호스팅, OCI artifact, Helm 친화 | 운영 부담 (PostgreSQL/Redis까지 챙겨야) | 자체 호스팅, 다기능, 멀티 클라우드 |
-| **AWS ECR / GCR / ACR** | 클라우드 IAM 통합, 운영 부담 ↓ | 해당 클라우드 락인, 기능 제한 | 단일 클라우드 환경 |
-| **CNCF Distribution** | Harbor의 베이스, 가장 가벼움 | UI/RBAC/스캔 없음 (직접 구현) | 자체 레지스트리를 만드는 벤더 |
-| **JFrog Artifactory** | 멀티 포맷 (Maven, npm, NuGet, Docker 통합) | 상용, 무겁고 비싸다 | 이미 JFrog를 쓰는 대기업 |
-| **Sonatype Nexus** | 자바 생태계 우위, 멀티 포맷 | 컨테이너 특화 기능은 약함 | 사내 Maven repo가 이미 Nexus인 곳 |
-| **Quay (Red Hat)** | OpenShift 통합 우수 | Red Hat 생태계 종속 | OpenShift 사용 조직 |
-| **GitHub Container Registry** | GitHub Actions와 짝궁 | 사내 거버넌스 약함 | OSS, 소규모 팀 |
+| 운영 조건 | 검토할 선택 | 확인할 비용 |
+|-----------|-------------|-------------|
+| 자체 호스팅·망 내부 보관 필요 | Harbor, Distribution, 기존 사내 registry | HA·용량·백업·업그레이드 책임 |
+| 클라우드 IAM과의 통합이 중요 | 해당 클라우드 managed registry | 네트워크·권한·보관 비용·복구 조건 |
+| Maven·npm 등도 같은 운영 체계 사용 | 기존 Nexus·Artifactory의 OCI 지원 | 필요한 artifact·서명·정책 기능의 제품별 지원 |
+| Git 호스팅과 CI가 이미 통합됨 | 해당 플랫폼의 registry | 조직 권한, 외부 의존, 에어갭 조건 |
 
-가장 흔한 실무 패턴은 이렇다 — **클라우드 한 곳만 쓰면 그 회사의 매니지드 레지스트리, 여러 곳을 쓰거나 폐쇄망이 있으면 Harbor.** Java 자산이 큰 조직이 이미 Nexus/Artifactory를 잘 굴리고 있다면 그것에 컨테이너 포맷을 얹는 선택도 합리적이지만, OCI Artifact 시대의 풍부함은 Harbor 쪽이 한 발 앞선다.
+제품 이름만으로 보안 수준과 적합성을 정할 수 없다. 필요한 정책을 누가 운영할지, 복구에 어느 정도 시간이 허용되는지, Node가 어디에서 이미지를 받을지를 먼저 정하면 선택 기준이 구체화된다.
 
 ---
 
 ## 6. 정리
 
-Harbor는 컨테이너 시대에 "회사의 자재창고"를 세우는 도구다. Docker Hub에서 받아온 이미지를 **신뢰할 수 있는 형태로 사내에 보관**하고, 내부 빌드물에 **서명과 스캔으로 신원과 안전성**을 부여하며, 흩어진 클러스터들에 **일관된 배포 원본**을 제공한다.
+Harbor는 컨테이너 시대에 "회사의 자재창고"를 세우는 도구다. Docker Hub에서 받아온 이미지를 **신뢰할 수 있는 형태로 사내에 보관**하고, 내부 빌드물에 **서명과 스캔 결과로 검증 근거**을 부여하며, 흩어진 클러스터들에 **일관된 배포 원본**을 제공한다.
 
 | 자리 | 도구 |
 |------|------|
@@ -306,9 +276,15 @@ Harbor는 컨테이너 시대에 "회사의 자재창고"를 세우는 도구다
 
 이전 글의 Helm은 "어떻게 배포하는가"의 답이었고, 이번 Harbor는 "어디에서 끌어와 배포하는가"의 답이다. 두 도구는 카테고리가 전혀 다르지만, 실제 운영에서는 같은 파이프라인의 다른 단계로 함께 쓰인다.
 
-다음 글에서는 두 도구의 역할 차이를 명확히 정리하고, **CI/CD 파이프라인에서 둘이 협업하는 실제 시나리오**를 그려본다 — 이미지 빌드 → Harbor 푸시 → Trivy 스캔 → Cosign 서명 → Helm Chart에서 이미지 참조 → 배포 → Kyverno 검증의 흐름이다.
+다음 글에서는 두 도구의 역할 차이를 명확히 정리하고, **CI/CD 파이프라인에서 둘이 협업하는 실제 시나리오**를 그려본다 — 이미지 빌드 → Harbor 푸시 → Trivy 스캔 → Cosign 서명 → Helm Chart에서 이미지 참조 → admission 검증 → 실행의 흐름이다.
 
 ---
+
+## 생각해 볼 질문
+
+1. **Chart를 내부 Harbor로 옮겼는데 Pod가 ImagePullBackOff인 이유는 무엇일까?** Chart 다운로드와 Node의 이미지 pull은 경로·인증 주체가 다르다. 렌더링된 image 주소와 Node의 DNS·CA·자격증명을 확인한다.
+2. **proxy cache가 있으니 외부 registry 장애와 사용량 제한을 걱정하지 않아도 될까?** 캐시 miss·retention·가변 tag·아키텍처에 따라 upstream 요청이 필요하다. 승인 이미지의 보존 정책과 단절 상태에서의 동작을 따로 설계해야 한다.
+3. **스캔 통과와 유효한 서명이 같은 사실을 증명할까?** 스캔은 알려진 취약점 정책의 결과, 서명은 특정 digest와 서명자의 연결이다. 어느 쪽도 앱 전체의 안전성과 운영 적합성을 혼자 보장하지 않는다.
 
 ## 출처
 
@@ -316,9 +292,12 @@ Harbor는 컨테이너 시대에 "회사의 자재창고"를 세우는 도구다
 - [Harbor 공식 문서](https://goharbor.io/docs/) — 설치/운영 가이드
 - [CNCF — Harbor Project Page](https://www.cncf.io/projects/harbor/) — Graduated 상태, 프로젝트 메타정보
 - [CNCF — Harbor Project Journey Report](https://www.cncf.io/reports/harbor-project-journey-report/) — VMware → CNCF 졸업 여정
-- [CNCF Blog — Harbor: Enterprise-grade container registry (2025-12-08)](https://www.cncf.io/blog/2025/12/08/harbor-enterprise-grade-container-registry-for-modern-private-cloud/) — 최신 운영 가이드
-- [Harbor docs — Sign Artifacts with Cosign or Notation (최신)](https://goharbor.io/docs/edge/working-with-projects/working-with-images/sign-images/) — 서명 통합 (현재 권장)
-- [Red Hat — Mitigate impact of Docker Hub Pull Request Limits](https://www.redhat.com/en/blog/mitigate-impact-of-docker-hub-pull-request-limits) — Rate limit 배경
-- [OVHcloud Blog — Solutions to overcome Docker Hub pull rate limits (2025-04)](https://blog.ovhcloud.com/solutions-at-ovhcloud-to-overcome-the-docker-hub-pull-rate-limits/) — 2025년 4월 시점 상황
-- [Distr.sh — Container Image Registry Comparison 2026](https://distr.sh/blog/container-image-registry-comparison) — Mirantis MSR의 Harbor 이전 등 시장 동향
-- [Snyk — Signing container images: Sigstore, Notary, DCT 비교](https://snyk.io/blog/signing-container-images/) — Cosign vs Notary 선택 기준
+- [Docker Hub pull limits](https://docs.docker.com/docker-hub/usage/pulls/) — 2026-10-23 확인, 계정·IP 집계와 fair use
+- [Harbor proxy cache](https://goharbor.io/docs/main/administration/configure-proxy-cache/) — 캐시 hit·miss·권한과 upstream 조건
+- [Harbor artifact signing](https://goharbor.io/docs/main/working-with-projects/working-with-images/sign-images/) — Cosign·Notation
+- [Harbor 2.15.0 content trust](https://goharbor.io/docs/2.15.0/working-with-projects/project-configuration/implementing-content-trust/) — 프로젝트 pull 정책
+- [Harbor vulnerability scanning](https://goharbor.io/docs/main/administration/vulnerability-scanning/) — scanner와 결과
+- [Harbor replication](https://goharbor.io/docs/main/administration/configuring-replication/) — 복제 방향과 대상
+- [Trivy air-gap](https://trivy.dev/latest/docs/advanced/air-gap/) — 단절 환경 DB 준비
+- [Harbor Architecture Overview](https://github.com/goharbor/harbor/wiki/Architecture-Overview-of-Harbor) — log collector의 역할
+- [Harbor Log Rotation](https://goharbor.io/docs/main/administration/log-rotation/) — audit log DB와 syslog forwarding

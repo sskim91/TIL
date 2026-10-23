@@ -1,353 +1,194 @@
 # Kubernetes Pod
 
-Docker 컨테이너가 있는데, 왜 Kubernetes는 굳이 "Pod"라는 개념을 만들었을까?
+> **개발자를 위한 쉬운 쿠버네티스 · 3장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Architecture.md) · [다음 장](./Kubernetes-ReplicaSet-Deployment.md)
+
+컨테이너가 종료된 것과 Pod가 교체된 것은 어떻게 다를까?
+
+앞 장에서 배포 선언이 API server에 저장된 뒤 scheduler와 kubelet이 실제 실행 상태를 만든다는 흐름을 보았다. 이제 실행되는 쪽을 가까이 들여다보자. 주문 API 프로세스가 한 번 종료되었는데 Pod 이름은 그대로일 수 있다. 반대로 Pod 이름과 IP가 바뀌었는데 애플리케이션 버전은 그대로일 수도 있다. 이 차이를 알아야 장애를 복구한 주체와 사라진 상태를 설명할 수 있다.
 
 ## 결론부터 말하면
 
-**Pod는 "함께 배포되고, 함께 스케일링되고, 함께 죽어야 하는 컨테이너들"을 묶는 단위다.** 컨테이너 하나만으로는 표현할 수 없는 패턴(sidecar, init container)을 위해 존재한다.
+Pod는 Kubernetes가 배치하는 기본 실행 단위다. 보통 애플리케이션 컨테이너 하나를 담지만, 실행 위치와 네트워크를 함께 써야 하는 보조 컨테이너를 추가할 수 있다. 같은 Pod의 컨테이너들은 같은 노드에 배치되고 Pod IP와 포트 공간을 공유하며, 명시적으로 연결한 volume으로 파일을 공유한다.
 
-```mermaid
-flowchart TB
-    subgraph Pod["Pod (공유 환경)"]
-        direction LR
-        C1[App Container]
-        C2[Sidecar Container]
-        C1 <-->|localhost| C2
-    end
-
-    NET[공유 Network Namespace<br>같은 IP, 같은 포트 공간]
-    VOL[공유 Volume<br>파일 시스템 공유 가능]
-
-    Pod --- NET
-    Pod --- VOL
-
-    style Pod stroke:#326CE5,stroke-width:2px
-```
-
-| 특징 | 컨테이너 단독 | Pod |
-|------|-------------|-----|
-| 네트워크 | 컨테이너마다 별도 IP | Pod 내 컨테이너는 **같은 IP** |
-| 컨테이너 간 통신 | 네트워크 통해야 함 | **localhost**로 통신 |
-| 볼륨 공유 | 별도 설정 필요 | Pod 내에서 자연스럽게 공유 |
-| 스케줄링 | 각각 어디로 갈지 모름 | **항상 같은 노드**에 배치 |
-
----
-
-## 1. 왜 컨테이너가 아닌 Pod인가?
-
-### 1.1 컨테이너 하나로 부족한 순간
-
-Docker를 쓰다 보면 이런 상황이 생긴다:
-
-> "애플리케이션 컨테이너 옆에 로그 수집기를 붙이고 싶은데, 같은 파일 시스템을 봐야 해."
-> "메인 앱이 뜨기 전에 설정 파일을 다운로드해야 하는데, 이걸 같은 컨테이너에 넣으면 이미지가 복잡해져."
-
-컨테이너 하나에 모든 걸 넣으면? 이미지가 비대해지고, 관심사 분리가 안 된다. 컨테이너를 분리하면? 네트워크 설정이 복잡해지고, 같은 노드에 있을 거란 보장이 없다.
-
-### 1.2 Pod가 해결하는 문제
-
-Pod는 "**밀접하게 결합된 컨테이너들을 하나의 단위로 묶는다**"는 아이디어다.
+**컨테이너 재시작은 같은 Pod 안의 실행을 다시 만드는 일이고, Pod 교체는 새로운 UID를 가진 실행 단위를 만드는 일이다.** kubelet은 `restartPolicy`에 따라 전자를 맡는다. Pod 자체가 없어졌을 때 후자를 맡으려면 다음 장의 ReplicaSet 같은 controller가 필요하다.
 
 ```mermaid
 flowchart LR
-    subgraph "Without Pod"
-        A1[App Container]
-        A2[Log Collector]
-        A1 -.->|네트워크 통신<br>복잡한 설정| A2
-    end
-
-    subgraph "With Pod"
-        subgraph P[Pod]
-            B1[App Container]
-            B2[Log Collector]
-        end
-        B1 -->|localhost<br>볼륨 공유| B2
-    end
-
-    style P stroke:#326CE5,stroke-width:2px
+    P["Pod A<br>UID 유지"] -->|"컨테이너 종료"| R["kubelet이 컨테이너 재시작<br>Pod A 유지"]
+    P -->|"Pod 삭제·퇴거"| X["Pod A 종료"]
+    X -->|"상위 controller가 새로 생성"| N["Pod B<br>새 UID·IP"]
+    style R fill:#2E7D32,color:#fff
+    style X fill:#C62828,color:#fff
+    style N fill:#1565C0,color:#fff
 ```
 
-Pod 안의 컨테이너들은:
-- **같은 네트워크 네임스페이스**를 공유한다 (같은 IP, localhost로 통신)
-- **같은 IPC 네임스페이스**를 공유한다 (프로세스 간 통신 가능)
-- **같은 노드**에 스케줄링된다 (항상 함께 배치)
-- **볼륨을 공유**할 수 있다 (파일 시스템 접근)
+이 장의 `order-api`, namespace `bookstore`, `registry.example.com/book/order-api:1.0.0` 이미지는 가상 설명용이다. `/livez`, `/readyz`, `/startupz`도 앱이 별도로 구현한다고 가정한 endpoint이며 모든 프레임워크에 자동으로 생기지 않는다. 아래 manifest는 구조를 설명하며 실제 공개 이미지나 실행 결과를 제공하는 실습은 아니다.
 
----
+## 1. 왜 컨테이너가 아닌 Pod인가?
 
-## 2. Pod의 구조
+### 1.1 먼저 컨테이너 하나로 시작한다
 
-### 2.1 YAML로 보는 Pod
+백엔드 개발자에게 익숙한 실행 단위는 서버 프로세스다. 이를 이미지로 패키징하면 같은 프로그램과 의존성을 여러 머신에서 실행할 수 있다. Kubernetes는 그 컨테이너를 어느 노드에서 실행할지 정해야 한다. 이때 배치의 기준이 되는 객체가 Pod다. Pod가 있다고 해서 컨테이너 여러 개가 필수인 것은 아니다. 주문 API만 필요하면 하나면 충분하다.
+
+다음은 완전한 설명용 Pod manifest다. `bookstore` namespace가 이미 있고 자리표시자 이미지를 실제 이미지로 바꾸었다는 실행 전제가 필요하다.
 
 ```yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: my-app
+  name: order-api-pod
+  namespace: bookstore
   labels:
-    app: my-app
+    app: order-api
 spec:
+  restartPolicy: Always
   containers:
-  - name: app
-    image: nginx:1.25
+  - name: order-api
+    image: registry.example.com/book/order-api:1.0.0
     ports:
-    - containerPort: 80
-    volumeMounts:
-    - name: log-volume
-      mountPath: /var/log/nginx
-
-  - name: log-collector
-    image: busybox
-    command: ['sh', '-c', 'tail -F /var/log/nginx/access.log']
-    volumeMounts:
-    - name: log-volume
-      mountPath: /var/log/nginx
-
-  volumes:
-  - name: log-volume
-    emptyDir: {}
+    - name: http
+      containerPort: 8080
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "256Mi"
+      limits:
+        cpu: "1000m"
+        memory: "512Mi"
 ```
 
-이 Pod에는 두 개의 컨테이너가 있다:
-- `app`: nginx 웹 서버 (로그를 `/var/log/nginx`에 기록)
-- `log-collector`: 로그 파일을 읽어서 외부로 전송하는 사이드카
+`metadata`는 API 객체의 이름과 분류를, `spec.containers`는 실행할 컨테이너를 표현한다. `containerPort: 8080`은 앱이 사용하는 포트를 문서화하는 선언이다. 이 필드가 서버 소켓을 열거나 프로세스를 8080에서 listen하게 만들지는 않는다. 실제 listen 주소·포트는 앱이 정한다. 외부에서 접근 가능한 주소를 만드는 일은 뒤의 Service 장에서 이어진다.
 
-둘 다 `log-volume`을 마운트해서 nginx의 로그를 log-collector가 수집한다. 이것이 전형적인 **Sidecar 패턴**이다.
+### 1.2 함께 있어야 하는 컨테이너를 추가할 때
 
-### 2.2 Pod 내부 네트워킹
+주문 API가 만든 파일을 바로 옆의 전송기가 읽어야 하거나, 앱이 `localhost`의 프록시에 접속해야 한다면 두 컨테이너가 서로 다른 노드로 흩어져서는 곤란하다. Pod는 이렇게 밀접한 협력이 필요한 컨테이너를 하나의 배치 단위로 묶는다. API 서버와 DB가 서로 통신한다는 이유만으로 같은 Pod에 넣지는 않는다. 따로 확장하거나 교체해야 한다면 별도 Pod가 자연스럽다.
 
-```mermaid
-flowchart TB
-    subgraph Pod["Pod (IP: 10.244.1.5)"]
-        C1["Container A<br>:80"]
-        C2["Container B<br>:3000"]
-        C3["Container C<br>:9090"]
-    end
+| 같은 Pod에서 공유하는 것 | 의미와 경계 |
+|---|---|
+| 노드 | 컨테이너들을 따로 다른 노드로 배치하지 않음 |
+| 네트워크 namespace | 같은 Pod IP·포트 공간과 `localhost` 사용 |
+| IPC namespace | 컨테이너 사이 IPC 사용 가능 |
+| 선언한 volume | 각 컨테이너의 `volumeMounts`에 연결한 경로만 공유 |
 
-    C1 -->|"localhost:3000"| C2
-    C2 -->|"localhost:9090"| C3
+파일시스템 전체가 자동 공유되는 것은 아니다. 각 컨테이너의 이미지와 writable layer는 별개다. 프로세스 namespace 공유도 기본으로 켜져 있지 않으며, 필요한 경우 `shareProcessNamespace`로 따로 선택한다. 네트워크 공유 때문에 두 컨테이너가 같은 주소의 8080 포트를 동시에 listen할 수 없다는 점도 Docker 컨테이너를 각각 실행할 때와 다르다.
 
-    EXT[외부] -->|"10.244.1.5:80"| C1
+### 1.3 파일 공유와 수명의 연결
 
-    style Pod stroke:#326CE5,stroke-width:2px
+구조 설명용 발췌로 보면 공유 volume은 다음처럼 나타난다. 전체 Pod manifest의 `spec` 아래에 들어갈 필드다. 가상 `order-api`가 `/var/log/order-api/access.log`를 파일로 쓴다는 추가 전제가 있으며, 일반 앱의 stdout 로그를 반드시 파일로 바꾸라는 뜻은 아니다.
+
+```yaml
+containers:
+- name: order-api
+  image: registry.example.com/book/order-api:1.0.0
+  volumeMounts:
+  - name: logs
+    mountPath: /var/log/order-api
+- name: log-reader
+  image: busybox:1.36
+  command: ["sh", "-c", "tail -F /logs/access.log"]
+  volumeMounts:
+  - name: logs
+    mountPath: /logs
+    readOnly: true
+volumes:
+- name: logs
+  emptyDir: {}
 ```
 
-Pod 내 컨테이너들은:
-- **같은 IP 주소**를 공유한다
-- **포트는 겹치면 안 된다** (같은 네트워크 네임스페이스니까)
-- 서로 **localhost**로 통신한다
+이 보조 컨테이너는 파일을 stdout으로 읽어 줄 뿐, 외부 로그 저장소로 보내는 전송기는 아니다. 두 컨테이너가 같은 volume을 서로 다른 경로로 마운트해도 공유 대상은 같다. `emptyDir`의 데이터는 컨테이너가 재시작되어도 같은 Pod가 유지되는 동안 남지만 Pod가 제거되면 사라진다. Pod 교체를 넘어서 보존할 데이터는 [Volume, PV, PVC](Kubernetes-Volume-PersistentVolume.md)에서 다룬다.
 
----
+## 2. 재시작과 교체를 구별하는 법
 
-## 3. Pod Lifecycle 심화
+### 2.1 프로세스가 종료되어도 Pod가 유지될 수 있다
 
-Pod는 생성부터 종료까지 여러 상태를 거친다. 실무에서 트러블슈팅을 하려면 이 라이프사이클을 정확히 이해해야 한다.
+주문 API가 잘못된 설정을 읽고 exit 1로 종료되었다고 하자. Pod의 `restartPolicy: Always`를 본 kubelet은 같은 Pod 안에서 컨테이너를 다시 만든다. 새 컨테이너이므로 프로세스 메모리와 writable layer에 의존한 상태는 이어진다고 가정할 수 없다. Pod UID와 배치된 노드는 유지되고, `restartCount`는 늘 수 있다.
+
+반면 Pod를 삭제하거나 노드 압박으로 퇴거시키면 그 Pod의 수명은 끝난다. Pod는 한 번 배치된 뒤 다른 노드로 이동하지 않는다. 노드가 사라졌을 때 실행을 복구하는 방식도 기존 Pod를 옮기는 것이 아니라 상위 controller가 새 Pod를 만드는 것이다. 새 Pod는 UID가 다르고 IP도 달라질 수 있다. 노드 장애 판정과 대체 생성은 비동기적이므로 즉시 복구를 보장하지 않는다.
+
+| 사건 | 같은 Pod인가? | 복구 주체와 범위 |
+|---|---|---|
+| 앱 프로세스 종료 | 보통 유지 | kubelet이 restart policy에 따라 컨테이너 재시작 |
+| 컨테이너 memory limit 관련 OOM | 보통 유지 | 종료 원인 확인 후 restart policy에 따라 재시작 |
+| Pod 삭제·퇴거 | 기존 Pod 종료 | ReplicaSet 등 상위 controller가 대체 Pod 생성 |
+| 노드 장애 | 기존 Pod가 다른 노드로 이동하지 않음 | 장애 감지·퇴거·controller·스케줄링을 거쳐 대체 가능 |
+
+### 2.2 재시작 정책과 반복 실패
+
+`Always`는 성공 종료까지 포함해 다시 실행하고, `OnFailure`는 실패 종료를 재시도하며, `Never`는 재시작하지 않는다. Deployment의 일반 애플리케이션 Pod는 `Always`를 사용하고, 끝나는 작업은 Job에서 별도 모델로 다룬다. 재시작은 버그를 고치지 않는다. 틀린 설정이 그대로라면 같은 실패를 반복한다.
+
+이 반복을 무제한 빠르게 수행하지 않도록 kubelet은 대기 시간을 늘린다. 일반적인 기본 백오프는 10초부터 2배씩 증가해 최대 300초이며 일정 시간 정상 실행되면 초기화된다. 다만 최근 Kubernetes에는 백오프를 조정하는 기능과 kubelet 설정이 있으므로 모든 버전·노드에서 정확히 같은 간격이라고 가정하지 않는다. `CrashLoopBackOff`는 이 재시도 대기를 설명하는 container waiting reason이지 독립적인 Pod phase가 아니다.
+
+## 3. 상태를 읽어 원인을 좁히기
 
 ### 3.1 Pod Phase: 5가지 상태
 
-```mermaid
-stateDiagram-v2
-    [*] --> Pending: Pod 생성
-    Pending --> Running: 컨테이너 시작
-    Running --> Succeeded: 정상 종료 (Job)
-    Running --> Failed: 에러로 종료
-    Running --> Unknown: 노드 통신 끊김
+`kubectl get pods`의 `STATUS` 열은 사람이 상황을 빨리 알도록 가공한 표시다. API의 `status.phase`와 항상 같지 않다. 예를 들어 `Terminating`은 삭제 중이라는 표시이고 `ImagePullBackOff`는 컨테이너 준비 과정의 이유다.
 
-    Pending --> Failed: 이미지 Pull 실패 등
+| Phase | API가 요약하는 의미 |
+|---|---|
+| Pending | Pod가 접수되었지만 컨테이너 준비가 끝나지 않음. 배치 대기뿐 아니라 이미지 준비도 포함 |
+| Running | 노드에 배치되었고 컨테이너가 생성됨. 하나 이상이 실행 중이거나 시작·재시작 과정 |
+| Succeeded | 모든 컨테이너가 성공 종료했고 다시 시작되지 않음 |
+| Failed | 모든 컨테이너가 종료했고 하나 이상이 실패했으며 다시 시작되지 않음 |
+| Unknown | Pod 상태를 얻을 수 없음. 노드 통신 문제 등이 원인일 수 있음 |
 
-    style Pending fill:#FFF3E0
-    style Running fill:#E8F5E9
-    style Succeeded fill:#E3F2FD
-    style Failed fill:#FFEBEE
-```
-
-| Phase | 의미 | 실무에서 자주 보는 상황 |
-|-------|------|----------------------|
-| **Pending** | 스케줄링 대기 또는 이미지 다운로드 중 | 리소스 부족, ImagePullBackOff |
-| **Running** | Pod가 노드에 바인딩되고 최소 하나의 컨테이너가 실행 중/시작 중/재시작 중 | 정상 상태, 그리고 **`CrashLoopBackOff`도 여기에 해당** |
-| **Succeeded** | 모든 컨테이너가 exit 0으로 정상 종료, 재시작 안 됨 | Job/CronJob 완료 |
-| **Failed** | **모든 컨테이너가 종료**되었고 **최소 하나는 실패(non-zero exit 또는 시스템 종료)**했으며 더 이상 재시작되지 않는 상태 | `restartPolicy: Never`/`OnFailure`에서 최종 실패 |
-| **Unknown** | 노드와 통신 불가 | 노드 장애, 네트워크 문제 |
-
-> **⚠️ CrashLoopBackOff ≠ Failed Phase:** `restartPolicy: Always`(Deployment의 기본값)인 Pod는 컨테이너가 계속 충돌해도 Phase가 `Failed`가 되지 **않는다.** 재시작이 끝나지 않았기 때문이다. 이 경우 Pod Phase는 `Running`이지만 컨테이너 상태가 `Waiting(reason: CrashLoopBackOff)`으로 표시된다. `Failed` Phase는 주로 `restartPolicy: Never`/`OnFailure` (Job이나 수동 생성 Pod)에서 관찰된다.
-
-**Pending 상태가 오래 지속되는 이유:**
-
-```bash
-kubectl describe pod my-app
-```
-
-| 원인 | Events 메시지 | 해결 방법 |
-|------|--------------|----------|
-| 리소스 부족 | `Insufficient cpu/memory` | 노드 추가 또는 requests 줄이기 |
-| 이미지 Pull 실패 | `ImagePullBackOff` | 이미지 이름/태그 확인, registry 인증 |
-| PVC 바인딩 대기 | `pod has unbound PersistentVolumeClaims` | PV 생성 또는 StorageClass 확인 |
-| Node Selector 불일치 | `didn't match node selector` | 노드 라벨 확인 |
+이미지 pull이 실패했다고 곧바로 phase가 Failed가 되는 것은 아니다. 계속 준비를 시도하며 Pending일 수 있다. Running도 HTTP 요청 성공을 뜻하지 않는다. 요청을 받아도 되는지는 readiness와 Service 선택까지 연결해야 하며 [Probe 장](Kubernetes-Probe-Liveness-Readiness-Startup.md)에서 자세히 다룬다.
 
 ### 3.2 Container States: 컨테이너 레벨 상태
 
-Pod 안의 각 컨테이너도 별도의 상태를 가진다. `kubectl describe pod`로 확인할 수 있다.
+각 컨테이너는 Waiting, Running, Terminated 중 하나의 현재 상태와 이전 종료 상태를 보고할 수 있다. Pod phase가 전체 요약이라면 이 정보는 무엇을 준비하다 멈췄는지, 어떤 exit code로 끝났는지를 보여 준다. 다음은 실측이 아닌 설명용 출력이다.
 
-| Container State | 의미 | 세부 정보 |
-|-----------------|------|----------|
-| **Waiting** | 시작 준비 중 | `reason`: ImagePullBackOff, CrashLoopBackOff 등 |
-| **Running** | 실행 중 | `startedAt`: 시작 시간 |
-| **Terminated** | 종료됨 | `exitCode`, `reason`: Completed, Error, OOMKilled |
-
-**실무에서 자주 보는 Waiting 이유:**
-
-```yaml
-# kubectl describe pod에서 확인
+```text
 State:          Waiting
   Reason:       CrashLoopBackOff
 Last State:     Terminated
-  Exit Code:    1
   Reason:       Error
+  Exit Code:    1
 ```
 
-| Reason | 의미 | 해결 방법 |
-|--------|------|----------|
-| `ImagePullBackOff` | 이미지 다운로드 실패 | 이미지 경로, 태그, registry 인증 확인 |
-| `CrashLoopBackOff` | 컨테이너가 반복적으로 충돌 | 로그 확인: `kubectl logs pod-name --previous` |
-| `CreateContainerConfigError` | 설정 오류 | ConfigMap/Secret 존재 여부 확인 |
+현재는 재시도를 기다리고 있고 이전 프로세스는 exit 1로 끝났다는 뜻이다. `CrashLoopBackOff`라는 문자열만으로 메모리 부족이라고 결론 내릴 수 없다. 이전 로그, exit code, `OOMKilled` reason, probe 실패 Events를 함께 보아야 한다.
 
-### 3.3 Container Restart Policy와 CrashLoopBackOff
+다음 명령은 준비된 개인 실습 context에서 읽기 전용 관찰을 할 때의 예시이며 이 원고에서는 실행하지 않았다.
 
-컨테이너가 죽으면 Kubernetes는 자동으로 재시작한다. 하지만 **무한히 빠르게 재시작하지 않는다.**
-
-```mermaid
-flowchart LR
-    A[컨테이너 충돌] --> B[즉시 재시작]
-    B --> C{또 충돌?}
-    C -->|Yes| D[10초 대기 후 재시작]
-    D --> E{또 충돌?}
-    E -->|Yes| F[20초 대기]
-    F --> G[40초 → 80초 → 160초...]
-    G --> H[최대 5분까지 증가]
-
-    C -->|No, 10분 이상 정상| I[백오프 리셋]
+```bash
+kubectl -n bookstore get pod order-api-pod -o wide
+kubectl -n bookstore get pod order-api-pod -o jsonpath='{.metadata.uid}{"\n"}{.status.phase}{"\n"}{.status.containerStatuses}{"\n"}'
+kubectl -n bookstore describe pod order-api-pod
+kubectl -n bookstore logs order-api-pod -c order-api --previous
 ```
 
-**지수 백오프(Exponential Backoff)** 메커니즘:
-- 첫 번째 충돌: 즉시 재시작
-- 두 번째 충돌: 10초 대기
-- 세 번째 충돌: 20초 대기
-- 네 번째 충돌: 40초 대기
-- ... 최대 **5분**(300초)까지 증가
+`--previous`는 같은 Pod 안에서 이전에 종료된 컨테이너 인스턴스의 로그를 요청한다. 삭제된 모든 Pod의 로그를 찾아 주는 명령은 아니다. 빠르게 반복 종료하는 컨테이너에는 `exec` 자체가 실패할 수 있고, distroless 이미지에는 shell이 없을 수 있다. 로그와 Events를 먼저 확보하는 이유다.
 
-컨테이너가 10분 이상 정상 실행되면 백오프 타이머가 리셋된다.
+### 3.3 Pending은 어디에서 기다리는가?
 
-**restartPolicy 옵션:**
+Pod가 실행되지 않는다면 먼저 `.spec.nodeName`으로 노드 배치 여부를 구분한다. 노드가 정해지지 않았으면 scheduler가 만족하지 못한 자원·조건을 Events에서 찾는다. 노드가 정해졌는데 Pending이면 이미지, volume, 설정 같은 kubelet의 준비 단계를 본다.
 
-```yaml
-spec:
-  restartPolicy: Always  # 기본값
-```
+| 관찰 | 가능한 해석 | 다음 증거 |
+|---|---|---|
+| `FailedScheduling`, `Insufficient cpu` | request를 수용할 배치 가능 용량 부족 | 각 Pod requests·노드 allocatable·배치 조건 |
+| `ImagePullBackOff` | 이미지 접근·인증·이름·신뢰 문제 | pull 실패 Events의 원문 |
+| `CreateContainerConfigError` | 필수 ConfigMap·Secret 또는 key 누락 가능 | 참조 이름·namespace·key |
+| `FailedMount` | volume 준비 실패 | volume 참조와 driver·노드 Events |
 
-| Policy | 동작 | 사용 시점 |
-|--------|------|----------|
-| `Always` | 항상 재시작 (성공 종료도 재시작) | Deployment, DaemonSet |
-| `OnFailure` | 실패(exit code != 0)시만 재시작 | Job |
-| `Never` | 재시작 안 함 | 디버깅, 일회성 작업 |
-
-### 3.4 Graceful Shutdown: 우아한 종료
-
-Pod가 삭제될 때, Kubernetes는 컨테이너에게 "정리할 시간"을 준다. 이것을 이해하지 못하면 **데이터 유실이나 502 에러**가 발생한다.
-
-```mermaid
-sequenceDiagram
-    participant K as Kubernetes
-    participant P as Pod
-    participant C as Container
-
-    K->>P: Pod 삭제 요청 (Terminating 상태 진입)
-    Note over K,P: terminationGracePeriodSeconds 카운트다운 시작<br>(Pod 삭제 요청 시점부터, preStop 실행 시간 포함)
-
-    rect rgb(255, 248, 225)
-        Note over P,C: 1. preStop hook 실행 (있는 경우)<br>hook 완료까지 대기 (blocking)
-    end
-
-    P->>C: 2. SIGTERM 전송 (preStop 완료 후)
-    Note over C: 3. 애플리케이션 정리 작업<br>- 진행 중인 요청 완료<br>- DB 연결 종료<br>- 파일 저장
-
-    rect rgb(255, 235, 238)
-        Note over K,C: terminationGracePeriodSeconds 종료<br>(기본 30초, preStop + SIGTERM 처리 시간 합산)
-    end
-
-    K->>C: 4. SIGKILL 강제 종료 (유예 시간 초과 시)
-```
-
-> **정확한 순서:** Pod 삭제가 요청되면 kubelet은 (1) `preStop` hook을 먼저 실행하고 hook이 완료될 때까지 대기한다. (2) hook이 끝나면 컨테이너에 **SIGTERM**을 전송한다. (3) 애플리케이션은 남은 시간 동안 graceful shutdown을 수행한다. (4) `terminationGracePeriodSeconds` 총 시간이 초과되면 **SIGKILL**이 전송된다. preStop hook이 grace period를 넘기면 SIGTERM 없이 바로 SIGKILL이 갈 수 있으니 hook을 너무 길게 잡지 말 것.
-
-**terminationGracePeriodSeconds:**
-
-```yaml
-spec:
-  terminationGracePeriodSeconds: 60  # 기본값 30
-  containers:
-  - name: app
-    image: my-app
-```
-
-30초가 기본값인데, 이것이 부족한 경우가 많다:
-- 장시간 실행되는 요청이 있는 API 서버
-- 배치 작업 중인 워커
-- 대용량 데이터를 처리하는 서비스
-
-> **주의:** `terminationGracePeriodSeconds`는 **preStop 훅 실행 시간을 포함**한다. 예를 들어 grace period가 30초이고 preStop이 20초 걸리면, 앱이 SIGTERM을 처리할 시간은 **10초**뿐이다. preStop이 30초를 초과하면 훅이 끝나기도 전에 SIGKILL을 받는다.
-
-**preStop Hook:**
-
-SIGTERM을 받기 전에 실행되는 훅이다. 로드밸런서에서 빠지는 시간을 벌거나, 정리 작업을 수행한다.
-
-```yaml
-spec:
-  containers:
-  - name: app
-    lifecycle:
-      preStop:
-        exec:
-          command: ["/bin/sh", "-c", "sleep 15"]
-```
-
-**왜 sleep 15가 필요한가?**
-
-Pod 삭제가 시작되면 다음 두 흐름이 **병렬로** 진행된다:
-1. **Endpoints/EndpointSlice 갱신** — Service에서 Pod IP 제거 (비동기, 각 노드의 kube-proxy에 전파되기까지 지연)
-2. **컨테이너 종료 절차** — kubelet이 **preStop hook 실행 → 완료 대기 → SIGTERM 전송 → graceful period 종료 시 SIGKILL**
-
-즉 SIGTERM은 preStop 완료 후에 오지만, Endpoints 전파와는 **경쟁**한다. preStop이 짧거나 없으면 Endpoints 갱신보다 SIGTERM이 먼저 앱에 도착할 수 있고, 트래픽이 아직 오는 중에 앱이 종료되어 **502 에러**가 발생한다.
-
-`preStop`에서 `sleep 15`를 걸어주면 kubelet이 SIGTERM을 보내기 전에 15초를 지연시키므로, 그동안 Endpoints 업데이트가 모든 노드의 kube-proxy/LB로 전파될 시간을 확보한다.
-
-```mermaid
-sequenceDiagram
-    participant LB as LoadBalancer
-    participant EP as Endpoints
-    participant K as Kubelet
-    participant P as Pod
-
-    Note over LB,P: Pod 삭제 시작
-
-    par 병렬 진행
-        EP->>EP: Pod IP 제거 전파 (비동기)
-    and
-        K->>P: preStop hook 실행 (sleep 15)
-        Note over K,P: 15초 동안 SIGTERM 보류
-    end
-
-    rect rgb(232, 245, 233)
-        Note over LB,P: 이 15초 동안 Endpoints 갱신이<br/>모든 kube-proxy/LB에 전파 완료
-    end
-
-    LB--xP: 트래픽 중단됨
-    K->>P: preStop 완료 후 SIGTERM 전송
-    P->>P: 앱 정리 후 종료
-```
+CPU 사용률이 낮다는 사실만으로 새 Pod가 배치될 수 있는 것은 아니다. scheduler는 순간 사용량만 보고 자리를 정하지 않고 requests와 배치 제약을 사용한다. 반대로 request를 낮춰 Pending을 없애도 앱에 필요한 자원이 실제로 생기는 것은 아니다.
 
 ---
 
+### 3.4 Requests와 Limits: 배치와 실행에서 쓰는 숫자
+
+첫 manifest의 CPU `requests: 250m`은 CPU 0.25에 해당하는 배치·자원 배분 기준이다. 메모리 `requests: 256Mi`도 노드가 이 Pod를 수용할 수 있는지 판단할 때 사용한다. request는 프로세스가 항상 그만큼 소비한다는 측정값이 아니고 순간 사용률과도 다르다. 노드의 물리 전체 용량에서 시스템 예약 등을 제외한 allocatable과 이미 배정한 requests, 배치 제약이 함께 맞아야 실행 위치를 정할 수 있다.
+
+limit은 실행 중 제약이다. 일반적인 Linux 환경에서 CPU limit은 실행 시간을 제한해 throttling을 만들 수 있다. 메모리 limit은 커널의 메모리 제약과 연결되어 한도 압박에서 OOM 종료로 이어질 수 있다. CPU를 더 쓰려는 앱과 메모리를 더 할당하려는 앱이 같은 방식으로 실패하지 않는 이유다. Pod가 생기지 않는 배치 실패와 실행 후 앱이 느려지거나 종료되는 문제를 구분해야 한다.
+
+노드 자체의 메모리·디스크 압박 때문에 kubelet이 Pod를 퇴거시키는 일도 있다. 이때는 컨테이너 하나의 restartCount만 보지 않고 Pod phase·reason과 노드 Events를 함께 본다. 값 선택과 QoS의 세부 판단은 후반 Resource Management 절에서 확장한다.
+
+## 심화 읽기의 위치
+
+여기까지의 핵심은 실행 단위, 재시작과 교체, 관찰할 상태다. 이제 공유 수명이라는 성질을 init·sidecar로 확장하고, 자원과 노드 선택이 실행 가능성에 어떤 제약을 주는지 더 살펴본다. 여러 앱을 같은 Pod에 묶는 기술을 배우기 위한 필수 절차가 아니라, 필요한 경우 선택할 설계 수단이다.
+
 ## 4. Init Container 심화
+
+이후의 YAML은 실행 순서와 필드 관계를 설명하는 발췌다. 별도 서비스·이미지·volume·설정이 필요한 예제이며 그대로 적용하는 실습 manifest가 아니다.
 
 ### 4.1 Init Container란?
 
@@ -373,7 +214,7 @@ sequenceDiagram
 ```
 
 **Init Container의 특징:**
-- **순차 실행**: 병렬이 아닌 순서대로 하나씩
+- **순차 실행**: 일반 init container는 앞선 init이 성공해야 다음 init으로 진행
 - **성공 필수**: 하나라도 실패하면 Pod 시작 안 됨
 - **재시작 정책**: 실패 시 Pod의 `restartPolicy`에 따라 재시도
 - **완료 후 종료**: 작업이 끝나면 컨테이너 종료
@@ -381,6 +222,8 @@ sequenceDiagram
 ### 4.2 실무 사용 사례
 
 **Case 1: 의존 서비스 대기**
+
+DNS 조회 성공은 DB 프로세스가 연결을 받아 SQL을 처리할 준비가 되었다는 증거가 아니다. TCP 연결 성공도 실제 인증·스키마 준비까지 검증하지 않는다. 앱 자체의 재연결과 재시도도 필요하며 init 대기를 무기한 의존성 복구 수단으로 삼지 않는다.
 
 DB나 다른 서비스가 준비될 때까지 대기:
 
@@ -408,8 +251,8 @@ spec:
        done']
 
   containers:
-  - name: app
-    image: my-app:1.0
+  - name: order-api
+    image: registry.example.com/book/order-api:1.0.0
 ```
 
 **Case 2: 설정 파일 생성**
@@ -426,14 +269,14 @@ spec:
   - name: fetch-config
     image: curlimages/curl:8.4.0
     command: ['sh', '-c',
-      'curl -o /config/settings.json https://config-server/api/settings']
+      'curl --fail --show-error -o /config/settings.json https://config-server/api/settings']
     volumeMounts:
     - name: config-volume
       mountPath: /config
 
   containers:
-  - name: app
-    image: my-app:1.0
+  - name: order-api
+    image: registry.example.com/book/order-api:1.0.0
     volumeMounts:
     - name: config-volume
       mountPath: /app/config
@@ -446,12 +289,14 @@ spec:
 
 **Case 3: DB 마이그레이션**
 
+여러 replica의 init이 동시에 같은 마이그레이션을 실행할 수 있다. 잠금·멱등성·구버전과의 스키마 호환성이 필요하며, 한 번 수행할 배포 작업이면 Job을 별도로 두는 편이 명확하다. 아래는 구조 발췌이며 `./migrate`는 가상 앱의 실행 파일이다.
+
 애플리케이션 시작 전 DB 스키마 마이그레이션:
 
 ```yaml
 initContainers:
 - name: db-migrate
-  image: my-app:1.0
+  image: registry.example.com/book/order-api:1.0.0
   command: ['./migrate', '--database', '$(DATABASE_URL)']
   env:
   - name: DATABASE_URL
@@ -462,6 +307,8 @@ initContainers:
 ```
 
 **Case 4: 권한이 필요한 초기화**
+
+root init과 재귀 chown은 admission 정책·volume 구현·데이터 크기에 따라 거절되거나 큰 기동 지연을 만들 수 있다. storage가 지원하는 group 권한과 `fsGroup`을 검토한 뒤 필요한 경우에만 선택한다.
 
 보안상의 이유로 메인 앱에 root 권한을 주지 않지만, 초기화에는 필요한 경우:
 
@@ -477,8 +324,8 @@ initContainers:
     mountPath: /data
 
 containers:
-- name: app
-  image: my-app:1.0
+- name: order-api
+  image: registry.example.com/book/order-api:1.0.0
   securityContext:
     runAsUser: 1000  # non-root로 실행
   volumeMounts:
@@ -488,13 +335,15 @@ containers:
 
 ### 4.3 Init Container vs 일반 Container
 
+아래는 완료 후 종료되는 일반 init container와 앱 컨테이너의 비교다. restartable init인 native sidecar는 다음 절에서 따로 구분한다. Resource 계산은 일반 init만 있을 때 자원별 init 최댓값과 앱 합계 중 큰 값을 사용하며 Pod overhead가 있으면 더한다. Native sidecar가 있으면 초기화 단계와 앱 실행 단계에서 함께 실행되는 자원도 계산한다.
+
 | 특성 | Init Container | App Container |
 |------|----------------|---------------|
 | 실행 시점 | 앱 컨테이너 **이전** | Init 이후 |
 | 실행 순서 | **순차적** (하나씩) | **병렬** (동시) |
 | Probe | ❌ 지원 안 함 | ✅ 지원 |
 | lifecycle | ❌ 지원 안 함 | ✅ 지원 |
-| Resource 계산 | 가장 큰 것만 적용 | 모두 합산 |
+| Resource 계산 | 일반 init은 자원별 최댓값과 앱 합계를 비교 | 실행 중 앱 컨테이너들의 자원별 합계 |
 | 완료 조건 | exit 0으로 종료 | 계속 실행 |
 
 ---
@@ -502,6 +351,8 @@ containers:
 ## 5. Sidecar Container 심화
 
 ### 5.1 전통적인 Sidecar 패턴
+
+다음 nginx·Fluent Bit 조합은 파일 공유를 보여 주는 독립 예제다. 공통 `order-api` 앱과 별개의 설명이며 Fluent Bit 설정 ConfigMap과 로그 파일 경로를 별도로 준비해야 한다. image 태그는 기능 설명용이고 최신·보안 권장 버전을 뜻하지 않는다.
 
 메인 컨테이너와 **함께 실행되며 보조 기능**을 제공하는 컨테이너다.
 
@@ -512,7 +363,7 @@ metadata:
   name: app-with-sidecar
 spec:
   containers:
-  - name: app
+  - name: nginx
     image: nginx:1.25
     volumeMounts:
     - name: logs
@@ -544,15 +395,15 @@ spec:
 | **Secrets Agent** | 시크릿 주입 | Vault Agent, AWS Secrets Manager |
 | **Monitoring** | 메트릭 수집 | Prometheus exporter |
 
-### 5.2 Native Sidecar (K8s 1.29+ Beta, 1.33+ Stable)
+### 5.2 Native Sidecar (v1.33부터 stable)
 
 Native Sidecar는 기존 sidecar 패턴의 문제점을 해결하기 위해 추가된 Kubernetes 네이티브 기능이다. [공식 문서](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/) 기준 릴리스 타임라인은 다음과 같다:
 
 - **v1.28**: Alpha 도입 (`SidecarContainers` feature gate 수동 활성화 필요)
-- **v1.29**: **Beta로 승격, 기본 활성화** (대부분의 클러스터에서 별도 설정 없이 사용 가능)
+- **v1.29**: **Beta로 승격, 기본 활성화** (클러스터 정책·feature gate 확인 필요)
 - **v1.33**: **Stable(GA)**, 기본 활성화. `SidecarContainers` feature gate는 GA 상태로 유지됨 (feature gate 자체가 완전히 사라진 것은 아니지만 locked 상태라, 값을 지정해도 무시되고 끌 수 없다 — [공식 문서](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/))
 
-즉 2026-09 기준(최신 minor v1.37)으로는 대부분의 클러스터(v1.29 이상)에서 바로 쓸 수 있고, v1.33+ 클러스터에서는 공식 GA 기능이다.
+2026-10-23에 확인한 공식 문서는 v1.33부터 stable인 기능으로 설명한다. 사용 중인 클러스터의 버전과 정책은 별도로 확인한다. 기능의 존재만으로 로그 전송 완료나 무손실 종료가 보장되는 것은 아니다.
 
 **기존 방식의 문제:**
 
@@ -589,8 +440,8 @@ spec:
       mountPath: /var/log/app
 
   containers:
-  - name: app
-    image: my-app:1.0
+  - name: order-api
+    image: registry.example.com/book/order-api:1.0.0
     volumeMounts:
     - name: logs
       mountPath: /var/log/app
@@ -603,6 +454,8 @@ spec:
 `initContainers`에 `restartPolicy: Always`를 설정하면 **Native Sidecar**가 된다.
 
 **Native Sidecar의 동작:**
+
+다음 그림은 Job이 정상 완료하거나 Pod가 종료되는 경로를 단순화한 것이다. Deployment의 앱 컨테이너가 한 번 종료되면 재시작될 수 있으므로 그때마다 sidecar가 함께 끝난다는 뜻은 아니다. kubelet은 sidecar의 started 상태(설정했다면 startup probe 성공)를 확인한 뒤 다음 init 또는 앱 단계로 진행한다. 여러 native sidecar의 종료는 선언의 역순으로 진행되며 충분한 종료 유예 시간이 필요하다.
 
 ```mermaid
 sequenceDiagram
@@ -618,7 +471,7 @@ sequenceDiagram
 
     A-->>K: App 종료
 
-    Note over S: App 종료 감지
+    Note over S: Pod 종료 또는 Job 완료 경로
     K->>S: 종료 신호
     S-->>K: Sidecar 종료
 ```
@@ -642,8 +495,8 @@ sequenceDiagram
 ```yaml
 spec:
   containers:
-  - name: app
-    image: my-app:1.0
+  - name: order-api
+    image: registry.example.com/book/order-api:1.0.0
     resources:
       requests:
         memory: "256Mi"
@@ -671,8 +524,6 @@ flowchart TB
     end
 
     NewPod["새 Pod<br>requests: 3 CPU"] -.->|스케줄링 실패!| Node
-
-    style NewPod stroke:#F44336,stroke-width:2px
 ```
 
 **CPU 단위:**
@@ -700,7 +551,7 @@ flowchart TB
 | 리소스 | Limit 초과 시 | 영향 |
 |--------|--------------|------|
 | **CPU** | Throttling (속도 제한) | 느려지지만 죽지 않음 |
-| **Memory** | OOMKilled (강제 종료) | 컨테이너 재시작 |
+| **Memory** | 커널이 메모리 한도 압박에서 프로세스를 OOM 종료할 수 있음 | 종료 원인과 restart policy에 따라 재시작 |
 
 ```mermaid
 flowchart LR
@@ -715,13 +566,13 @@ flowchart LR
         M3 --> M4[재시작]
     end
 
-    style M3 stroke:#F44336,stroke-width:2px
+    style M3 stroke:#F44336,stroke-width:2px,fill:#455A64,color:#fff
 ```
 
 **OOMKilled 확인:**
 
 ```bash
-kubectl describe pod my-app
+kubectl -n bookstore describe pod order-api-pod
 
 # 출력에서 확인
 Last State:     Terminated
@@ -729,174 +580,64 @@ Last State:     Terminated
   Exit Code:    137
 ```
 
-Exit Code 137은 `128 + 9(SIGKILL)`로, OOM Killer에 의해 강제 종료되었음을 의미한다.
+Exit Code 137은 일반적으로 `128 + 9(SIGKILL)`에 대응한다. SIGKILL의 원인이 항상 OOM인 것은 아니므로 `reason: OOMKilled`, Events와 메모리 지표를 함께 확인한다.
 
 ### 6.3 Requests = Limits로 설정해야 할까?
 
-"requests와 limits를 동일하게 설정해야 한다"는 조언을 들어봤을 것이다. 반면 "CPU limit은 풀어라"는 조언도 있다. **둘 다 맞다.** 다만 강조하는 가치가 다를 뿐이다.
+requests는 배치와 자원 배분의 기준이고 limits는 실행 시 제약이다. 둘을 같게 하면 선언이 단순해지지만, 모든 앱에 같은 값이 최선이라는 뜻은 아니다. 주문 API가 평소에는 CPU 250m를 쓰고 기동 시에만 더 많은 CPU를 요구한다면 CPU limit을 높이거나 생략하는 선택으로 기동 지연을 줄일 수 있다. 반대로 공유 노드에서 폭주를 제한해야 한다면 limit이 유용하다. 실제 부하, 지연 목표, 노드 여유, 조직의 격리 정책을 함께 보고 결정한다.
 
-| 관점 | 주장 | 강조하는 가치 |
-|------|------|--------------|
-| **DevOps/SRE** | Requests = Limits | 안정성, 격리, 예측 가능성 |
-| **최근 트렌드** | CPU Limit 여유 있게 | 효율성, 유연성, 비용 최적화 |
+메모리도 무조건 requests와 limits를 같게 해야 하는 것은 아니다. request를 정상 사용량보다 지나치게 낮게 잡으면 노드에 실제 사용량이 과도하게 모일 수 있고, limit을 너무 낮게 잡으면 앱이 OOM으로 종료된다. 정상 상태·기동·최대 부하의 working set을 측정하고 여유를 더하는 것이 먼저다. Java라면 heap 외에도 metaspace, thread stack, direct buffer, native memory를 포함한다. 메모리 limit은 JVM heap 크기와 같은 숫자가 아니다.
 
-**핵심: Memory는 논쟁 없이 동일하게. CPU가 논쟁 지점이다.**
-
-#### 왜 DevOps팀은 Requests = Limits를 권장하나?
-
-**1. Guaranteed QoS로 생존 우선순위 확보**
-
-노드 자원이 부족하면 BestEffort → Burstable → Guaranteed 순으로 Pod가 죽는다. Guaranteed는 가장 마지막까지 살아남는다.
-
-**2. Noisy Neighbor 방지**
-
-CPU Limit을 풀면 내 Pod가 노드의 CPU를 다 끌어다 쓸 수 있다. 만약 버그로 무한 루프가 돌면? **같은 노드의 다른 Pod들까지 느려진다.**
-
-**3. 예측 가능한 성능**
-
-Limit을 걸어두면 성능이 좀 낮아질지언정, **"언제 어디서 실행하든 똑같은 성능"** 이 나온다. 운영 관점에서 관리하기 훨씬 편하다.
-
-#### 왜 최근에는 CPU Limit을 유연하게 하라고 하나?
-
-**억울한 상황이 생기기 때문이다.**
-
-- 내 Pod는 트래픽이 몰려서 CPU가 더 필요하다
-- 노드에는 노는 CPU가 엄청 많다
-- 하지만 Limit에 막혀서 **눈앞의 노는 CPU를 못 쓰고 느려진다** (Throttling)
-
-```mermaid
-flowchart LR
-    subgraph "Requests = Limits"
-        A[트래픽 폭주] --> B[CPU 더 필요]
-        B --> C[노드에 여유 CPU 있음]
-        C --> D[하지만 Limit에 막힘]
-        D --> E[응답 지연]
-    end
-
-    subgraph "CPU Limit 여유 있게"
-        F[트래픽 폭주] --> G[CPU 더 필요]
-        G --> H[노드에 여유 CPU 있음]
-        H --> I[Burst로 처리]
-        I --> J[빠른 응답]
-    end
-
-    style E stroke:#F44336,stroke-width:2px
-    style J stroke:#4CAF50,stroke-width:2px
-```
-
-그래서 Google(GKE)이나 많은 SRE들은 웹 서버 같은 일반 애플리케이션에 대해 **"Memory는 엄격하게, CPU는 유연하게"** 패턴을 권장한다.
-
-#### 그래서 뭘 선택해야 하나? (판단 기준)
-
-**Memory는 무조건 Requests = Limits** (이건 논쟁 없음)
-
-Memory는 압축이 불가능하다. Limit을 초과하면 바로 OOMKilled. 처음부터 필요한 만큼 확보하는 게 맞다.
-
-**CPU는 서비스 성격에 따라 다르다:**
-
-| 서비스 유형 | CPU 설정 | 이유 |
-|-------------|----------|------|
-| **DB, 실시간 금융 거래** | req = limit | 0.1초도 튀면 안 됨, 격리 최우선 |
-| **핵심 API 서버** | req = limit | 예측 가능한 성능, 안정성 |
-| **일반 웹 서버** | limit 높게 (2~4배) | Burst 트래픽 대응 |
-| **Java 앱** | limit 높게 | 기동 시 CPU 많이 필요 |
-| **배치/워커** | limit 없음 | 최대 성능, 빨리 끝내기 |
+다음 두 구조 설명용 발췌는 어느 하나가 보편적인 권장값이라는 의미가 아니다. 첫 구성은 CPU와 메모리를 모두 같게 지정하고, 둘째는 CPU에 burst 여지를 둔다.
 
 ```yaml
-# A. 안정성 우선 (DB, 핵심 서비스)
 resources:
   requests:
-    memory: "256Mi"
+    memory: "512Mi"
     cpu: "500m"
   limits:
-    memory: "256Mi"
-    cpu: "500m"      # 동일하게 → Guaranteed
+    memory: "512Mi"
+    cpu: "500m"
 ```
 
 ```yaml
-# B. 효율성 우선 (일반 웹 서버)
 resources:
   requests:
-    memory: "256Mi"
+    memory: "512Mi"
     cpu: "250m"
   limits:
-    memory: "256Mi"    # Memory는 동일
-    cpu: "1000m"       # CPU는 requests의 2~4배
+    memory: "768Mi"
+    cpu: "1000m"
 ```
-
-#### 실무 조언
-
-**DevOps 팀의 가이드가 있다면 일단 따르라.** 팀 전체의 운영 정책이 있거나, 노드 스펙을 꽉 채워서 운영 중일 수 있다.
-
-하지만 만약 서비스가 웹 서버이고 **가끔 느려지는 현상(Latency Spike)** 이 발생한다면, DevOps 팀에게 이렇게 제안해볼 수 있다:
-
-> "저희 서비스 특성상 트래픽이 튈 때가 많은데, CPU Throttling 때문에 느려지는 것 같아요. Memory는 고정하되 CPU Limit만 좀 더 여유 있게(Requests의 2~4배) 늘려봐도 될까요?"
-
-> **결론:** DevOps 팀은 **"안정성"** 을 강조한 것이고, 최근 트렌드는 **"효율성"** 을 강조한 것이다. 서비스의 성격에 따라 정답은 바뀐다.
 
 ### 6.4 QoS Class: 리소스 부족 시 누가 먼저 죽나?
 
-노드에 리소스가 부족하면 Kubernetes는 **QoS Class**에 따라 Pod를 퇴거(Eviction)한다.
+Kubernetes는 requests와 limits 구성을 바탕으로 Pod에 Quality of Service(QoS) class를 부여한다. 여기서는 컨테이너별 CPU·메모리 설정을 사용하는 일반적인 경우를 비교한다.
 
-```mermaid
-flowchart TB
-    subgraph "퇴거 우선순위 (먼저 죽는 순서)"
-        BE["BestEffort<br>🥉 가장 먼저 죽음"]
-        BU["Burstable<br>🥈 중간"]
-        GU["Guaranteed<br>🥇 가장 늦게 죽음"]
-    end
+| QoS Class | 조건 |
+|---|---|
+| Guaranteed | 모든 컨테이너가 CPU·메모리 request와 limit을 모두 갖고, 자원별 request와 limit이 같음 |
+| Burstable | Guaranteed가 아니면서 하나 이상의 CPU·메모리 request 또는 limit이 있음 |
+| BestEffort | CPU·메모리 request와 limit이 없음 |
 
-    BE --> BU --> GU
+QoS를 생존을 보장하는 등급으로 읽으면 안 된다. 메모리 압박에 따른 kubelet의 퇴거 판단은 사용량이 request를 넘는지, Pod Priority가 무엇인지, request 대비 얼마나 사용하는지 등을 고려한다. 그래서 BestEffort → Burstable → Guaranteed라는 하나의 순서만으로 모든 퇴거를 예측할 수 없다. 디스크 압박 등 원인에 따라 판단 기준도 달라진다. Guaranteed Pod도 노드 장애나 극심한 압박에서 안전을 보장받지 않는다.
 
-    style BE fill:#FFEBEE
-    style BU fill:#FFF3E0
-    style GU fill:#E8F5E9
-```
-
-**QoS Class 결정 조건:**
-
-| QoS Class | 조건 | 예시 |
-|-----------|------|------|
-| **Guaranteed** | 모든 컨테이너에 requests = limits | CPU/Memory 둘 다 동일하게 설정 |
-| **Burstable** | 최소 하나의 컨테이너에 requests 또는 limits 설정 | requests만 있거나 limits만 있거나 |
-| **BestEffort** | requests, limits 둘 다 없음 | 아무것도 설정 안 함 |
-
-**Guaranteed 설정 예시:**
-
-```yaml
-resources:
-  requests:
-    memory: "256Mi"
-    cpu: "500m"
-  limits:
-    memory: "256Mi"  # requests와 동일
-    cpu: "500m"      # requests와 동일
-```
-
-**실무 권장사항:**
-
-| 워크로드 유형 | 권장 QoS | 이유 |
-|--------------|----------|------|
-| 중요 프로덕션 서비스 | **Guaranteed** | 퇴거 우선순위 가장 낮음 |
-| 일반 서비스 | **Burstable** | 유연한 리소스 사용 |
-| 개발/테스트 | Burstable 또는 BestEffort | 리소스 효율성 |
-| Batch Job | **Burstable** | CPU burst 허용 |
+컨테이너의 메모리 limit 때문에 발생하는 OOM과 노드 전체의 압박 때문에 kubelet이 Pod를 퇴거시키는 일도 구분해야 한다. 전자는 같은 Pod 안의 컨테이너 재시작으로 이어질 수 있고, 후자는 Pod가 종료되어 상위 controller가 새 Pod를 만드는 경로로 이어진다. [Node-pressure Eviction 공식 문서](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/)는 QoS만으로 순위를 결정하지 않는 이유를 설명한다.
 
 ### 6.5 In-place Pod Resize: 재생성 없이 requests/limits 바꾸기
 
-예전에는 Pod의 CPU·메모리를 바꾸려면 Pod를 새로 만들어야 했다. In-place Pod Resize(In-Place Pod Vertical Scaling)는 실행 중인 Pod의 컨테이너 리소스를 `resize` 서브리소스로 직접 수정한다. v1.27 alpha → v1.33 beta를 거쳐 **v1.35에서 Stable(GA)** 이 됐고, `InPlacePodVerticalScaling` feature gate는 잠겨 끌 수 없다 (2026-09 기준, 최신 v1.37).
+실행 중인 Pod의 CPU·메모리를 `resize` 서브리소스로 수정하는 기능도 있다. 2026-10-23에 확인한 공식 문서는 In-place Pod Resize를 v1.35부터 stable로 설명한다. 지원 버전, runtime, 노드 여유, resize 정책의 제약을 먼저 확인해야 하므로 기본 학습 경로에서는 Deployment 템플릿을 바꾸어 교체하는 모델을 기준으로 삼는다.
+
+다음은 구조와 명령 형식을 설명하는 예시다. 실행 기록이 아니며, `order-api-pod`가 해당 기능을 지원하는 실습 클러스터에 존재한다는 전제가 필요하다.
 
 ```bash
-# kubectl 클라이언트 v1.32 이상 필요
-kubectl patch pod resize-demo --subresource resize --patch \
-  '{"spec":{"containers":[{"name":"app","resources":{"requests":{"cpu":"800m"},"limits":{"cpu":"800m"}}}]}}'
+kubectl -n bookstore patch pod order-api-pod --subresource resize --patch \
+  '{"spec":{"containers":[{"name":"order-api","resources":{"requests":{"cpu":"800m"},"limits":{"cpu":"800m"}}}]}}'
 ```
 
-- 컨테이너별 `resizePolicy`로 리소스마다 재시작 여부를 정한다. 예: CPU는 `NotRequired`(재시작 없음), 메모리는 `RestartContainer`.
-- 진행 상태는 Pod condition `PodResizePending`·`PodResizeInProgress`로 확인한다. 노드 여유가 없으면 Pending으로 남는다.
-- Deployment가 관리하는 Pod를 직접 resize해도 템플릿은 바뀌지 않으므로, 다음 롤아웃에서 원래 값으로 돌아간다. 영구 변경은 템플릿에서 한다.
+컨테이너별 `resizePolicy`로 자원 변경에 재시작이 필요한지 표현할 수 있고, `PodResizePending`·`PodResizeInProgress` condition으로 진행 상태를 본다. Pod를 직접 resize해도 Deployment 템플릿이 바뀌지 않는다는 점이 중요하다. 교체될 다음 Pod에도 유지할 값이라면 템플릿과 배포 정본에 반영해야 한다.
 
-출처: [Kubernetes Blog — v1.35 In-Place Pod Resize GA](https://kubernetes.io/blog/2025/12/19/kubernetes-v1-35-in-place-pod-resize-ga/), [Resize CPU and Memory Resources assigned to Containers](https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/)
+출처: [Resize CPU and Memory Resources assigned to Containers](https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/)
 
 ---
 
@@ -1008,7 +749,7 @@ spec:
       requiredDuringSchedulingIgnoredDuringExecution:
       - labelSelector:
           matchLabels:
-            app: web
+            app: order-api
         topologyKey: kubernetes.io/hostname
 ```
 
@@ -1016,23 +757,22 @@ spec:
 flowchart TB
     subgraph "Pod Anti-Affinity 적용"
         subgraph Node1[Node 1]
-            P1[web-pod-1]
+            P1[order-api-pod-1]
         end
         subgraph Node2[Node 2]
-            P2[web-pod-2]
+            P2[order-api-pod-2]
         end
         subgraph Node3[Node 3]
-            P3[web-pod-3]
+            P3[order-api-pod-3]
         end
     end
 
-    DiagramNote["같은 app: web 라벨의 Pod가<br>다른 노드에 분산됨"]
-    style DiagramNote stroke-width:0,fill:transparent
+    DiagramNote["같은 app: order-api 라벨의 Pod가<br>다른 노드에 분산됨"]
 ```
 
 ### 7.4 Taints and Tolerations
 
-**노드가 특정 Pod를 거부**하는 메커니즘이다.
+노드의 taint는 일치하는 toleration이 없는 Pod의 배치·유지를 제한한다. Toleration은 그 제한을 허용할 뿐 그 노드로 반드시 보내는 지시가 아니다. 전용 노드에만 배치하려면 node selector 또는 affinity도 함께 설계한다.
 
 ```mermaid
 flowchart LR
@@ -1043,8 +783,8 @@ flowchart LR
     P1[일반 Pod] -.->|거부됨| N
     P2[Toleration 있는 Pod] -->|허용됨| N
 
-    style P1 stroke:#F44336,stroke-width:2px
-    style P2 stroke:#4CAF50,stroke-width:2px
+    style P1 stroke:#F44336,stroke-width:2px,fill:#455A64,color:#fff
+    style P2 stroke:#4CAF50,stroke-width:2px,fill:#455A64,color:#fff
 ```
 
 **노드에 Taint 추가:**
@@ -1075,181 +815,76 @@ spec:
 
 **실무 활용 사례:**
 
+아래 GPU·Spot taint는 조직이 직접 붙인다고 가정한 예시다. 클라우드 제공자나 device plugin이 자동으로 같은 key·value를 설정한다는 뜻은 아니며, 실제 노드의 taint와 운영 정책을 확인한다.
+
 | 시나리오 | Taint | Toleration 대상 |
 |----------|-------|----------------|
-| GPU 노드 전용 | `nvidia.com/gpu=true:NoSchedule` | GPU 워크로드만 |
-| 스팟 인스턴스 | `cloud.google.com/preemptible=true:NoSchedule` | 비용 최적화 워크로드 |
-| 마스터 노드 보호 | `node-role.kubernetes.io/master:NoSchedule` | 시스템 Pod만 |
+| GPU 노드 전용 | `example.com/dedicated-gpu=true:NoSchedule` | GPU 워크로드만 |
+| 스팟 인스턴스 | `example.com/spot=true:NoSchedule` | 비용 최적화 워크로드 |
+| control plane 노드 보호 | `node-role.kubernetes.io/control-plane:NoSchedule` | 시스템 Pod만 |
 
 ---
 
-## 8. 실무 트러블슈팅
+## 심화: Graceful Shutdown — 종료도 실행의 일부다
 
-### 8.1 자주 발생하는 문제와 해결
+Pod 삭제가 시작되면 API에는 deletion timestamp와 유예 시간이 기록되고, kubelet이 이를 관찰해 로컬 종료를 시작한다. 기본 `terminationGracePeriodSeconds`는 30초다. 0이 아닌 유예 시간과 `preStop` hook이 있으면 kubelet은 hook을 먼저 실행한 뒤 컨테이너 주 프로세스에 종료 신호를 보낸다. 일반적인 Linux 컨테이너는 SIGTERM을 사용하지만 이미지의 stop signal 및 지원되는 설정에 따라 달라질 수 있다. 유예 시간이 끝나면 남은 프로세스는 강제 종료 대상이 된다.
 
-**문제 1: ImagePullBackOff**
-
-```bash
-kubectl describe pod my-app
-# Events:
-#   Failed to pull image "my-registry/app:v1":
-#   rpc error: unauthorized
-```
-
-| 원인 | 해결 |
-|------|------|
-| 이미지 이름/태그 오타 | 정확한 이미지 경로 확인 |
-| Private registry 인증 | imagePullSecrets 설정 |
-| 네트워크 문제 | 노드에서 registry 접근 가능한지 확인 |
+구조 설명용 발췌다. 앱과 이미지에 `/bin/sh`와 `sleep`이 있고, 종료 신호를 받아 진행 중인 요청을 정리할 수 있다는 전제가 있다.
 
 ```yaml
 spec:
-  imagePullSecrets:
-  - name: my-registry-secret
+  terminationGracePeriodSeconds: 60
+  containers:
+  - name: order-api
+    image: registry.example.com/book/order-api:1.0.0
+    lifecycle:
+      preStop:
+        exec:
+          command: ["/bin/sh", "-c", "sleep 10"]
 ```
 
-**문제 2: CrashLoopBackOff**
+60초는 hook 이후 추가로 주는 시간이 아니다. hook과 앱 종료가 같은 예산을 나누어 쓴다. 공식 동작에는 hook이 유예 시간 뒤에도 실행 중일 때 요청하는 작은 일회성 2초 연장이 있지만, 정상 종료 시간을 설계할 때 그 연장을 여유 예산으로 삼지 않는다.
 
-```bash
-# 이전 컨테이너의 로그 확인
-kubectl logs my-app --previous
+Pod가 요청 경로에서 빠지는 작업과 kubelet의 종료 작업은 비동기적으로 진행된다. 종료 중 endpoint는 EndpointSlice에 즉시 완전히 사라지기보다 terminating·ready 조건으로 표현될 수 있다. 프록시와 외부 load balancer까지 이를 반영하는 시간도 다르다. `sleep 10`은 그 사이 유입되는 요청을 잠시 처리할 기회를 줄 수 있지만 “10초면 전파 완료”를 보장하지 않는다. 앱의 신규 요청 차단과 기존 요청 drain, 클라이언트 재시도, 충분한 잔여 replica를 함께 다뤄야 한다. 이 전체 관계는 [배포 전략 장](Kubernetes-Deployment-Strategy.md)에서 이어진다.
 
-# 컨테이너 직접 접속 (디버깅)
-kubectl exec -it my-app -- /bin/sh
-```
+## 8. 실무 트러블슈팅
 
-| 원인 | 해결 |
-|------|------|
-| 앱 시작 실패 | 로그 확인, 환경변수/설정 검증 |
-| OOMKilled | Memory limit 증가 |
-| Liveness Probe 실패 | Probe 설정 조정 |
+관찰에서 바로 조치로 뛰어들기보다 원인에 맞는 증거를 모은다. `ImagePullBackOff`에는 이미지 경로뿐 아니라 노드의 registry 접근, 자격 증명, CA 신뢰를 확인한다. `OOMKilled`에는 limit을 무조건 높이기 전에 메모리 추이·누수·JVM native 사용량을 본다. Pending에는 requests만 낮추기 전에 용량과 배치 조건을 확인한다. 수정할 필드가 다르므로 같은 “Pod가 안 뜬다”로 묶어 처리하지 않는 것이 중요하다.
 
-**문제 3: Pending 상태 지속**
-
-```bash
-kubectl describe pod my-app
-# Events:
-#   0/3 nodes are available: 3 Insufficient cpu
-```
-
-| 원인 | 해결 |
-|------|------|
-| 리소스 부족 | 노드 추가, requests 줄이기 |
-| nodeSelector 불일치 | 노드 라벨 확인 |
-| Taint/Toleration | Toleration 추가 |
-| PVC 바인딩 실패 | PV 생성, StorageClass 확인 |
-
-### 8.2 디버깅 명령어 모음
-
-```bash
-# Pod 상태 확인
-kubectl get pod my-app -o wide
-
-# 상세 정보 (Events 포함)
-kubectl describe pod my-app
-
-# 로그 확인
-kubectl logs my-app                    # 현재 로그
-kubectl logs my-app --previous         # 이전 컨테이너 로그
-kubectl logs my-app -c sidecar         # 특정 컨테이너 로그
-kubectl logs my-app --tail=100         # 마지막 100줄
-kubectl logs my-app -f                 # 실시간 스트리밍
-
-# 컨테이너 접속
-kubectl exec -it my-app -- /bin/sh
-kubectl exec -it my-app -c sidecar -- /bin/sh
-
-# 리소스 사용량 확인
-kubectl top pod my-app                 # metrics-server 필요
-
-# YAML 출력 (현재 상태)
-kubectl get pod my-app -o yaml
-```
-
----
+`kubectl top pod`는 Metrics API가 있어야 사용할 수 있고 짧은 측정값만으로 최대 사용량을 대표하지 못한다. `kubectl describe`의 Events도 영구 감사 기록이 아니다. 장기적인 원인 분석에는 로그·metrics 보관 체계가 필요하며 [관측 장](Kubernetes-Metrics-Server-Prometheus.md)에서 이어 간다.
 
 ## 9. Pod를 직접 만들면 안 되는 이유
 
-여기까지 읽으면 "그럼 Pod YAML 작성해서 배포하면 되겠네?"라고 생각할 수 있다.
+Pod를 직접 만드는 것은 디버깅이나 개념 학습에 유용하다. 하지만 계속 실행되어야 하는 주문 API에는 Pod가 사라졌을 때 원하는 개수를 복구할 주체가 필요하다. `restartPolicy`는 같은 노드의 같은 Pod 안에서 컨테이너를 다시 실행할 정책이지 새 Pod를 생성할 정책이 아니다.
 
-**하지만 실무에서 Pod를 직접 만드는 경우는 거의 없다.**
-
-| 상황 | Pod 직접 생성 | Deployment 사용 |
-|------|--------------|-----------------|
-| Pod가 죽음 | 그냥 사라짐 | 자동으로 새 Pod 생성 |
-| 스케일 아웃 | 수동으로 여러 개 생성 | `replicas: 5`로 끝 |
-| 롤링 업데이트 | 불가능 | 자동 지원 |
-| 롤백 | 불가능 | `kubectl rollout undo` |
-
-Pod는 **일회용**이다. 죽으면 같은 Pod가 다시 살아나는 게 아니라, 새로운 Pod가 생성된다. 그래서 Pod를 관리해주는 상위 오브젝트(Deployment, StatefulSet 등)를 사용한다.
-
-```mermaid
-flowchart TB
-    D[Deployment] -->|관리| RS[ReplicaSet]
-    RS -->|관리| P1[Pod 1]
-    RS -->|관리| P2[Pod 2]
-    RS -->|관리| P3[Pod 3]
-
-    P2 -.->|죽음| X[삭제됨]
-    RS -->|자동 생성| P4[Pod 4]
-
-    style D stroke:#326CE5,stroke-width:2px
-    style X stroke:#F44336,stroke-width:2px,stroke-dasharray: 5 5
-```
-
-> 📖 ReplicaSet과 Deployment가 Pod를 어떻게 관리하는지는 [Kubernetes ReplicaSet & Deployment](./Kubernetes-ReplicaSet-Deployment.md) 문서를 참고하라.
-
----
+다음 [ReplicaSet과 Deployment 장](Kubernetes-ReplicaSet-Deployment.md)에서는 “Pod 세 개를 생성했다”와 “앞으로도 세 개를 유지하라”의 차이를 설명한다. 이 장에서 배운 Pod UID, restartCount, 새 Pod의 구별을 그대로 사용한다.
 
 ## 10. 정리
 
-### Pod가 존재하는 이유
+Pod는 하나 이상의 컨테이너를 같은 노드와 네트워크 환경에서 실행하는 단위다. 같은 Pod의 컨테이너는 `localhost`로 통신하지만 파일은 선언한 volume으로만 공유한다. 컨테이너가 재시작되어도 Pod가 교체된 것은 아니며, Pod가 교체되면 메모리·IP·임시 저장소의 연속성을 가정할 수 없다.
 
-| 이유 | 설명 |
-|------|------|
-| **컨테이너 그룹핑** | 밀접하게 결합된 컨테이너를 하나의 단위로 |
-| **네트워크 공유** | 같은 IP, localhost 통신 |
-| **스토리지 공유** | 볼륨을 통한 파일 공유 |
-| **함께 스케줄링** | 항상 같은 노드에 배치 |
+상태를 읽을 때는 Pod phase, 컨테이너 state와 reason, Ready, Events를 나누어 본다. requests는 배치 가능성을, limits는 실행 중 제약을 설명한다. 어느 한 필드도 애플리케이션의 가용성 전체를 보장하지 않는다.
 
-### 멀티컨테이너 패턴 요약
+## 생각해 볼 질문
 
-| 패턴 | 목적 | 예시 |
-|------|------|------|
-| **Init Container** | 메인 앱 전에 준비 작업 | DB 대기, 설정 다운로드 |
-| **Sidecar** | 보조 기능 제공 | 로그 수집, 프록시 |
-| **Native Sidecar** (1.29+) | 시작/종료 순서 보장 | 로그 유실 방지 |
-
-### Resource Management 핵심
-
-| 개념 | 요약 |
-|------|------|
-| **requests** | 스케줄링 기준, "최소 필요량" |
-| **limits** | 최대 사용량, CPU는 throttling, Memory는 OOMKilled |
-| **QoS Class** | Guaranteed > Burstable > BestEffort (퇴거 우선순위) |
-
-### Scheduling 핵심
-
-| 방법 | 사용 시점 |
-|------|----------|
-| **nodeSelector** | 간단한 노드 선택 |
-| **Node Affinity** | 복잡한 조건의 노드 선택 |
-| **Pod Affinity** | 다른 Pod와 같이/떨어져 배치 |
-| **Taints/Tolerations** | 노드가 Pod를 거부 |
-
-### 기억할 것
-
-> **Pod는 직접 만들지 말고, Deployment를 통해 만들어라.**
-> Pod는 cattle(가축)이지 pet(애완동물)이 아니다.
-
----
+1. **Pod 이름과 UID는 그대로인데 RESTARTS가 늘었다. 다른 노드로 복구된 것일까?**
+   해설: 보통 같은 Pod 안에서 컨테이너를 재시작한 것이다. Pod는 다른 노드로 이동하지 않는다. `.spec.nodeName`, UID, container status를 확인해 컨테이너 재시작과 새 Pod 생성을 구분한다.
+2. **노드 CPU 사용률이 낮은데 왜 주문 API Pod가 Pending일까?**
+   해설: scheduler는 requests, allocatable, affinity·taint 등 배치 조건을 함께 본다. 낮은 순간 사용률은 request를 수용할 공간이나 조건 일치를 증명하지 않는다.
+3. **같은 Pod의 앱과 sidecar가 같은 파일을 못 읽는다면 네트워크 문제일까?**
+   해설: 공유 네트워크가 파일시스템 공유를 만들지는 않는다. 같은 volume을 각각 마운트했는지, 경로와 권한이 맞는지 먼저 확인한다.
 
 ## 출처
 
-- [Kubernetes 공식 문서 - Pods](https://kubernetes.io/docs/concepts/workloads/pods/)
-- [Kubernetes 공식 문서 - Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)
-- [Kubernetes 공식 문서 - Init Containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
-- [Kubernetes 공식 문서 - Sidecar Containers](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
-- [Kubernetes 공식 문서 - Resource Management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
-- [Kubernetes 공식 문서 - Pod QoS](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/)
-- [Kubernetes 공식 문서 - Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
+2026-10-23에 아래 공식 문서의 개념·제약을 확인했다. YAML 파싱과 문서 검토를 수행했으며 실제 클러스터에서 실행한 기록은 아니다.
+
+- [Pods](https://kubernetes.io/docs/concepts/workloads/pods/)
+- [Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)
+- [Init Containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
+- [Sidecar Containers](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/)
+- [Resource Management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+- [Pod QoS](https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/)
+- [Node-pressure Eviction](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/)
+- [Assigning Pods to Nodes](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
+- [Taints and Tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)
+- [Resize Container Resources](https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/)

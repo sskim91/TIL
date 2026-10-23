@@ -1,22 +1,24 @@
 # Tekton Triggers는 어떻게 git push를 PipelineRun으로 바꿀까?
 
+> **개발자를 위한 쉬운 쿠버네티스 · 확장 읽기** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서)
+
 Pipeline을 만들어놨다. PipelineRun도 만들 줄 안다. 그런데 개발자가 커밋할 때마다 내가 손으로 `kubectl create -f pipelinerun.yaml`을 칠 수는 없다. GitLab이 push webhook을 쏴주면 그게 알아서 PipelineRun이 되어야 한다. 그 사이의 빈칸은 누가 채울까?
 
 ## 결론부터 말하면
 
-**Tekton Triggers는 클러스터 안에 HTTP 서버 Pod를 하나 띄우고, 거기로 들어온 JSON을 PipelineRun YAML로 번역해주는 조립 라인이다.** 그 서버가 `EventListener`이고, 번역 공정은 네 단계로 쪼개져 있다.
+**Tekton Triggers는 클러스터 안에 HTTP 서버 Pod를 하나 띄우고, 거기로 들어온 JSON을 PipelineRun YAML로 번역해주는 조립 라인이다.** `EventListener` object를 본 controller가 만드는 event sink Pod가 그 서버이고, 번역 공정은 네 단계로 쪼개져 있다.
 
 핵심은 **왜 하나가 아니라 네 개로 쪼갰나** 다. 각 단계가 다른 이유로 바뀌기 때문이다. 검증 규칙은 Git 호스팅 종류가 바뀔 때, 추출 규칙은 payload 형태가 바뀔 때, 청사진은 파이프라인이 바뀔 때 각각 손대게 된다. 한 덩어리였다면 GitHub에서 GitLab으로 옮길 때 전부 다시 써야 한다.
 
 ```mermaid
 flowchart LR
-    GL["GitLab / GitHub<br>webhook POST"] --> EL["EventListener<br>= Pod + Service<br>(HTTP 서버)"]
+    GL["GitLab / GitHub<br>webhook POST"] --> EL["EventListener 설정<br>controller가 Pod·Service 생성<br>(HTTP 서버)"]
     EL --> IC["1. Interceptor<br>검증 · 필터 · 변형"]
     IC --> TB["2. TriggerBinding<br>JSON → params 추출"]
     TB --> TT["3. TriggerTemplate<br>params → 청사진 채우기"]
     TT --> PR["4. PipelineRun<br>실제 생성"]
 
-    style GL fill:#E65100,color:#fff
+    style GL fill:#BF360C,color:#fff
     style EL fill:#1565C0,color:#fff
     style IC fill:#C62828,color:#fff
     style TB fill:#1565C0,color:#fff
@@ -26,7 +28,7 @@ flowchart LR
 
 | 리소스 | 한 줄 역할 | 바뀌는 이유 | 비유 |
 |--------|-----------|------------|------|
-| `EventListener` | HTTP 요청을 받는 서버 | 노출 방식이 바뀔 때 | 우편함 |
+| `EventListener` | HTTP 서버를 만들고 구성하는 CR | 노출 방식이 바뀔 때 | 우편함 |
 | `Interceptor` | 이 요청 진짜 맞아? 처리할 값어치 있어? | Git 호스팅이 바뀔 때 | 경비실 |
 | `TriggerBinding` | JSON에서 필요한 값만 뽑기 | payload 구조가 바뀔 때 | 서식 작성 |
 | `TriggerTemplate` | 뽑은 값으로 PipelineRun 완성 | 파이프라인이 바뀔 때 | 도장 찍기 |
@@ -40,7 +42,7 @@ Triggers 없이 CI를 굴린다고 상상해보자. 개발자가 `feature/login`
 
 ```bash
 # 1. 커밋 해시를 알아낸다
-git rev-parse HEAD    # 3ac79d5c3a1d415351a12edbf68c1a8cbca2bcbf
+git rev-parse HEAD    # 0123456789abcdef0123456789abcdef01234567
 
 # 2. PipelineRun YAML을 손으로 쓴다
 cat <<EOF | kubectl create -f -
@@ -53,7 +55,7 @@ spec:
     name: ci-pipeline
   params:
     - name: git-revision
-      value: 3ac79d5c3a1d415351a12edbf68c1a8cbca2bcbf   # 매번 손으로 갈아끼움
+      value: 0123456789abcdef0123456789abcdef01234567   # 매번 손으로 갈아끼움
     - name: repo-url
       value: https://gitlab.com/team/app.git
 EOF
@@ -67,7 +69,7 @@ EOF
 {
   "object_kind": "push",
   "ref": "refs/heads/feature/login",
-  "checkout_sha": "3ac79d5c3a1d415351a12edbf68c1a8cbca2bcbf",
+  "checkout_sha": "0123456789abcdef0123456789abcdef01234567",
   "user_name": "seongseob",
   "repository": {
     "name": "app",
@@ -82,22 +84,21 @@ EOF
 
 "그냥 웹 서버 하나 짜서 `kubectl create` 호출하면 되는 거 아닌가?" 맞다. 실제로 그렇게 하는 팀도 있다. 하지만 그 서버를 직접 만들면 따라오는 숙제가 있다.
 
-Git 호스팅의 서명 검증을 직접 구현해야 하고(GitHub는 HMAC-SHA256, GitLab은 평문 토큰 — 뒤에서 다룬다), 브랜치·이벤트 타입 필터링 로직을 코드로 짜야 하고, 그 서버에 PipelineRun을 만들 RBAC 권한을 붙여야 하고, 그 서버 자체를 배포·모니터링·업그레이드해야 한다. Triggers는 이 전부를 선언적 YAML로 대체한다. Tekton이 CRD 기반이라 [Pipeline이 그랬듯](Kubernetes-CRD-Controller-Operator.md) Triggers의 구성요소도 전부 `kubectl get`으로 조회되는 평범한 Kubernetes 오브젝트다.
+Git 호스팅이 사용하는 토큰·서명 검증을 구현하거나 재사용해야 하고, 브랜치·이벤트 타입 필터링 로직을 코드로 짜야 하고, 그 서버에 PipelineRun을 만들 RBAC 권한을 붙여야 하고, 그 서버 자체를 배포·모니터링·업그레이드해야 한다. Triggers는 이 전부를 선언적 YAML로 대체한다. Tekton이 CRD 기반이라 [Pipeline이 그랬듯](Kubernetes-CRD-Controller-Operator.md) Triggers의 구성요소도 전부 `kubectl get`으로 조회되는 평범한 Kubernetes 오브젝트다.
 
-설치는 Pipelines가 이미 깔려 있다는 전제 위에서 두 줄이다.
+설치에는 Pipelines와 호환되는 Triggers release, 기본 interceptor 배포가 필요하다. 아래 명령은 **설치 파일의 관계를 설명하는 형식** 이며 `<검증한-version>`을 실제 검증한 release로 바꿔야 한다. `latest` URL을 그대로 저장해 두면 같은 설치 파일을 나중에 재현할 수 없다.
 
 ```bash
-kubectl apply -f https://storage.googleapis.com/tekton-releases/triggers/latest/release.yaml
-kubectl apply -f https://storage.googleapis.com/tekton-releases/triggers/latest/interceptors.yaml
-
-kubectl get pods -n tekton-pipelines --watch   # 전부 1/1 이 되면 완료
+# 선택한 격리 실습 context와 호환성·이미지 반입을 먼저 확인한다.
+kubectl --context <실습-context> apply -f https://infra.tekton.dev/tekton-releases/triggers/previous/<검증한-version>/release.yaml
+kubectl --context <실습-context> apply -f https://infra.tekton.dev/tekton-releases/triggers/previous/<검증한-version>/interceptors.yaml
 ```
 
-두 번째 줄을 빠뜨리는 실수가 잦다. `interceptors.yaml`이 `github`·`gitlab`·`cel` 같은 **기본 인터셉터를 설치** 하는 파일이라, 이걸 안 깔면 나중에 인터셉터를 참조할 때 조용히 실패한다.
+두 번째 파일은 `gitlab`·`github`·`cel` 같은 기본 interceptor를 제공한다. CRD가 등록된 것과 controller·interceptor가 실제 요청을 처리할 준비가 된 것은 다르다. 설치 버전의 status·Deployment 준비 상태·Service endpoint·이미지 pull을 확인한다. 본문의 예제는 이 구성을 이미 준비한 환경에서 구조를 읽기 위한 것이며, 여기서 클러스터에 설치해 검증한 기록은 아니다.
 
 ## 2. EventListener: 클러스터 안에 떠 있는 HTTP 서버
 
-가장 먼저 이해할 것은 `EventListener`의 정체다. 이름 때문에 "이벤트를 듣는 추상적인 설정"처럼 느껴지지만, **실체는 그냥 Pod와 Service** 다.
+가장 먼저 이해할 것은 `EventListener`의 정체다. 이름 때문에 "이벤트를 듣는 추상적인 설정"처럼 느껴지지만, EventListener 자체는 CRD로 정의된 API object다. 이를 처리하는 controller가 Deployment와 Service를 생성하고, 실제 Pod가 HTTP 요청을 받는다.
 
 ```yaml
 apiVersion: triggers.tekton.dev/v1beta1
@@ -134,9 +135,9 @@ metadata:
   name: tekton-webhook
   namespace: ci
   annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
+    cert-manager.io/cluster-issuer: example-issuer
 spec:
-  ingressClassName: nginx
+  ingressClassName: example-ingress
   tls:
     - hosts: ["webhook.example.com"]
       secretName: webhook-tls
@@ -153,13 +154,13 @@ spec:
                   number: 8080
 ```
 
-TLS는 선택이 아니다. 뒤에서 보겠지만 **GitLab은 webhook 시크릿을 평문으로 헤더에 실어 보내기 때문에** , HTTPS가 아니면 토큰이 그대로 노출된다.
+위 Ingress는 설명용 manifest다. `example-ingress`를 처리하는 controller, TLS Secret 또는 별도 cert-manager issuer가 있어야 한다. Ingress object만 만들어서는 외부 경로와 인증서가 생기지 않는다. 외부 webhook에서 공유 토큰을 전송할 때는 신뢰할 수 있는 TLS 종단과 검증이 필요하다. 뒤에서 보겠지만 **GitLab은 webhook 시크릿을 평문으로 헤더에 실어 보내기 때문에** , HTTPS가 아니면 토큰이 그대로 노출된다.
 
 ### 먼저 짚고 갈 것: ServiceAccount와 RBAC
 
 `serviceAccountName`을 빠뜨리거나 권한이 모자라면, webhook은 잘 도착하는데 PipelineRun이 안 만들어지는 상태가 된다. 게다가 **호출한 쪽에는 성공 응답이 간다** (5.1절에서 다룬다). 그래서 초기 셋업에서 가장 많이 시간을 잡아먹는 지점이다.
 
-Triggers를 설치하면 두 개의 ClusterRole이 함께 생긴다. 하나는 네임스페이스 안에서 쓰는 것, 하나는 클러스터 범위용이다. 둘 다 묶어줘야 한다.
+HTTP 요청자의 토큰과 EventListener가 API를 호출할 때의 ServiceAccount는 다른 자격이다. 앞의 토큰 검증을 통과해도 뒤의 RBAC이 부족하면 Run을 생성하지 못한다. 다음은 `ci` namespace에 Trigger 관련 object를 읽고 PipelineRun을 만드는 권한을 분리한 설명용 예제다. namespace `ci`는 CI 인프라용이며 본편 앱의 `bookstore`와 다르다.
 
 ```yaml
 apiVersion: v1
@@ -168,40 +169,70 @@ metadata:
   name: tekton-triggers-sa
   namespace: ci
 ---
-# 네임스페이스 안: EventListener가 PipelineRun/TaskRun을 만들 권한
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: eventlistener-local
+  namespace: ci
+rules:
+  - apiGroups: ["triggers.tekton.dev"]
+    resources: ["eventlisteners", "triggers", "triggerbindings", "triggertemplates", "interceptors"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["gitlab-webhook-secret"]
+    verbs: ["get"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: tekton-triggers-binding
+  name: eventlistener-local
   namespace: ci
 subjects:
   - kind: ServiceAccount
     name: tekton-triggers-sa
+    namespace: ci
 roleRef:
-  kind: ClusterRole
-  name: tekton-triggers-eventlistener-roles     # 설치 시 함께 생성됨
+  kind: Role
+  name: eventlistener-local
   apiGroup: rbac.authorization.k8s.io
 ---
-# 클러스터 범위: ClusterInterceptor(github/gitlab/cel)를 읽을 권한
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: book-eventlistener-interceptor-reader
+rules:
+  - apiGroups: ["triggers.tekton.dev"]
+    resources: ["clusterinterceptors", "clustertriggerbindings"]
+    verbs: ["get", "list", "watch"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: tekton-triggers-clusterbinding
+  name: book-eventlistener-interceptor-reader
 subjects:
   - kind: ServiceAccount
     name: tekton-triggers-sa
-    namespace: ci                               # 네임스페이스 명시 필수
+    namespace: ci
 roleRef:
   kind: ClusterRole
-  name: tekton-triggers-eventlistener-clusterroles
+  name: book-eventlistener-interceptor-reader
   apiGroup: rbac.authorization.k8s.io
 ```
 
-`ClusterRoleBinding`의 `subjects`에 `namespace`를 안 적는 실수가 흔하다. ServiceAccount는 네임스페이스 리소스라서, 클러스터 범위 바인딩에서는 어느 네임스페이스의 것인지 반드시 명시해야 한다.
+공식 설치물의 `tekton-triggers-eventlistener-roles`·`tekton-triggers-eventlistener-clusterroles`를 참조하는 예제도 있다. 그러나 넓은 ClusterRoleBinding은 해당 role의 Secret 읽기 규칙까지 모든 namespace에 허용할 수 있다. 실제 사용하는 API뿐 아니라 설치 버전 sink의 informer 조회 권한도 확인한다. 2026-10-23 확인한 upstream sink는 ClusterTriggerBinding을 참조하지 않아도 informer를 시작하므로, 위 ClusterRole은 해당 object의 get/list/watch도 허용한다. 미참조 TaskRun 생성이나 다른 ServiceAccount impersonation은 이 예제에서 허용하지 않는다. Trigger에는 serviceAccountName을 따로 지정하지 않고 EventListener의 ServiceAccount를 사용한다. 같은 이름을 Trigger에도 적으면 별도의 impersonation 경로가 선택되므로 두 곳에 반복해서 적지 않는다.
+
+Secret을 읽는 주체도 경로별로 확인한다. core interceptor 서비스의 ServiceAccount가 이미 폭넓은 Secret 권한을 가진 설치라면 EventListener의 Role만 좁혀도 전체 권한이 좁아지는 것은 아니다. 공유 interceptor의 설치 RBAC·Secret 접근 경로를 함께 검토해야 한다. 이 예제는 static 구조 설명이며 최소 권한의 실환경 동작을 검증한 결과는 아니다.
 
 ## 3. 조립 라인 네 단계
 
-EventListener가 요청을 받았다. 이제 JSON 한 덩어리를 PipelineRun으로 바꿔야 한다. 그 공정을 순서대로 따라가보자.
+EventListener가 구성한 Pod가 요청을 받았다. 이제 JSON 한 덩어리를 PipelineRun으로 바꿔야 한다. 그 공정을 순서대로 따라가보자.
 
 ```mermaid
 sequenceDiagram
@@ -213,29 +244,35 @@ sequenceDiagram
     participant K as Kubernetes API
 
     GL->>EL: POST / (JSON + 헤더)
-    rect rgba(198, 40, 40, 0.3)
-        EL->>IC: 이 요청 진짜 GitLab이 보낸 거 맞아?
-        IC-->>EL: X-Gitlab-Token 검증 OK
-        EL->>IC: main 브랜치야? (CEL filter)
-        IC-->>EL: 통과 + extensions에 branch 추가
+    Note over GL,K: 유효 요청 접수 뒤 응답과 비동기 처리의 완료 순서는 보장하지 않는다
+    par HTTP 접수 응답
+        EL-->>GL: 202 Accepted + eventID
+    and 비동기 Trigger 처리의 성공 경로
+        rect rgba(198, 40, 40, 0.3)
+            EL->>IC: 이 요청 진짜 GitLab이 보낸 거 맞아?
+            IC-->>EL: X-Gitlab-Token 검증 OK
+            EL->>IC: main 브랜치야? (CEL filter)
+            IC-->>EL: 통과 + extensions에 branch 추가
+        end
+        rect rgba(21, 101, 192, 0.3)
+            EL->>TB: JSON에서 값 뽑아줘
+            TB-->>EL: git-revision=3ac79d5, repo-url=https://...
+        end
+        rect rgba(46, 125, 50, 0.3)
+            EL->>TT: 이 값들로 청사진 채워줘
+            TT-->>EL: 완성된 PipelineRun YAML
+            EL->>K: create PipelineRun
+        end
     end
-    rect rgba(21, 101, 192, 0.3)
-        EL->>TB: JSON에서 값 뽑아줘
-        TB-->>EL: git-revision=3ac79d5, repo-url=https://...
-    end
-    rect rgba(46, 125, 50, 0.3)
-        EL->>TT: 이 값들로 청사진 채워줘
-        TT-->>EL: 완성된 PipelineRun YAML
-        EL->>K: create PipelineRun
-    end
-    EL-->>GL: 202 Accepted + eventID
 ```
+
+그림은 검증·필터·생성이 성공하는 경로다. `202`는 비동기 처리 완료를 기다리지 않으며, 응답이 항상 모든 처리보다 먼저 온다는 보장도 없다. interceptor 거부·필터 제외·생성 실패와 접수 전 오류의 구분은 5.1절에서 확인한다.
 
 ### 3.1 Interceptor: 경비실
 
 첫 관문은 `Interceptor`다. 하는 일은 세 가지 — **검증(이 요청 진짜야?), 필터(처리할 값어치 있어?), 변형(쓰기 좋게 가공)** .
 
-인터셉터는 `ClusterInterceptor`라는 클러스터 범위 리소스로 미리 설치돼 있고, 우리는 이름으로 참조만 한다. 기본 제공은 `github`, `gitlab`, `bitbucket`, `cel` 네 가지다.
+인터셉터는 `ClusterInterceptor`라는 클러스터 범위 리소스로 미리 설치돼 있고, 우리는 이름으로 참조만 한다. 2026-10-23 확인한 upstream core 설치물에는 `github`, `gitlab`, `bitbucket`, `cel`, `slack`이 포함된다. 실제 사용 가능 목록은 설치한 release의 `interceptors.yaml`에서 확인한다.
 
 **검증부터 보자.** GitLab 인터셉터는 이렇게 쓴다.
 
@@ -264,7 +301,7 @@ interceptors:
 | body 변조 감지 | **가능** (서명이 body를 덮음) | **불가능** (토큰은 body와 무관) |
 | 이벤트 타입 헤더 | `X-GitHub-Event` | `X-Gitlab-Event` |
 
-GitLab 방식은 보안적으로 약하다. 토큰이 매 요청마다 평문으로 날아가고, body가 변조돼도 알 수 없으며, 요청을 통째로 가로채 재전송하는 replay 공격에도 무방비다. GitLab 스스로도 이 문제를 인정해서, 최근에는 **signing token** (`X-Gitlab-Signature` 헤더에 HMAC-SHA256 서명)을 추가하고 공식 문서에서 "신규 webhook에는 secret token 대신 signing token을 쓰라"고 권고한다.
+secret token은 요청 body 자체를 서명하지 않으며, 토큰만으로 replay를 판별하지 못한다. HTTPS는 전송 중 내용을 보호하지만 수신 후 토큰 유출·재전송·허용 소스 정책까지 모두 해결하지 않는다. 2026-10-23 확인한 GitLab 공식 문서는 **signing token** 경로도 설명한다. 서명 헤더는 `webhook-signature`이며 `webhook-id`, `webhook-timestamp`와 body를 포함한 메시지를 검증해야 한다. 설치된 GitLab 버전의 지원 여부도 확인한다.
 
 **그런데 여기 함정이 있다.** Tekton의 `gitlab` 인터셉터 소스를 보면, 읽는 헤더는 `X-Gitlab-Token` 하나뿐이고 검증은 이렇게 한다.
 
@@ -277,7 +314,7 @@ if subtle.ConstantTimeCompare([]byte(header), secretToken) == 0 {
 }
 ```
 
-`subtle.ConstantTimeCompare` — 타이밍 공격은 막지만, **어디까지나 평문 문자열 비교** 다. `X-Gitlab-Signature`는 코드 어디에도 등장하지 않는다. 즉 GitLab의 최신 권고를 따라 signing token만 설정하면, Tekton은 `X-Gitlab-Token` 헤더가 없다며 요청을 거절한다. **지금으로선 GitLab + Tekton 조합에서는 secret token을 써야 하고, 그렇다면 HTTPS는 타협 대상이 아니다.**
+`subtle.ConstantTimeCompare` — 타이밍 공격은 막지만, **어디까지나 평문 문자열 비교** 다. 2026-10-23 확인한 upstream main의 이 내장 interceptor는 `webhook-signature`를 검증하는 경로가 아니다. signing token만 설정하면 이 예제의 secret token 검증과 맞지 않는다. 여기서는 내장 `gitlab` interceptor에 맞춰 secret token과 HTTPS를 사용한다. 서명 검증이 필요한 구성에서는 앞단 verifier나 별도 ClusterInterceptor에서 원문 body·timestamp·재전송 정책을 검증할 수 있다. 모든 GitLab·Tekton 연동이 secret token만 가능하다는 뜻은 아니다.
 
 **다음은 필터다.** 인터셉터는 순서대로 체이닝되며, 앞 단계를 통과한 요청만 다음으로 넘어간다. 세밀한 조건에는 `cel` 인터셉터를 쓴다. CEL(Common Expression Language)은 Google이 만든 작은 표현식 언어로, payload를 대상으로 불리언 판정을 한다.
 
@@ -286,7 +323,12 @@ interceptors:
   - ref:
       name: "gitlab"
       kind: ClusterInterceptor
-    params: [ ... 위와 동일 ... ]
+    # secretRef·eventTypes는 앞의 블록과 동일한 위치에 둔다
+    params:
+      - name: secretRef
+        value: { secretName: gitlab-webhook-secret, secretKey: token }
+      - name: eventTypes
+        value: ["Push Hook"]
 
   - ref:
       name: "cel"
@@ -296,12 +338,14 @@ interceptors:
         value: >
           body.ref == 'refs/heads/main' &&
           body.after != '0000000000000000000000000000000000000000' &&
+          has(body.checkout_sha) && type(body.checkout_sha) == string &&
+          body.checkout_sha.matches('^[0-9a-f]{40}$') &&
           body.user_name != 'renovate-bot'
 ```
 
-세 조건이 각각 실무에서 나온 것이다. 첫째는 main 브랜치만 빌드하겠다는 뜻. 둘째가 재미있는데, **브랜치를 삭제할 때도 GitLab은 push 이벤트를 보낸다** . 이때 `after` 필드가 0으로 가득 찬 값이 되므로, 이걸 걸러내지 않으면 존재하지 않는 커밋을 빌드하려다 실패한다. 셋째는 봇이 만든 의존성 업데이트 커밋을 제외하는 예다.
+main 선택·삭제 제외·SHA 형식·봇 제외는 서로 다른 정책이다. 첫째는 main 브랜치만 빌드하겠다는 뜻. 둘째가 재미있는데, **브랜치를 삭제할 때도 GitLab은 push 이벤트를 보낸다** . 이때 `after` 필드가 0으로 가득 찬 값이 되므로, 이걸 걸러내지 않으면 존재하지 않는 커밋을 빌드하려다 실패한다. SHA 검증은 다음 overlay에 잘못된 입력이 가는 것을 막고, 마지막 조건은 봇이 만든 커밋을 제외하는 예다.
 
-**마지막은 변형이다.** CEL 인터셉터의 `overlays`는 계산한 값을 payload에 덧붙인다. 자주 쓰는 예가 브랜치 이름 추출이다. GitLab이 주는 `body.ref`는 `refs/heads/main`처럼 전체 참조 경로라서, 브랜치 이름만 필요할 때 불편하다.
+**마지막은 변형이다.** CEL 인터셉터의 `overlays`는 계산한 값을 payload에 덧붙인다. 자주 쓰는 예가 브랜치 이름 추출이다. GitLab이 주는 `body.ref`는 `refs/heads/main`처럼 전체 참조 경로라서, 브랜치 이름만 필요할 때 불편하다. 아래 overlay 발췌는 앞의 필터가 SHA 타입과 형식을 검증한 뒤에 실행하는 부분이다.
 
 ```yaml
   - ref:
@@ -361,9 +405,11 @@ spec:
 | 표현식 | 출처 | 예시 |
 |--------|------|------|
 | `$(body.x)` | HTTP 요청 body(JSON) | `$(body.checkout_sha)` |
-| `$(header.X)` | HTTP 헤더 (**대소문자 구분**) | `$(header.X-Gitlab-Event)` |
+| `$(header.X)` | HTTP 헤더 (아래 정규화 조건 참고) | `$(header.X-Gitlab-Event)` |
 | `$(extensions.x)` | 인터셉터가 덧붙인 값 | `$(extensions.branch_name)` |
 | `$(context.x)` | EventListener 내부 데이터 | `$(context.eventID)` |
+
+2026-10-23 확인한 [upstream `jsonpath.go`](https://github.com/tektoncd/triggers/blob/main/pkg/template/jsonpath.go)는 MIME header key를 canonicalize한다. 공식 TriggerBinding 문서의 대소문자 구분 안내와 구현이 다르므로 설치 버전 소스를 확인하고, 예제는 `X-Gitlab-Event` 같은 canonical spelling을 유지한다.
 
 JSON 키에 `.`이나 `/`가 들어 있으면 백슬래시로 이스케이프해야 한다. 그리고 재사용 범위에 따라 두 종류가 있다 — `TriggerBinding`은 네임스페이스 범위, `ClusterTriggerBinding`은 클러스터 범위다. 후자를 참조할 때는 `kind: ClusterTriggerBinding`을 명시해야 한다(기본값이 `TriggerBinding`이므로).
 
@@ -403,8 +449,9 @@ spec:
       metadata:
         generateName: build-                 # name이 아니라 generateName
         labels:
-          app: my-app
-          git-branch: $(tt.params.branch)
+          app: order-api
+        annotations:
+          ci.example.com/git-branch: $(tt.params.branch)
       spec:
         pipelineRef:
           name: ci-pipeline
@@ -453,7 +500,6 @@ metadata:
   name: build-on-push
   namespace: ci
 spec:
-  serviceAccountName: tekton-triggers-sa
   interceptors:
     - name: "GitLab 검증"
       ref: { name: "gitlab", kind: ClusterInterceptor }
@@ -466,7 +512,11 @@ spec:
       ref: { name: "cel", kind: ClusterInterceptor }
       params:
         - name: "filter"
-          value: "body.ref == 'refs/heads/main'"
+          value: >
+            body.ref == 'refs/heads/main' &&
+            has(body.after) && body.after != '0000000000000000000000000000000000000000' &&
+            has(body.checkout_sha) && type(body.checkout_sha) == string &&
+            body.checkout_sha.matches('^[0-9a-f]{40}$')
         - name: "overlays"
           value:
             - key: branch_name
@@ -494,12 +544,12 @@ spec:
     - triggerRef: test-on-mr         # Merge Request Hook → 테스트
 ```
 
-## 4. 전체를 한 번에: 동작하는 예제
+## 4. 전체를 한 번에: Trigger 구성의 관계 읽기
 
-지금까지 조각을 따로 봤으니, 한 파일로 이어 붙여 보자. GitLab의 main 브랜치 push를 받아 빌드 파이프라인을 도는 최소 구성이다.
+지금까지 조각을 따로 봤으니, 한 파일로 이어 붙여 보자. GitLab main push를 `ci-pipeline`의 입력으로 변환하는 설명용 구성이다. `ci` namespace·앞 절의 ServiceAccount/RBAC·core interceptor, `repo-url`·`revision`·`image-tag`와 `shared` workspace를 받는 Pipeline 및 Task, StorageClass·Git·registry 자격증명이 별도로 필요하다. 앞 글의 DAG 예시는 이 완성된 빌드 Pipeline을 제공한 것이 아니다.
 
 ```yaml
-# 0. webhook 시크릿 — openssl rand -hex 20 으로 생성
+# 0. 설명용 토큰; 실행 시 새 난수를 생성해 양쪽에 설정
 apiVersion: v1
 kind: Secret
 metadata:
@@ -507,7 +557,7 @@ metadata:
   namespace: ci
 type: Opaque
 stringData:
-  token: "8f2c1a9e4b7d3f6a0c5e8b1d4f7a2c9e6b3d0f5a"
+  token: "REPLACE_WITH_A_RANDOM_TOKEN"
 ---
 # 1. 값 추출
 apiVersion: triggers.tekton.dev/v1beta1
@@ -564,7 +614,6 @@ metadata:
   name: build-on-push
   namespace: ci
 spec:
-  serviceAccountName: tekton-triggers-sa
   interceptors:
     - ref: { name: "gitlab", kind: ClusterInterceptor }
       params:
@@ -575,7 +624,11 @@ spec:
     - ref: { name: "cel", kind: ClusterInterceptor }
       params:
         - name: "filter"
-          value: "body.ref == 'refs/heads/main'"
+          value: >
+            body.ref == 'refs/heads/main' &&
+            has(body.after) && body.after != '0000000000000000000000000000000000000000' &&
+            has(body.checkout_sha) && type(body.checkout_sha) == string &&
+            body.checkout_sha.matches('^[0-9a-f]{40}$')
         - name: "overlays"
           value:
             - key: short_sha
@@ -601,18 +654,19 @@ spec:
 
 GitLab에서는 **Settings → Webhooks** 에서 URL(`https://webhook.example.com`), Secret token(위 Secret과 **같은 값**), Trigger(Push events)를 설정한다.
 
-배포 전에 로컬에서 확인하고 싶다면 포트 포워딩으로 직접 쏴볼 수 있다. GitLab 없이 전체 경로를 검증하는 가장 빠른 방법이다.
+준비된 격리 실습 환경에서 GitLab 대신 요청을 보내고 싶다면 port-forward를 사용할 수 있다. 이때도 실제 PipelineRun이 만들어질 수 있으므로 단순한 읽기 전용 연결 검사가 아니다. 다음은 가상 payload와 예상 응답이며 이 글의 실측 기록이 아니다. 토큰을 명령행·verbose 로그에 남기지 않도록 헤더 파일을 준비한 예다. 파일은 권한을 제한하고 사용 후 삭제한다.
 
 ```bash
 kubectl port-forward -n ci svc/el-gitlab-listener 8080:8080
 
-curl -v http://localhost:8080 \
+curl --fail --silent --show-error http://localhost:8080 \
   -H 'Content-Type: application/json' \
   -H 'X-Gitlab-Event: Push Hook' \
-  -H 'X-Gitlab-Token: 8f2c1a9e4b7d3f6a0c5e8b1d4f7a2c9e6b3d0f5a' \
+  -H @gitlab-token-header.txt \
   -d '{
     "ref": "refs/heads/main",
-    "checkout_sha": "3ac79d5c3a1d415351a12edbf68c1a8cbca2bcbf",
+    "after": "0123456789abcdef0123456789abcdef01234567",
+    "checkout_sha": "0123456789abcdef0123456789abcdef01234567",
     "repository": { "git_http_url": "https://gitlab.com/team/app.git" }
   }'
 ```
@@ -653,16 +707,16 @@ flowchart TD
     A -->|Yes| B["PipelineRun 생성 시도"]
     B --> C{"생성 성공?"}
     C -->|No| R202B["202 Accepted<br>(로그에만 error)"]
-    C -->|Yes| R202C["202 Accepted<br>(실제로 실행됨)"]
+    C -->|Yes| R202C["PipelineRun 존재 확인 가능<br>실행·완료는 status 별도 확인"]
 
-    style R fill:#E65100,color:#fff
+    style R fill:#BF360C,color:#fff
     style EL fill:#1565C0,color:#fff
     style R202A fill:#C62828,color:#fff
     style R202B fill:#C62828,color:#fff
     style R202C fill:#2E7D32,color:#fff
 ```
 
-**그럼 진짜 확인은 어떻게 하나?** 응답에 담긴 `eventID`를 쓴다. EventListener는 자신이 만든 모든 리소스에 아래 세 개의 label을 자동으로 붙인다.
+**그럼 진짜 확인은 어떻게 하나?** 응답에 담긴 `eventID`를 쓴다. EventListener는 생성 리소스에 요청을 연결할 label을 붙인다. 다음 이름은 2026-10-23 upstream 소스로 확인한 값이며 실제 설치 버전에서도 확인해야 한다.
 
 | Label | 값 |
 |-------|-----|
@@ -670,7 +724,7 @@ flowchart TD
 | `triggers.tekton.dev/trigger` | 실행된 Trigger 이름 |
 | `triggers.tekton.dev/triggers-eventid` | **이 요청의 eventID** |
 
-**세 번째 label 이름을 특히 조심해야 한다.** 앞의 둘은 `/eventlistener`·`/trigger`로 규칙적인데, eventID만 유독 `/triggers-eventid`로 `triggers-`가 한 번 더 붙는다. 게다가 **Tekton 공식 문서의 label 표에는 `triggers.tekton.dev/eventid`라고 적혀 있다** — 소스와 다르다.
+**세 번째 label 이름을 특히 조심해야 한다.** 앞의 둘은 `/eventlistener`·`/trigger`로 규칙적인데, eventID만 유독 `/triggers-eventid`로 `triggers-`가 한 번 더 붙는다. 게다가 확인한 공식 문서의 label 표에는 `triggers.tekton.dev/eventid`라고 적혀 있다 — 소스와 다르다.
 
 ```go
 // pkg/apis/triggers/register.go
@@ -680,21 +734,24 @@ EventIDLabelKey       = "/triggers-eventid"   // ← 문서와 불일치
 TriggerLabelKey       = "/trigger"
 ```
 
-문서를 그대로 믿고 `-l triggers.tekton.dev/eventid=...`로 조회하면 **PipelineRun이 정상 생성됐는데도 결과가 항상 비어서** "생성 실패"로 오판하게 된다. 확신이 안 서면 실제 오브젝트에서 직접 확인하는 게 가장 빠르다.
+문서를 그대로 믿고 `-l triggers.tekton.dev/eventid=...`로 조회하면 **PipelineRun이 정상 생성됐는데도 다른 키로 조회해 결과가 비어서** "생성 실패"로 오판하게 된다. 확신이 안 서면 실제 오브젝트에서 직접 확인하는 게 가장 빠르다.
 
 ```bash
 kubectl get pipelinerun -n ci -o jsonpath='{.items[0].metadata.labels}' | jq
 ```
 
-따라서 POST 응답에서 `eventID`를 뽑아 그 label로 조회하면, 이 요청이 실제로 PipelineRun을 만들었는지 확정할 수 있다.
+따라서 POST 응답에서 `eventID`를 뽑아 그 label로 조회하면, 이 요청에 대응하는 PipelineRun이 있는지 찾을 수 있다. 비동기 처리 지연이 있으므로 조회 직후 빈 목록이면 정해 둔 timeout까지 기다린다. 그 후에도 없으면 EventListener·interceptor 로그와 API 권한·템플릿 오류를 확인한다.
 
 ```bash
-EVENT_ID=$(curl -s http://localhost:8080 -H '...' -d '...' | jq -r .eventID)
-
+# POST 응답을 response.json에 저장한 뒤 셸 종료 상태와 JSON을 확인한다.
+EVENT_ID=$(jq -er '.eventID | select(type == "string" and length > 0)' response.json)
+case "$EVENT_ID" in
+  *[!A-Za-z0-9_.-]*|'') echo "잘못된 eventID" >&2; exit 1 ;;
+esac
 kubectl get pipelineruns -n ci \
-  -l triggers.tekton.dev/triggers-eventid=$EVENT_ID
+  -l "triggers.tekton.dev/triggers-eventid=$EVENT_ID"
 
-# 결과가 비어 있다면 → 인터셉터에서 걸렸거나 생성에 실패한 것
+# 직후 빈 결과만으로 실패를 확정하지 않는다. 유한 timeout으로 반복 조회한다.
 ```
 
 호출하는 쪽에서 "정말 돌았는지" 확인해야 한다면 이 패턴이 정답이다. 다음 문서에서 Jenkins로 이걸 구현한다.
@@ -739,23 +796,19 @@ spec:
 
 바깥쪽은 "이 YAML을 어떤 스키마로 해석할지", 안쪽은 "어느 API 그룹의 ClusterInterceptor를 찾을지"를 가리킨다. 같은 이름이지만 하는 일이 다르다. `ref` 안의 `apiVersion`과 `kind`는 생략해도 기본값(`ClusterInterceptor`)이 적용되므로, 대부분 `name`만 써도 동작한다.
 
-참고로 `interceptors` 아래에 `ref:` 없이 `webhook:`을 직접 쓰는 형태를 오래된 예제에서 볼 수 있는데, 이건 **`v1alpha1`에서만 지원되는 레거시 방식** 이다. 외부 Service로 payload를 넘겨 커스텀 검증을 하는 용도이며, 새로 짠다면 `ClusterInterceptor` 방식을 쓰는 게 맞다.
+참고로 `interceptors` 아래에 `ref:` 없이 `webhook:`을 직접 쓰는 형태를 오래된 예제에서 볼 수 있는데, 이는 `v1beta1`에도 필드와 validation 경로가 남아 있는 legacy 방식이다. 외부 Service로 payload를 넘겨 커스텀 검증을 하는 용도이며, legacy라는 분류가 `v1alpha1` 전용이라는 뜻은 아니다. 새 구성에서는 `ref`로 `ClusterInterceptor` 또는 namespaced `Interceptor`를 참조하는 방식을 우선 검토한다.
 
 ### 5.4 overlay 값은 body가 아니라 extensions에 있다
 
 3.1절에서 언급했지만 반복할 만하다. CEL overlay로 만든 값을 `$(body.branch_name)`으로 꺼내려다 실패하는 경우가 정말 많다.
 
 ```yaml
-# overlay 정의
+# overlays 값에 들어갈 구조 발췌
 - key: branch_name
   expression: "body.ref.replace('refs/heads/', '')"
-
-# 잘못된 참조
-value: $(body.branch_name)        # 값이 안 들어옴
-
-# 올바른 참조
-value: $(extensions.branch_name)
 ```
+
+잘못된 참조 `$(body.branch_name)` 대신 binding의 `value`에 `$(extensions.branch_name)`을 넣는다. 두 대안을 같은 YAML mapping에 `value` 키로 연달아 적으면 중복 key가 되므로, 실제 설정에는 올바른 참조 하나만 둔다.
 
 overlay는 원본 payload를 건드리지 않고 `extensions`라는 별도 최상위 필드에 결과를 쌓는다. 원본 보존이 원칙이기 때문이다.
 
@@ -781,9 +834,11 @@ interceptors:
       - name: "filter"
         value: >
           body.ref == 'refs/heads/main' &&
-          body.after != '0000000000000000000000000000000000000000'
+          body.after != '0000000000000000000000000000000000000000' &&
+          has(body.checkout_sha) && type(body.checkout_sha) == string &&
+          body.checkout_sha.matches('^[0-9a-f]{40}$')
 
-  # 2단계: 여기 도달했다면 checkout_sha는 null이 아님이 보장된다
+  # 2단계: 위 filter로 타입·형식까지 확인한 뒤 가공한다
   - name: "값 가공"
     ref: { name: "cel", kind: ClusterInterceptor }
     params:
@@ -801,22 +856,19 @@ CEL 인터셉터 하나에 `filter`와 `overlays`를 함께 넣어도 동작한�
 
 ## 6. 정리
 
-### 핵심 포인트
+Triggers는 이벤트를 실행 요청 object로 바꾸는 층이다. EventListener object와 실제 HTTP Pod, interceptor 검증·필터, Binding의 값 추출, Template의 API 요청을 구분하면 실패한 위치를 설명할 수 있다. 그 뒤의 TaskRun·Pod와 실제 빌드는 Pipelines controller와 Node의 일이다.
 
-1. **EventListener는 추상적 설정이 아니라 실제로 뜨는 Pod와 Service다**
-   - 이름이 `foo`면 `el-foo`라는 Deployment와 ClusterIP Service가 생기고, `8080` 포트로 HTTP를 받는다. 외부에서 webhook을 받으려면 Ingress나 LoadBalancer로 노출해야 하고, 그 앞에는 반드시 TLS가 있어야 한다.
+`body`·`header`·`extensions`·`context`는 서로 다른 입력 공간이고 `tt.params`는 TriggerTemplate이 치환할 입력이다. branch 원문에는 `/`가 있을 수 있으므로 label에 바로 넣지 않고 annotation으로 보존한다. 단축 SHA도 삭제 이벤트의 null을 처리하기 전에 계산하면 안 된다.
 
-2. **번역 공정을 네 개로 쪼갠 이유는 변경 이유가 각각 다르기 때문이다**
-   - `Interceptor`(검증·필터·변형)는 Git 호스팅이 바뀔 때, `TriggerBinding`(값 추출)은 payload 구조가 바뀔 때, `TriggerTemplate`(청사진)은 파이프라인이 바뀔 때 손댄다. `Trigger`가 이 셋을 묶고, 하나의 EventListener가 여러 Trigger를 가질 수 있어 push와 merge request를 한 URL로 분기 처리한다.
+202 응답, Run 존재, Run 완료는 차례로 다른 증거다. webhook 재전송은 같은 commit의 Run을 여러 번 만들 수도 있다. `generateName`은 이름 충돌을 피하지만 중복 실행을 제거하지는 않는다. 빌드·push·배포의 멱등성과 요청 식별자 보존이 필요한 이유다.
 
-3. **202 Accepted는 성공이 아니라 "접수됨"이다**
-   - 인터셉터가 걸러냈어도, PipelineRun 생성에 실패했어도 202가 나간다. 실제 실행 여부는 응답의 `eventID`를 `triggers.tekton.dev/triggers-eventid` label로 조회해 확인해야 한다. 문제가 생기면 EventListener Pod 로그가 1차 창구다.
+**에어갭 환경에서 짚어볼 점.** EventListener로 들어오는 경로뿐 아니라 interceptor Service, API server, 빌드 Pod의 Git·registry 연결도 필요하다. 외부 서명 검증이나 resolver 의존성을 사용한다면 내부 공급·검증 경로까지 포함해 설치 목록을 만든다.
 
-4. **GitLab 연동에는 Tekton 문서에 없는 함정이 있다**
-   - GitHub은 `X-Hub-Signature-256`으로 body를 HMAC 서명하지만, GitLab은 `X-Gitlab-Token`에 시크릿을 **평문으로** 실어 보내고 Tekton은 이를 문자열 비교한다. GitLab이 새로 권고하는 signing token(`X-Gitlab-Signature`)은 **Tekton 인터셉터가 읽지 않는다** . 그래서 GitLab + Tekton 조합에서는 secret token을 써야 하며, HTTPS가 사실상 필수다.
+## 생각해 볼 질문
 
-5. **변수 네임스페이스를 구분하라**
-   - TriggerBinding에서는 출처에 따라 `$(body.x)` / `$(header.X)` / `$(extensions.x)` / `$(context.x)`. TriggerTemplate의 `resourcetemplates` 안에서는 `$(tt.params.x)` — 그 안에 든 PipelineRun 자신의 `$(params.x)`와 충돌하지 않게 하려는 설계다. CEL overlay 결과는 `body`가 아니라 `extensions`에 담긴다.
+1. **Secret 검증을 통과했는데 PipelineRun이 없는 이유는 무엇일까?** CEL filter에서 제외됐거나 Binding·Template·RBAC·admission에서 실패했을 수 있다. 처리 지연을 기다린 뒤 eventID와 로그를 연결한다.
+2. **main 브랜치를 삭제하는 이벤트도 왜 필터해야 할까?** Push Hook에는 삭제도 포함된다. `after`와 `checkout_sha`의 타입·형식을 검증한 뒤에만 truncate·checkout 입력으로 쓴다.
+3. **Run을 찾았으면 빌드가 성공한 것일까?** API 생성만 확인한 것이다. Pipelines controller가 child TaskRun·Pod를 만들었는지, 각 Step과 최종 condition이 성공인지까지 봐야 한다.
 
 ---
 
@@ -833,3 +885,11 @@ CEL 인터셉터 하나에 `filter`와 `overlays`를 함께 넣어도 동작한�
 - [GitLab Webhooks 문서](https://docs.gitlab.com/user/project/integrations/webhooks/) - `X-Gitlab-Token` 평문 전달, signing token 권고
 - [GitHub webhook 검증 문서](https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries) - `X-Hub-Signature-256` HMAC-SHA256
 - [Filtering Tekton trigger operations (Red Hat)](https://www.redhat.com/en/blog/filtering-tekton-trigger-operations) - CEL 필터와 overlay 실전 예제
+- [Tekton upstream RBAC](https://github.com/tektoncd/triggers/blob/main/config/200-clusterrole.yaml) — 2026-10-23 확인, Secret 접근 scope
+- [Tekton event label constants](https://github.com/tektoncd/triggers/blob/main/pkg/apis/triggers/register.go) — eventID label의 실제 문자열
+- [Kubernetes labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/) — label value 문법
+- [Tekton sink resource creation](https://github.com/tektoncd/triggers/blob/main/pkg/sink/sink.go) — Trigger ServiceAccount 지정 시 authentication override
+- [Tekton authentication override](https://github.com/tektoncd/triggers/blob/main/pkg/sink/auth_override.go) — impersonation 경로
+- [Tekton sink adapter](https://github.com/tektoncd/triggers/blob/main/pkg/adapter/adapter.go) — ClusterTriggerBinding informer 의존
+- [Tekton core interceptors](https://github.com/tektoncd/triggers/blob/main/config/interceptors/core-interceptors.yaml) — slack을 포함한 설치 목록
+- [Tekton v1beta1 interceptor validation](https://github.com/tektoncd/triggers/blob/main/pkg/apis/triggers/v1beta1/trigger_validation.go) — legacy webhook 지원 경로

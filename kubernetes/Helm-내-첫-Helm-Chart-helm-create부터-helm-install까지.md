@@ -1,33 +1,25 @@
 # Helm — 내 첫 Helm Chart, `helm create`부터 `helm install`까지
 
+> **개발자를 위한 쉬운 쿠버네티스 · 확장 읽기** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서)
+
 Maven으로 자바 프로젝트를 시작할 때 빈 폴더에서 `pom.xml`을 손으로 적지 않는다. `mvn archetype:generate` 한 줄로 뼈대를 받는다. Helm도 정확히 같은 흐름이 있다.
 
 ## 결론부터 말하면
 
-**`helm create` 한 번이면 K8s에 배포 가능한 nginx Chart 한 벌이 그대로 나온다.** 자바 개발자가 `mvn archetype:generate`로 첫 프로젝트를 시작하듯, Helm도 빈 폴더부터 시작할 필요 없다. 5분이면 첫 Chart를 만들고, `helm install`로 실제 K8s에 배포하고, `helm rollback`으로 되돌리는 한 사이클을 끝낼 수 있다. 이 글은 그 5분의 경험을 손에 익히는 핸즈온이다.
+**`helm create`는 Chart의 시작점을 만들고, `helm template`은 그것이 API에 보낼 선언을 보여 준다.** `helm install`부터는 클러스터에 쓰는 작업이며, Release의 `deployed` 상태와 앱의 실행·응답 성공은 따로 확인해야 한다. 이 글은 생성 파일을 읽어 그 경계를 이해하는 선택 실습이다.
 
-```mermaid
-timeline
-    title 첫 Chart의 라이프사이클 (5분)
-    1분 : helm create my-app : 기본 파일 한 벌 자동 생성
-    2분 : helm install my-first ./my-app : K8s에 nginx 배포
-    3분 : kubectl get pods : Pod 실행 확인
-    4분 : values 수정 + helm upgrade : 새 리비전 생성
-    5분 : helm rollback / uninstall : 이전 상태 복귀 / 정리
-```
+[Helm의 패키지 모델](Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md)을 읽은 뒤 따라오면 좋다. 여기서는 `helm create`가 생성하는 nginx 계열 scaffold를 살펴보므로 본편의 가상 `order-api` 이미지를 그대로 넣지 않는다. 생성되는 기본 이미지와 probe·port는 사용한 Helm 버전의 결과에서 확인해야 한다.
 
 | 단계 | 명령 | 하는 일 |
 |------|------|--------|
 | ① 스캐폴드 | `helm create my-app` | Chart 기본 뼈대 생성 |
-| ② 설치 | `helm install my-first ./my-app` | 클러스터에 Release 만들기 |
-| ③ 변경 | `helm upgrade my-first ./my-app --set replicaCount=3` | 새 리비전으로 갱신 |
-| ④ 이력 | `helm history my-first` | 리비전 목록 확인 |
-| ⑤ 롤백 | `helm rollback my-first 1` | 1번 리비전 상태로 복귀 |
-| ⑥ 정리 | `helm uninstall my-first` | Release가 만든 리소스 일괄 삭제 |
+| ② 설치 | `helm install my-first ./my-app -n helm-lab --create-namespace` | 클러스터에 Release 만들기 |
+| ③ 변경 | `helm upgrade my-first ./my-app -n helm-lab --set replicaCount=3` | 새 리비전으로 갱신 |
+| ④ 이력 | `helm history my-first -n helm-lab` | 리비전 목록 확인 |
+| ⑤ 롤백 | `helm rollback my-first 1 -n helm-lab` | 1번 리비전 상태로 복귀 |
+| ⑥ 정리 | `helm uninstall my-first -n helm-lab` | Release가 만든 리소스 일괄 삭제 |
 
-> **시리즈 4편**: 이전 3편(Helm/Harbor/통합)은 "왜"를 다뤘다. 이번 글부터는 "어떻게"로 시점이 바뀐다. 시리즈 1편의 컨테이너 패키지 매니저 개념을 그대로 손에 익히는 단계.
->
-> ⚠️ **버전 기준 안내**: 본문의 `helm create` 산출물과 디렉토리 구조는 일반적인 핸즈온 학습 흐름을 보여주기 위한 예시이며, Helm 버전(3.x 후기 / 4.x)에 따라 `templates/httproute.yaml`을 비롯한 일부 기본 매니페스트와 `_helpers.tpl` 헬퍼가 추가/변경될 수 있다. 실제로 손에서 본 파일 목록이 본문과 다르더라도 학습 흐름 자체는 동일하니, 본인의 환경에서 생성된 트리를 그대로 따라가면 된다.
+> **예제와 검증 범위:** 2026-10-23 공식 문서를 기준으로 Chart 구조를 설명한다. 아래 디렉토리·메타데이터·출력은 설명용이며 특정 Helm 버전의 실측 기록이 아니다. Helm 3·4에 따라 HTTPRoute, helper, values가 달라질 수 있으므로 `helm version --short`와 자신이 생성한 파일을 먼저 확인한다. install 이후는 명시적으로 선택한 격리 실습 클러스터에서만 실행한다. 이 글을 위해 클러스터에 설치하거나 명령의 실제 성공을 측정하지는 않았다.
 
 ---
 
@@ -51,16 +43,17 @@ Maven이 이 진입장벽을 해결한 방식이 `mvn archetype:generate`였다.
 | `pom.xml` 자동 생성 | `Chart.yaml` 자동 생성 |
 | `src/main/java`, `src/test/java` 구조 | `templates/`, `templates/tests/` 구조 |
 | `App.java`, `AppTest.java` 샘플 코드 | `deployment.yaml`, `service.yaml` 샘플 매니페스트 |
-| 빌드 가능한 상태로 즉시 시작 | 즉시 `helm install` 가능한 상태로 시작 |
+| 빌드 가능한 상태로 즉시 시작 | 설치용 선언을 가진 샘플에서 시작 |
 
 ---
 
 ## 2. `helm create my-app` — 생성되는 기본 파일들의 정체
 
-명령 한 줄이면 끝난다.
+먼저 로컬 파일만 생성한다. 이 단계에는 Kubernetes 연결이 필요하지 않다.
 
 ```bash
-$ helm create my-app
+helm version --short
+helm create my-app
 Creating my-app
 ```
 
@@ -111,13 +104,13 @@ flowchart LR
     style Resources fill:#37474F,color:#fff
 ```
 
-핵심은 **`templates/` 아래의 파일이 그 자체로 K8s에 적용되는 것이 아니라, `values.yaml`과 합쳐져 렌더링된 결과가 적용된다는 점**이다. 시리즈 1편에서 다룬 "Helm은 클라이언트 사이드 템플릿 엔진"이라는 표현이 여기서 실체화된다.
+핵심은 **`templates/` 아래의 파일이 그 자체로 K8s에 적용되는 것이 아니라, `values.yaml`과 합쳐져 렌더링된 결과가 적용된다는 점**이다. Helm 개념 글에서 다룬 "Helm은 클라이언트 사이드 템플릿 엔진"이라는 표현이 여기서 실체화된다.
 
 ---
 
 ## 3. 기본 Chart를 들여다보자 — 실제로 무엇이 만들어지는가
 
-생성된 Chart가 빈 골격이 아니라 **즉시 배포 가능한 nginx 한 벌**이라는 점이 중요하다. 핵심 파일 3개만 살펴보자.
+생성된 Chart에는 샘플 애플리케이션을 표현하는 기본값과 템플릿이 함께 들어 있다. 이미지 접근과 클러스터 조건이 충족되어야 실제로 실행된다. 핵심 파일 3개만 살펴보자.
 
 ### 3.1 `Chart.yaml` — 패키지 신원증명
 
@@ -127,7 +120,7 @@ name: my-app
 description: A Helm chart for Kubernetes
 type: application
 version: 0.1.0           # Chart 자체의 버전 (SemVer)
-appVersion: "1.16.0"     # 배포되는 앱의 버전 (참고용)
+appVersion: "1.16.0"     # 구조 설명을 위한 예시 값; 현재 기본값 주장이 아님
 ```
 
 | 필드 | 역할 | Maven 비교 |
@@ -138,11 +131,11 @@ appVersion: "1.16.0"     # 배포되는 앱의 버전 (참고용)
 | `appVersion` | Chart가 배포하는 **앱의** 버전 (Chart 버전과 별개) | jar 내부의 `Implementation-Version` |
 | `type` | `application` 또는 `library` | 패키징 타입 (jar/war) |
 
-특히 **`version`과 `appVersion`이 다르다는 점이 헷갈리는 부분**이다. Chart 패키지는 `name + version`으로 식별되므로, `Chart.yaml`을 변경해 패키지를 다시 빌드/배포할 때는 **`version`을 반드시 올려야 한다**. 이때 안에 담긴 앱(컨테이너 이미지)의 새 버전을 기록하기 위해 `appVersion`도 함께 갱신하는 식이다. 반대로 설치 시점에 `--set image.tag=2.0`처럼 값만 오버라이드하는 것은 Chart 자체가 바뀐 게 아니므로 두 필드 다 손댈 필요 없다. `appVersion`은 패키지 식별자가 아니라 **정보성 필드**라는 점을 기억해 두면 좋다.
+특히 **`version`과 `appVersion`이 다르다는 점이 헷갈리는 부분**이다. Chart 패키지는 `name + version`으로 식별되므로, `Chart.yaml`을 변경해 패키지를 다시 빌드/배포할 때는 **`version`을 반드시 올려야 한다**. 이때 안에 담긴 앱(컨테이너 이미지)의 새 버전을 기록하기 위해 `appVersion`도 함께 갱신하는 식이다. 반대로 설치 시점에 `--set image.tag=2.0`처럼 값만 오버라이드하는 것은 Chart 자체가 바뀐 게 아니므로 두 필드 다 손댈 필요 없다. `appVersion`은 패키지 식별자가 아니라 **정보성 필드** 라는 점을 기억해 두면 좋다. 앱 버전과 이미지 태그가 자동으로 연결되는 것도 아니다. 아래 템플릿이 `default .Chart.AppVersion`을 사용하기 때문에 이 Chart에서는 tag가 비었을 때 그 값이 쓰인다.
 
 ### 3.2 `values.yaml` — 기본 설정값
 
-`helm create`가 만든 `values.yaml`은 약 100줄 정도이지만, 핵심은 다음과 같다.
+다음은 구조를 읽기 위해 줄인 `values.yaml` 예시다. 최신 scaffold 원문을 그대로 인용한 것은 아니다.
 
 ```yaml
 replicaCount: 1
@@ -178,9 +171,9 @@ resources: {}          # 기본은 빈 객체 (limits/requests 미설정)
 
 ### 3.3 `templates/deployment.yaml` — 변수가 실제로 어떻게 치환되는지
 
-가장 중요한 파일이다. 일부만 보면 다음과 같다.
+가장 중요한 파일이다. 다음은 selector·probe 등을 생략한 **템플릿 발췌** 이므로 직접 적용할 완전한 manifest가 아니다.
 
-```yaml
+```gotemplate
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -213,7 +206,7 @@ spec:
 | `\| default X` | 앞이 비어있으면 X 사용 (파이프 함수) |
 | `\| nindent 4` | 새 줄로 시작하고 4칸 들여쓰기 |
 
-**핵심 통찰**: `{{- if not .Values.autoscaling.enabled }} replicas: ... {{- end }}` 이 구조가 의미하는 것은 — HPA를 쓰면 `replicas`를 Deployment에 못 박지 않는다. HPA가 알아서 조정해야 하니까. 이 정도의 조건 분기가 기본 Chart에 이미 들어있다는 점이 `helm create`가 그냥 골격이 아니라 **베스트 프랙티스 모음**이라는 증거다.
+**핵심 통찰**: `{{- if not .Values.autoscaling.enabled }} replicas: ... {{- end }}` 이 구조가 의미하는 것은 — HPA를 쓰면 `replicas`를 Deployment에 못 박지 않는다. HPA가 알아서 조정해야 하니까. HPA와 Helm이 같은 replicas 필드를 경쟁해서 관리하지 않게 하려는 의도다. 다만 생성 파일은 시작점이며, 자신의 앱에 맞는 probe·권한·resources 검토까지 대신해 주지는 않는다.
 
 ### 3.4 `_helpers.tpl` — 왜 분리되어 있나
 
@@ -251,29 +244,29 @@ spec:
 
 ## 4. 한 사이클 돌려보기 — install → upgrade → rollback → uninstall
 
-이제 실제로 클러스터에 배포해보자. 로컬에서 K8s 클러스터(`minikube`, `kind`, Docker Desktop K8s, OrbStack 등)가 떠 있어야 한다.
+이 절은 선택 실행 경로다. 자신이 만든 격리 실습 클러스터, API 접근 권한, Node의 이미지 pull 경로가 필요하다. 아래 명령을 실행하기 전에 `--kube-context <실습-context>`를 명시하고 대상이 맞는지 확인한다. 여기 보이는 날짜·이름·IP·상태는 모두 **설명용 예상 출력** 이며 실제 설치 기록이 아니다. 기본 scaffold를 사용하므로 Release 이름 `my-first`와 helper가 만든 리소스 이름도 본편 사례와 다르다.
 
 ### 4.1 첫 설치
 
 ```bash
-$ helm install my-first ./my-app
+$ helm install my-first ./my-app --namespace helm-lab --create-namespace
 NAME: my-first
 LAST DEPLOYED: Mon May 25 15:32:01 2026
-NAMESPACE: default
+NAMESPACE: helm-lab
 STATUS: deployed
 REVISION: 1
 NOTES:
 1. Get the application URL by running these commands:
-  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=my-app,app.kubernetes.io/instance=my-first" -o jsonpath="{.items[0].metadata.name}")
+  export POD_NAME=$(kubectl get pods --namespace helm-lab -l "app.kubernetes.io/name=my-app,app.kubernetes.io/instance=my-first" -o jsonpath="{.items[0].metadata.name}")
   ...
 ```
 
-`STATUS: deployed`, `REVISION: 1`이 핵심이다. Release `my-first`가 클러스터에 첫 리비전으로 들어갔다는 뜻이다.
+`STATUS: deployed`, `REVISION: 1`은 Helm이 첫 설치를 성공으로 기록한 예시다. `--wait` 없이 나온 이 상태만으로 앱이 Ready이거나 HTTP 요청에 응답한다고 판단할 수 없다. 기다리려면 사용 중인 Helm 버전의 `--wait` 동작과 timeout을 확인하고, Deployment rollout과 실제 Service 응답까지 분리해서 본다.
 
 ### 4.2 실제로 무엇이 만들어졌는지 확인
 
 ```bash
-$ kubectl get all -l app.kubernetes.io/instance=my-first
+$ kubectl get all -n helm-lab -l app.kubernetes.io/instance=my-first
 NAME                                    READY   STATUS    RESTARTS   AGE
 pod/my-first-my-app-7b6f4c8c9d-x2vmz    1/1     Running   0          30s
 
@@ -289,58 +282,43 @@ Pod 이름이 `my-first-my-app-...`인 점에 주목하자. `_helpers.tpl`의 `m
 ### 4.3 Release 상태 확인
 
 ```bash
-$ helm list
+$ helm list -n helm-lab
 NAME      NAMESPACE  REVISION  UPDATED         STATUS    CHART       APP VERSION
-my-first  default    1         2026-05-25 ...  deployed  my-app-0.1.0  1.16.0
+my-first  helm-lab    1         2026-05-25 ...  deployed  my-app-0.1.0  1.16.0
 ```
 
 ### 4.4 값 변경 → `helm upgrade`
 
-replicas를 3개로 늘려보자. 두 가지 방법이 있다.
+replicas를 3개로 늘린다. 이 설명에서는 아래 명령을 **한 번만** 실행한 것을 revision 2로 가정한다.
 
 ```bash
-# 방법 A: --set으로 인라인 오버라이드
-$ helm upgrade my-first ./my-app --set replicaCount=3
-
-# 방법 B: 별도의 values 파일 사용
-$ cat > prod-values.yaml <<EOF
-replicaCount: 3
-resources:
-  limits:
-    memory: 256Mi
-EOF
-$ helm upgrade my-first ./my-app -f prod-values.yaml
+helm upgrade my-first ./my-app -n helm-lab --set replicaCount=3
+helm get values my-first -n helm-lab
+helm get manifest my-first -n helm-lab
 ```
 
-| 방법 | 언제 쓰나 |
-|------|----------|
-| `--set` | 임시 실험, CI에서 동적 값 주입 (commit SHA 등) |
-| `-f values.yaml` | 환경별 영구 설정 (dev/stg/prod 분리) |
+`helm get values`는 Release에 전달한 설정을, `helm get manifest`는 저장된 렌더링 결과를 보여 준다. 전체 계산된 values를 보고 싶으면 `helm get values --all`을 쓴다. 이 기록과 현재 Pod 상태는 같은 정보가 아니다. Pod 생성 실패나 외부 관리자의 변경을 찾으려면 `kubectl`로 live 리소스도 확인해야 한다.
 
-실무에서는 **`-f`로 환경별 파일을 두고, `--set`은 CI에서만 쓰는 것**이 일반적이다. 이유는 단순하다 — `--set`은 손에서 사라지는 명령이라 재현이 어렵지만 values 파일은 Git에 들어간다.
+다음은 위 명령 대신 선택할 수 있는 **대안** 이다. 둘을 모두 실행하면 upgrade가 두 번 기록되므로 뒤의 revision 숫자도 달라진다.
 
 ```bash
-$ helm upgrade my-first ./my-app --set replicaCount=3
-Release "my-first" has been upgraded. Happy Helming!
-NAME: my-first
-LAST DEPLOYED: Mon May 25 15:35:22 2026
-NAMESPACE: default
-STATUS: deployed
-REVISION: 2     # ← 리비전이 2로 올라감
+helm upgrade my-first ./my-app -n helm-lab -f prod-values.yaml
 ```
+
+이 대안은 `prod-values.yaml`을 별도로 작성한 경우에만 사용한다. 우선순위는 Chart 기본값보다 `-f`가 높고, 그보다 `--set`이 높다. 여러 `-f`에서는 뒤에 지정한 파일이 같은 키를 덮는다. 운영 설정은 검토 가능한 파일로 남기고, 동적으로 전달하는 값도 최종 Release 기록과 맞춰 볼 수 있어야 한다.
 
 ### 4.5 이력 + 롤백
 
 ```bash
-$ helm history my-first
+$ helm history my-first -n helm-lab
 REVISION  UPDATED         STATUS      CHART         APP VERSION  DESCRIPTION
 1         2026-05-25 ...  superseded  my-app-0.1.0  1.16.0       Install complete
 2         2026-05-25 ...  deployed    my-app-0.1.0  1.16.0       Upgrade complete
 
-$ helm rollback my-first 1
+$ helm rollback my-first 1 -n helm-lab
 Rollback was a success! Happy Helming!
 
-$ helm history my-first
+$ helm history my-first -n helm-lab
 REVISION  UPDATED         STATUS      CHART         APP VERSION  DESCRIPTION
 1         2026-05-25 ...  superseded  my-app-0.1.0  1.16.0       Install complete
 2         2026-05-25 ...  superseded  my-app-0.1.0  1.16.0       Upgrade complete
@@ -352,11 +330,11 @@ REVISION  UPDATED         STATUS      CHART         APP VERSION  DESCRIPTION
 ### 4.6 정리
 
 ```bash
-$ helm uninstall my-first
+$ helm uninstall my-first -n helm-lab
 release "my-first" uninstalled
 ```
 
-이 한 줄로 `my-first`가 만든 Deployment/Service/ServiceAccount가 한꺼번에 사라진다. 시리즈 1편에서 강조했던 "Release 단위로 묶여 관리된다"의 가치가 가장 실감되는 순간이다.
+이 명령은 `my-first`가 관리하는 Deployment/Service/ServiceAccount의 삭제를 요청한다. finalizer, hook, 리소스 보존 annotation과 CRD 같은 예외에 따라 남는 리소스가 있을 수 있다. `helm-lab` namespace는 이 명령으로 삭제되지 않는다. Helm 개념 글에서 강조했던 "Release 단위로 묶여 관리된다"의 가치가 가장 실감되는 순간이다.
 
 ---
 
@@ -368,7 +346,7 @@ Chart를 수정하다 보면 반드시 마주치는 문제가 있다. **"내가 
 |------|--------|------|
 | `helm lint ./my-app` | Chart 구조 + YAML 문법 오류 검사 | 가장 먼저, CI에 넣기 좋음 |
 | `helm template my-first ./my-app` | 렌더링 결과 매니페스트만 출력 (클러스터 안 건드림) | 변수 치환 확인 |
-| `helm install my-first ./my-app --dry-run --debug` | 실제 install처럼 시뮬레이션 + 디버그 출력 | 설치 직전 마지막 검증 |
+| `helm install my-first ./my-app --dry-run=client --debug --hide-secret` | client dry-run으로 설치 결과 미리 보기; 버전별 지원 옵션 확인 | 설치 직전 마지막 검증 |
 
 특히 **`helm template`이 자주 쓰인다**. 다음처럼 파이프로 받아 보면 렌더링 결과가 그대로 나온다.
 
@@ -390,6 +368,8 @@ spec:
   ...
 ```
 
+`helm template`·lint·client dry-run은 앱 실행 검증이 아니다. API 지원 여부·admission·스토리지·Node의 pull까지 모두 검증하지는 않는다. server dry-run은 클러스터에 요청하므로 별도 접근 권한과 대상 확인이 필요하다. 또한 `--dry-run --debug`는 Secret을 포함한 내용을 출력할 수 있으므로 공유 CI 로그에서는 지원되는 `--hide-secret` 옵션을 사용하고 values 자체의 민감정보도 남기지 않도록 한다.
+
 Go 템플릿이 익숙해질 때까지 이 명령을 자주 쓰게 된다. 변수 한 줄 바꾸고 `helm template`으로 확인 → 또 바꾸고 확인하는 사이클이 학습에 매우 효과적이다.
 
 ---
@@ -402,7 +382,7 @@ Go 템플릿이 익숙해질 때까지 이 명령을 자주 쓰게 된다. 변�
 | **values 수정 후 적용 안 됨** | 클러스터에 변화 없음 | `helm upgrade`를 깜빡함. `helm install`은 첫 설치만 |
 | **들여쓰기 한 칸 어긋남** | YAML 파싱 에러, 원인을 알 수 없는 메시지 | `helm template`으로 렌더링 결과 들여쓰기 확인. `\| nindent N` 활용 |
 | **`--set` 값에 점/콤마 포함** | 파싱 어긋남 | 이스케이프하거나 `-f`로 빼기 |
-| **Release 이름과 namespace 헷갈림** | "release not found" | `helm list -A`로 전체 namespace 조회. 기본은 `default` namespace |
+| **Release 이름과 namespace 헷갈림** | "release not found" | `helm list -A`로 전체 namespace 조회. 기본은 현재 kubeconfig context의 namespace(미지정이면 `default`) |
 
 이 5가지를 한 번씩 직접 만나보는 것이 가장 빠른 학습이다.
 
@@ -418,35 +398,30 @@ Go 템플릿이 익숙해질 때까지 이 명령을 자주 쓰게 된다. 변�
 | **`values.yaml` 설계 패턴** | 환경별 분기, override 계층, `values.schema.json`으로 입력 검증 |
 | **Subchart와 Library Chart** | 사내 공통 Chart를 만들어 여러 서비스가 공유하는 단계 |
 | **`helm test`로 검증 자동화** | `templates/tests/` 안의 작업으로 배포 후 자동 검증 |
-| **OCI Registry로 Chart 푸시** | 시리즈 2/3편의 Harbor에 사내 Chart를 올리는 단계 |
+| **OCI Registry로 Chart 푸시** | Harbor 같은 OCI registry에 사내 Chart를 올리는 단계 |
 
-이 시리즈에서는 다음 글로 **Go 템플릿 함정과 패턴**을 다룰 예정이다. 이번 글에서 `_helpers.tpl`을 "이런 게 있다"로만 짚었는데, 다음 글에서 직접 손으로 작성해본다.
+환경별 Chart를 설계할 때는 helper가 만들어 낸 실제 이름과 selector부터 확인하면 좋다. 추상화가 잘되어 보여도 렌더링한 리소스 사이의 연결이 맞아야 한다.
 
 ---
 
 ## 8. 정리
 
-`helm create` 한 줄로 시작하는 첫 Chart 경험은 자바 개발자가 `mvn archetype:generate`로 첫 프로젝트를 시작하는 그 자리다. 빈 폴더에서 시작하지 말 것, 생성된 9개 파일이 각자 무엇을 하는지 한 번 훑을 것, install → upgrade → rollback → uninstall 한 사이클을 손에 익힐 것 — 이 세 가지가 첫날의 목표다.
+Chart를 읽는 순서는 `Chart.yaml`의 신원, values의 입력, templates의 생성 규칙, 렌더링된 manifest다. 설치 후에는 Release 기록을 보고, 이어서 Deployment·Pod·Service를 확인한다. `NOTES.txt`의 접속 안내는 검증 결과가 아니라 Chart 작성자가 만든 안내문이다.
 
-시리즈 1편에서 깐 "패키지 매니저로서의 Helm"이라는 개념이, 이 글에서 처음으로 손에 잡힌다. Chart는 더 이상 추상적인 단어가 아니라 **9개 파일의 묶음**이고, Release는 **`helm list`에 한 줄로 보이는 실체**이고, 롤백은 **`helm rollback NAME REVISION`** 한 줄이다.
+여기서 생긴 패키지를 외부에 전달하려면 저장·인증·버전 고정 문제가 남는다. [Harbor의 역할](Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가.md)과 [Chart와 이미지의 협업 경로](Helm과-Harbor를-왜-같이-써야-하는가.md)에서 그 문제를 이어 간다.
 
-| 시리즈 위치 | 이 글의 역할 |
-|------------|-------------|
-| 1편 (Helm 개념) | 왜 Chart 단위 추상화가 필요한가 |
-| 2편 (Harbor) | Chart가 어디에 저장되는가 |
-| 3편 (통합) | Helm + Harbor가 함께 도는 파이프라인 |
-| **4편 (이 글)** | **Chart를 처음 만드는 손의 감각** |
-| 5편 (예정) | Go 템플릿의 함정과 패턴 |
+## 생각해 볼 질문
 
-다음 글에서는 이번에 만든 `my-app/`을 그대로 들고 가, `_helpers.tpl`을 직접 손보고 Go 템플릿의 까다로운 부분들을 정공으로 풀어본다.
-
----
+1. **`appVersion`만 바꾸면 항상 다른 이미지가 배포될까?** 해당 템플릿이 그 필드를 이미지 문자열에 사용하는지에 달려 있다. image tag를 values로 명시했다면 `default`가 동작하지 않을 수도 있다.
+2. **Release는 deployed인데 Service 호출은 실패할 수 있을까?** 렌더링·API 적용·controller 수렴·앱 준비·네트워크 연결이 서로 다른 단계이기 때문이다. 먼저 rollout과 Pod Ready 상태를 보고 Service 선택과 포트를 좁힌다.
+3. **rollback 후 revision이 다시 1이 되지 않는 이유는 무엇일까?** 과거 선언을 재적용한 행위 자체를 새 revision으로 기록한다. 과거 데이터 상태까지 복원했다는 의미는 아니다.
 
 ## 출처
 
 - [Helm 공식 문서 — helm create](https://helm.sh/docs/helm/helm_create/) — 공식 레퍼런스
 - [Helm Chart Template Guide — Getting Started](https://helm.sh/docs/chart_template_guide/getting_started/) — 공식 입문 가이드
 - [Helm 공식 문서 — Charts](https://helm.sh/docs/topics/charts/) — Chart 구조 상세
-- [Bitnami — Understand a Helm chart structure](https://docs.bitnami.com/kubernetes/faq/administration/understand-helm-chart/) — 디렉토리 구조 해설
-- [OneUptime Blog — How to Build Helm Charts from Scratch (2026-01)](https://oneuptime.com/blog/post/2026-01-19-kubernetes-helm-charts-from-scratch/view) — 실전 핸즈온 참고
-- [Theodo/Padok — Helm Charts: test and validate process](https://www.theodo.com/blog/test-and-validate-your-helm-charts-in-kubernetes) — helm template/lint 활용
+- [Helm install](https://helm.sh/docs/helm/helm_install/) — wait, dry-run과 Secret 출력 주의
+- [Helm values](https://helm.sh/docs/chart_template_guide/values_files/) — 입력 우선순위
+- [Helm get](https://helm.sh/docs/helm/helm_get/) — 저장된 Release 정보 조회
+- [Helm 4 Overview](https://helm.sh/docs/overview/) — 2026-10-23 확인, 버전별 동작 차이

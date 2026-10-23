@@ -1,20 +1,16 @@
 # Kubernetes Service LoadBalancer (Cloud)
 
+> **개발자를 위한 쉬운 쿠버네티스 · 확장 읽기** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서)
+
 **같은 LoadBalancer Service가 클라우드마다 다른 LB가 되는 이유**
 
-똑같은 `type: LoadBalancer` YAML이 AWS에서는 CLB나 NLB가 되고, GKE에서는 passthrough NLB가 되고, 온프레미스에서는 아무것도 되지 않는다. 쿠버네티스는 같은데 결과는 왜 이렇게 다를까?
+똑같은 `type: LoadBalancer` YAML이 AWS에서는 CLB나 NLB가 되고, GKE에서는 passthrough NLB가 되고, LB 구현체가 없는 온프레미스에서는 주소가 할당되지 않는다. 쿠버네티스는 같은데 결과는 왜 이렇게 다를까?
 
-> 📚 **Service 시리즈 읽는 순서**
-> 1. [Kubernetes Service Object](./Kubernetes-Service-Object.md) - Service는 어떤 오브젝트인가
-> 2. [Kubernetes Service: ClusterIP, NodePort, LoadBalancer](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) - 타입별로 어떻게 쓰는가
-> 3. [Kubernetes Service Internals](./Kubernetes-Service-Internals.md) - 내부에서 어떻게 동작하는가
-> 4. [Kubernetes Service LoadBalancer (Cloud)](./Kubernetes-Service-LoadBalancer-Cloud.md) - 클라우드 LB와는 어떻게 연결되는가 ← 지금 읽는 글
->
-> 다음 단계: [Kubernetes Ingress](./Kubernetes-Ingress.md) - 여러 Service를 하나의 HTTP 진입점으로 묶기
+이 글은 [Service 접속 범위](Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)와 [Ingress](Kubernetes-Ingress.md)의 확장 읽기다. 표준 API가 요청하는 것과 환경별 controller가 실제로 만드는 것을 나누어 읽는다.
 
 ## 결론부터 말하면
 
-**`type: LoadBalancer`도 선언일 뿐이고, 실제 LB는 그 선언을 watch하는 컨트롤러가 클라우드 API를 호출해서 만들기 때문이다.** 쿠버네티스 코어에는 LB를 만드는 코드가 없다. 어느 컨트롤러가 그 Service를 맡는지, 그 컨트롤러가 어노테이션을 어떻게 해석하는지에 따라 결과가 갈린다. 맡을 컨트롤러가 없으면 EXTERNAL-IP는 끝없이 `<pending>`으로 남는다.
+**`type: LoadBalancer`도 선언일 뿐이고, 실제 LB는 그 선언을 watch하는 컨트롤러가 클라우드 API를 호출해서 만들기 때문이다.** 표준 Service API가 특정 클라우드의 LB 제품과 생성 방식을 정하지는 않는다. 어느 컨트롤러가 그 Service를 맡는지, 그 컨트롤러가 어노테이션을 어떻게 해석하는지에 따라 결과가 갈린다. 맡을 컨트롤러가 없으면 EXTERNAL-IP는 끝없이 `<pending>`으로 남는다.
 
 ```mermaid
 flowchart LR
@@ -22,7 +18,7 @@ flowchart LR
     Q -->|"AWS legacy cloud provider"| CLB["CLB (기본)"]
     Q -->|"AWS Load Balancer Controller"| NLB["NLB"]
     Q -->|"GKE"| GLB["passthrough NLB"]
-    Q -->|"아무도 없음 (온프레미스)"| PEND["EXTERNAL-IP<br>pending 상태 유지"]
+    Q -->|"담당 구현체 없음"| PEND["EXTERNAL-IP<br>pending 상태 유지"]
 
     style SVC fill:#1565C0,color:#fff
     style PEND fill:#C62828,color:#fff
@@ -30,10 +26,11 @@ flowchart LR
 
 | 환경 | Service를 맡는 컨트롤러 | 결과 |
 |------|------------------------|------|
-| AWS (컨트롤러 미설치) | legacy cloud provider | CLB. `aws-load-balancer-type: nlb`를 주면 NLB |
+| AWS legacy 통합이 구성된 환경 | legacy cloud provider | CLB 또는 legacy annotation에 따른 NLB |
+| EKS Auto Mode | 관리형 LB 통합 | `eks.amazonaws.com/nlb` Class로 NLB. 별도 LBC 설치 불필요 |
 | AWS (LBC v2.5+ 설치) | AWS Load Balancer Controller | NLB |
 | GKE | GKE의 service controller | passthrough NLB (내부/외부는 어노테이션으로 선택) |
-| 온프레미스 | 없음 | `<pending>` (MetalLB 같은 구현을 설치해야 함) |
+| 온프레미스 | MetalLB·Cilium·kube-vip·장비 연동 등 또는 미구성 | 설치된 구현체가 주소를 할당·광고. 담당 구현체가 없으면 `<pending>` |
 
 ---
 
@@ -47,9 +44,9 @@ flowchart LR
 
 ### 1.2 Service는 선언이라는 사실에서 출발하자
 
-[Kubernetes Service Internals](./Kubernetes-Service-Internals.md)에서 봤듯이 Service는 etcd에 저장된 선언이고, ClusterIP는 kube-proxy가 각 노드 커널에 규칙을 써서 실체화한다. LoadBalancer 타입은 여기서 한 단계 더 나간다. 실체화해야 할 대상이 **클러스터 밖에 있는 클라우드 LB** 다. 노드 커널에 규칙을 쓰는 kube-proxy로는 AWS나 GCP에 LB를 만들 수 없다. 클라우드 API를 호출할 권한과 코드를 가진 별도의 컨트롤러가 필요하다.
+[Kubernetes Service Internals](./Kubernetes-Service-Internals.md)에서 봤듯이 Service는 etcd에 저장된 선언이고, ClusterIP는 kube-proxy의 규칙이나 이를 대체하는 eBPF 등 Service dataplane이 실체화한다. LoadBalancer 타입은 여기서 한 단계 더 나간다. 실체화해야 할 대상이 **클러스터 밖에 있는 클라우드 LB** 다. 노드 커널에 규칙을 쓰는 kube-proxy로는 AWS나 GCP에 LB를 만들 수 없다. 클라우드 API를 호출할 권한과 코드를 가진 별도의 컨트롤러가 필요하다.
 
-온프레미스에서 `<pending>`이 풀리지 않는 이유도 여기 있다. 그 선언을 읽고 LB를 만들어 줄 컨트롤러가 아무도 없기 때문이다.
+담당 구현체가 없는 온프레미스의 pending은 이 단계에서 설명된다. 그러나 pending만 보고 controller 부재로 확정하지 않는다. 이미 구현체가 있다면 권한·IP pool·서브넷·quota·annotation·Class·프로비저닝 오류를 Events와 controller 로그에서 확인한다.
 
 ---
 
@@ -70,7 +67,7 @@ my-svc   LoadBalancer   10.96.0.10    52.10.20.30    80:31234/TCP   2m    # 컨�
 
 한 클러스터에 LB 구현이 여럿 있을 수도 있다. 이때 쓰는 필드가 `spec.loadBalancerClass` (v1.24 stable)다. 이 필드가 비어 있으면 클라우드 제공자의 기본 구현이 Service를 맡는다. 값이 지정되면 기본 구현은 그 Service를 무시하고, 해당 클래스를 담당하는 구현이 맡는다. 한 번 지정하면 바꿀 수 없다.
 
-AWS Load Balancer Controller(LBC) v2.5 이상이 "기본 컨트롤러가 된다"는 말도 이 필드로 설명된다. LBC는 mutating webhook으로 새 LoadBalancer Service의 `spec.loadBalancerClass`를 자동으로 채워서, legacy provider 대신 자기가 Service를 맡는다.
+AWS Load Balancer Controller(LBC) v2.5 이상이 "기본 컨트롤러가 된다"는 말도 이 필드로 설명된다. LBC는 해당 mutating webhook이 활성화되어 있으면 새 LoadBalancer Service의 `spec.loadBalancerClass`를 자동으로 채워서, legacy provider 대신 자기가 Service를 맡는다.
 
 ### 2.3 어노테이션은 컨트롤러별 방언이다
 
@@ -78,15 +75,17 @@ AWS Load Balancer Controller(LBC) v2.5 이상이 "기본 컨트롤러가 된다"
 
 같은 클라우드 안에서도 마찬가지다. AWS LBC 공식 문서는 자기 어노테이션 목록이 legacy provider가 처리하는 Service에 대해서는 정확한 레퍼런스가 아니라고 명시한다. 어노테이션을 복사해 올 때는 "이 Service를 지금 어느 컨트롤러가 맡고 있는가"부터 확인해야 한다.
 
-### 2.4 온프레미스: 컨트롤러가 없으면 pending
+### 2.4 온프레미스: 주소를 할당하고 광고할 구현체가 필요하다
 
-MetalLB 공식 문서는 이 상황을 이렇게 설명한다. 쿠버네티스에 들어 있는 네트워크 LB 구현은 모두 IaaS(GCP, AWS, Azure 등)를 호출하는 glue code이고, 지원되는 IaaS 위가 아니라면 LoadBalancer Service는 생성 후 무기한 pending 상태로 남는다. 온프레미스에서 LoadBalancer 타입을 쓰려면 MetalLB처럼 표준 네트워크 장비와 연동해 IP를 광고하는 구현을 따로 설치해야 한다. 그렇지 않다면 NodePort나 Ingress로 노출해야 한다.
+온프레미스에서도 MetalLB·Cilium·kube-vip 또는 네트워크 장비 연동 구현이 이미 설치되어 있을 수 있다. 예를 들어 MetalLB는 주소 pool에서 IP를 할당하고 L2/BGP 등 구성한 방식으로 그 주소의 도달 경로를 광고한다. controller는 이 구성을 조정하는 주체이며 모든 사용자 패킷이 controller 프로세스를 통과하는 것은 아니다.
+
+NodePort나 소프트웨어 Ingress 프록시도 대안이지만 외부 클라이언트가 Node·프록시까지 도달할 경로는 여전히 필요하다. Ingress 리소스를 추가하는 것만으로 외부 IP 할당 문제가 해결되지는 않는다. 에어갭은 외부 연결 제한이고 온프레미스는 배치 환경이므로, 두 조건을 같은 뜻으로 취급하지 않는다.
 
 ---
 
 ## 3. 클라우드별 예시
 
-아래 예시는 모두 "어느 컨트롤러가 맡는가"를 먼저 확인한 뒤 읽어야 한다.
+아래 예시는 모두 "어느 컨트롤러가 맡는가"를 먼저 확인한 뒤 읽어야 한다. 2026-10-23에 확인한 공식 문서 기준이며 실제 설치 버전의 지원 조건을 확인한다. `bookstore/order-api`, `app: order-api`, 앱 8080·Service 80은 책의 가상 사례다. 가상 이미지 `registry.example.com/book/order-api:1.0.0`의 실행을 전제하는 설치 매뉴얼은 아니다.
 
 ### 3.1 AWS EKS
 
@@ -94,8 +93,8 @@ AWS에서는 Service를 맡을 수 있는 경로가 세 가지다.
 
 | 경로 | 조건 | 기본 결과 |
 |------|------|----------|
-| **legacy cloud provider** | LBC가 없을 때 | CLB. `aws-load-balancer-type: nlb`를 지정하면 NLB |
-| **AWS Load Balancer Controller** | LBC를 직접 설치. v2.5+는 webhook으로 기본 컨트롤러가 됨 | NLB |
+| **legacy cloud provider** | 해당 legacy 통합이 구성된 환경 | CLB. `aws-load-balancer-type: nlb`를 지정하면 NLB |
+| **AWS Load Balancer Controller** | LBC를 직접 설치. v2.5+는 webhook 활성화 시 새 Service의 Class를 기본 설정 | NLB |
 | **EKS Auto Mode** | Auto Mode 클러스터. 별도 설치 없음 | NLB (LBC와 동작 차이가 있으니 [EKS Auto Mode 문서](https://docs.aws.amazon.com/eks/latest/userguide/auto-configure-nlb.html) 확인) |
 
 아래는 LBC를 설치한 구성 기준이다.
@@ -106,7 +105,8 @@ AWS에서는 Service를 맡을 수 있는 경로가 세 가지다.
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-svc
+  name: order-api
+  namespace: bookstore
   annotations:
     # LBC가 맡도록 지정 - Service 생성 시에만 설정할 것
     service.beta.kubernetes.io/aws-load-balancer-type: "external"
@@ -116,7 +116,11 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
 spec:
   type: LoadBalancer
-  # ...
+  selector:
+    app: order-api
+  ports:
+  - port: 80
+    targetPort: 8080
 ```
 
 **내부 NLB (VPC 내부 전용):**
@@ -125,7 +129,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-internal-svc
+  name: order-api-internal
+  namespace: bookstore
   annotations:
     service.beta.kubernetes.io/aws-load-balancer-type: "external"
     service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
@@ -138,14 +143,18 @@ metadata:
     service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/health"
 spec:
   type: LoadBalancer
-  # ...
+  selector:
+    app: order-api
+  ports:
+  - port: 80
+    targetPort: 8080
 ```
 
 | 어노테이션 | 설명 |
 |-----------|------|
 | `aws-load-balancer-type: external` | LBC가 이 Service를 맡도록 지정 |
 | `aws-load-balancer-nlb-target-type: ip` | NLB가 Pod IP로 직접 전달 (노드의 NodePort를 거치지 않음, Fargate Pod도 지원) |
-| `aws-load-balancer-nlb-target-type: instance` | NLB가 각 노드의 NodePort로 전달하고, 노드의 kube-proxy 규칙이 Pod로 넘김 |
+| `aws-load-balancer-nlb-target-type: instance` | NLB가 각 노드의 NodePort로 전달하고, 노드의 Service dataplane이 Pod로 넘김 |
 | `aws-load-balancer-scheme: internet-facing` | 외부 노출 (명시해야 함) |
 | `aws-load-balancer-scheme: internal` | VPC 내부 전용 (생략 시 기본값) |
 | `aws-load-balancer-healthcheck-protocol` | 기본값은 `externalTrafficPolicy: Cluster`면 tcp, `Local`이면 http |
@@ -165,7 +174,8 @@ GKE의 어노테이션은 서로 다른 구성을 고르는 스위치라서, 한
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-internal-svc
+  name: order-api-internal
+  namespace: bookstore
   annotations:
     # 내부 LB 생성
     # GKE 1.33.1-gke.1779000+ 등 추가 조건을 만족하면
@@ -173,7 +183,11 @@ metadata:
     networking.gke.io/load-balancer-type: "Internal"
 spec:
   type: LoadBalancer
-  # ...
+  selector:
+    app: order-api
+  ports:
+  - port: 80
+    targetPort: 8080
 ```
 
 **외부 passthrough NLB (Backend Service 기반):**
@@ -182,14 +196,19 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-external-svc
+  name: order-api-external
+  namespace: bookstore
   annotations:
     # Backend Service 기반 외부 LB 생성 (GKE 1.37+는 기본 동작)
     # 1.32.2-gke.1652000+는 GCE_VM_IP NEG 백엔드, 이전 버전은 instance group 백엔드
     cloud.google.com/l4-rbs: "enabled"
 spec:
   type: LoadBalancer
-  # ...
+  selector:
+    app: order-api
+  ports:
+  - port: 80
+    targetPort: 8080
 ```
 
 **독립형 NEG (LB를 직접 구성할 때):**
@@ -198,15 +217,17 @@ spec:
 apiVersion: v1
 kind: Service          # type 생략 = ClusterIP
 metadata:
-  name: neg-demo-app
+  name: order-api-neg
+  namespace: bookstore
   annotations:
     # 지정한 Service 포트마다 zone별 NEG 생성 - LB는 사용자가 별도로 구성
     cloud.google.com/neg: '{"exposed_ports": {"80":{}}}'
 spec:
+  selector:
+    app: order-api
   ports:
   - port: 80
-    targetPort: 9376
-  # ...
+    targetPort: 8080
 ```
 
 | 어노테이션 | 설명 |
@@ -221,7 +242,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: my-svc
+  name: order-api
+  namespace: bookstore
   annotations:
     # 내부 LB
     service.beta.kubernetes.io/azure-load-balancer-internal: "true"
@@ -233,7 +255,11 @@ metadata:
     service.beta.kubernetes.io/azure-pls-create: "true"
 spec:
   type: LoadBalancer
-  # ...
+  selector:
+    app: order-api
+  ports:
+  - port: 80
+    targetPort: 8080
 ```
 
 | 어노테이션 | 설명 |
@@ -245,12 +271,20 @@ spec:
 
 ---
 
+### 3.4 같은 NEG라는 이름 아래의 다른 백엔드
+
+GKE의 L4 `GCE_VM_IP` NEG는 Node IP를 백엔드로 사용하는 형태다. [Ingress의 container-native load balancing](Kubernetes-Ingress.md)에서 본 L7 `GCE_VM_IP_PORT` NEG는 Pod IP:port를 백엔드로 사용한다. NEG라는 이름이 같다고 "모두 Pod로 직접 전달"이라고 합치면 안 된다. standalone NEG는 endpoint 묶음을 만들 뿐 LB 자체를 자동 생성하지 않는다는 점도 구분한다.
+
+앞 버전 조건은 현재 공식 문서에 있는 기능을 설명한다. GKE 1.37+의 외부 backend service 기반 기본화, 1.32.2-gke.1652000+의 GCE_VM_IP NEG, 1.33.1-gke.1779000+의 Class 지원은 서로 다른 기능의 조건이며, 클러스터가 이 버전이라는 사실만으로 모든 annotation·기존 Service가 자동 변환되었다고 판단하지 않는다.
+
+주소가 할당된 뒤에도 LB target health, NodePort 또는 Pod IP 경로, Readiness와 실제 요청을 각각 확인한다. 외부 LB는 `instance → NodePort → Service dataplane → Pod` 경로를 사용할 수도 있고 `IP target → Pod` 경로를 사용할 수도 있다. controller의 API 호출 흐름을 사용자 패킷 흐름에 끼워 넣지 않는다.
+
 ## 4. 정리
 
 ### 핵심 포인트
 
 1. **`type: LoadBalancer`도 선언이다**
-   - 쿠버네티스 코어는 LB를 만들지 않는다. 그 선언을 watch하는 컨트롤러가 클라우드 API로 LB를 만들고 `status.loadBalancer`에 주소를 써 넣는다
+   - 표준 API는 특정 LB 제품을 생성하는 방식을 정하지 않는다. 그 선언을 watch하는 컨트롤러가 클라우드 API로 LB를 만들고 `status.loadBalancer`에 주소를 써 넣는다
    - 맡을 컨트롤러가 없으면 `<pending>`이 풀리지 않는다 (온프레미스는 MetalLB 같은 구현 필요)
 
 2. **어노테이션은 컨트롤러별 방언이다**

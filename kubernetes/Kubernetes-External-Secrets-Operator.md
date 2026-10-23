@@ -1,5 +1,7 @@
 # Kubernetes External Secrets Operator
 
+> **개발자를 위한 쉬운 쿠버네티스 · 확장 읽기** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서)
+
 **Kubernetes Secret은 누가 갱신할까? ESO External Secrets Operator**
 
 DB 비밀번호를 외부 비밀 저장소에서 바꾸면, Kubernetes Secret과 실행 중인 애플리케이션까지 함께 바뀔까?
@@ -17,13 +19,13 @@ flowchart LR
     K -->|"환경변수 또는 파일로 전달"| P["애플리케이션 Pod"]
     style G fill:#1565C0,color:#fff
     style R fill:#1565C0,color:#fff
-    style S fill:#E65100,color:#fff
+    style S fill:#BF360C,color:#fff
     style E fill:#1565C0,color:#fff
     style K fill:#2E7D32,color:#fff
     style P fill:#2E7D32,color:#fff
 ```
 
-> 확인 기준: 2026-09-27 공식 문서. 예제는 `external-secrets.io/v1`을 제공하는 ESO·CRD 설치를 전제로 한다. `/latest/` 문서는 변하므로 실제 적용 시 설치 버전의 스키마와 함께 확인한다.
+> 확인 기준: 2026-10-23 공식 문서. 예제는 `external-secrets.io/v1`을 제공하는 ESO·CRD 설치를 전제로 한다. `/latest/` 문서는 변하므로 실제 적용 시 설치 버전의 스키마와 함께 확인한다.
 
 ## 1. 왜 Secret이 있는데 외부 동기화 도구가 필요할까?
 
@@ -74,7 +76,7 @@ ESO는 Kubernetes API에 사용자 정의 리소스를 등록하는 CRD(CustomRe
 3. 가져온 값을 지정한 key에 배치해 Kubernetes Secret을 생성·갱신한다.
 4. 동기화 결과를 `ExternalSecret.status`에 기록한다.
 
-따라서 CRD만 설치하거나 YAML만 Git에 올려서는 값이 채워지지 않는다. ESO 컨트롤러가 실행 중이고 외부 서비스에 접근할 수 있어야 한다. 이 글에서 다루는 흐름은 외부 값을 Kubernetes로 가져오는 방향이다. [ESO Getting started](https://external-secrets.io/latest/introduction/getting-started/)
+따라서 CRD만 설치하거나 YAML만 Git에 올려서는 값이 채워지지 않는다. ESO 컨트롤러가 실행 중이고 외부 서비스에 접근할 수 있어야 한다. 이 글에서 다루는 흐름은 외부 값을 Kubernetes로 가져오는 방향이다. [ServiceAccount·RBAC](Kubernetes-ServiceAccount-RBAC.md)은 컨트롤러의 API 권한을, 외부 IAM은 provider 접근을 정한다. 두 권한은 서로 대체하지 않는다. [ESO Getting started](https://external-secrets.io/latest/introduction/getting-started/)
 
 ### 2.3 원본이 바뀌면 언제 다시 가져올까?
 
@@ -88,17 +90,17 @@ ESO는 Kubernetes API에 사용자 정의 리소스를 등록하는 CRD(CustomRe
 
 `OnChange`의 변경 대상은 **외부 저장소가 아니라 `ExternalSecret` 리소스** 다. 원본 비밀번호만 바꾸면 이를 자동으로 알아차리는 정책이 아니다. `Periodic`에서도 `refreshInterval: 0`은 지속적인 주기 갱신을 의미하지 않는다. [ExternalSecret refresh policies](https://external-secrets.io/latest/api/externalsecret/#update-behavior-with-3-different-refresh-policies)
 
-`CreatedOnce` 역시 영구적인 변경 금지와는 다르다. 초기 동기화 기록은 `ExternalSecret.status`에 남으며, `ExternalSecret` 자체를 삭제 후 다시 만들면 새 초기 동기화가 발생할 수 있다. 대상 Secret의 삭제 처리에도 생성 정책이 관여한다. 예를 들어 공식 Lifecycle 표에서 `Owner`는 삭제된 Secret을 재생성하지만, `Orphan`과 `CreatedOnce` 조합은 그대로 두는 것으로 설명한다. 기존 데이터를 고정해야 한다면 `ExternalSecret`의 `spec.target.immutable: true`와 재생성 정책까지 함께 검토한다. [Lifecycle](https://external-secrets.io/latest/guides/ownership-deletion-policy/)
+`CreatedOnce` 역시 영구적인 변경 금지와는 다르다. 초기 동기화 기록은 `ExternalSecret.status`에 남으며, `ExternalSecret` 자체를 삭제 후 다시 만들면 새 초기 동기화가 발생할 수 있다. 대상 Secret의 삭제 처리에도 생성 정책이 관여한다. 예를 들어 공식 Lifecycle 표에서 `Owner`는 삭제된 Secret을 재생성하지만, `Orphan`과 `CreatedOnce` 조합은 그대로 두는 것으로 설명한다. 기존 데이터를 고정해야 한다면 `ExternalSecret`의 `spec.target.immutable: true`와 재생성 정책까지 함께 검토한다. immutable은 존재하는 target 데이터의 재작성을 막는 조건이며, 없는 Secret의 최초 생성이나 삭제된 Secret의 재생성을 금지하는 옵션은 아니다. [Lifecycle](https://external-secrets.io/latest/guides/ownership-deletion-policy/)
 
 ## 3. 실제 사례: Secrets Manager의 DB 비밀번호를 Pod에 전달하기
 
 ### 3.1 예제의 전제
 
-AWS의 관리형 Kubernetes인 EKS에서, Secrets Manager의 `prod/orders/db`를 `orders` Namespace의 `orders-db` Secret으로 가져온다고 가정한다. 전체 클러스터 구축 절차 대신 ESO 리소스 사이의 연결을 보여주는 예제다.
+[설정·Secret](Kubernetes-ConfigMap-Secret.md)에서 사용한 주문 앱 `order-api`에 DB 자격 증명을 공급한다고 생각해 보자. AWS의 관리형 Kubernetes인 EKS에서, Secrets Manager의 `prod/orders/db`를 `bookstore` Namespace의 `orders-db` Secret으로 가져온다고 가정한다. 전체 클러스터 구축 절차 대신 ESO 리소스 사이의 연결을 보여주는 예제다.
 
-- ESO 컨트롤러와 `v1` CRD가 설치되어 있고 `orders` Namespace가 존재한다. 설치 방법은 [Getting started](https://external-secrets.io/latest/introduction/getting-started/)를 따른다.
+- ESO 컨트롤러와 `v1` CRD가 설치되어 있고 `bookstore` Namespace가 존재한다. 설치 방법은 [Getting started](https://external-secrets.io/latest/introduction/getting-started/)를 따른다.
 - Secrets Manager에 아래 구조의 JSON 값이 있다. 값은 설명용이며 실제 자격 증명은 외부 저장소에서 설정한다.
-- EKS ServiceAccount에 IAM Role을 연결하는 **IRSA(IAM Roles for Service Accounts)** 를 준비한다. EKS의 OIDC provider와 IAM Role의 신뢰 정책에서 `system:serviceaccount:orders:orders-secrets-reader` 및 `sts.amazonaws.com` audience를 허용해야 한다. [AWS IRSA 설정](https://docs.aws.amazon.com/eks/latest/userguide/associate-service-account-role.html)
+- EKS ServiceAccount에 IAM Role을 연결하는 **IRSA(IAM Roles for Service Accounts)** 를 준비한다. EKS의 OIDC provider와 IAM Role의 신뢰 정책에서 `system:serviceaccount:bookstore:orders-secrets-reader` 및 `sts.amazonaws.com` audience를 허용해야 한다. [AWS IRSA 설정](https://docs.aws.amazon.com/eks/latest/userguide/associate-service-account-role.html)
 - IAM 정책은 대상 Secret의 읽기 범위로 제한한다. `secretsmanager:GetSecretValue`, 필요한 조회 권한을 부여하고, 고객 관리형 KMS 키로 암호화한 경우 `kms:Decrypt` 권한도 확인한다. [Secrets Manager IAM 정책](https://docs.aws.amazon.com/secretsmanager/latest/userguide/auth-and-access_iam-policies.html)
 - ESO에 참조 ServiceAccount의 토큰을 요청할 Kubernetes RBAC 권한과 AWS STS·Secrets Manager로의 네트워크 접근이 있어야 한다. [ESO 보안 설정](https://external-secrets.io/latest/guides/security-best-practices/)
 
@@ -118,7 +120,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: orders-secrets-reader
-  namespace: orders
+  namespace: bookstore
   annotations:
     eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/orders-secrets-reader
 ---
@@ -126,7 +128,7 @@ apiVersion: external-secrets.io/v1
 kind: SecretStore
 metadata:
   name: orders-aws
-  namespace: orders
+  namespace: bookstore
 spec:
   provider:
     aws:
@@ -151,7 +153,7 @@ apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: orders-db
-  namespace: orders
+  namespace: bookstore
 spec:
   refreshPolicy: Periodic
   refreshInterval: 1m
@@ -179,20 +181,20 @@ spec:
 
 ```bash
 kubectl apply -f orders-secret-store.yaml
-kubectl wait --for=condition=Ready secretstore/orders-aws -n orders --timeout=60s
+kubectl wait --for=condition=Ready secretstore/orders-aws -n bookstore --timeout=60s
 
 kubectl apply -f orders-external-secret.yaml
-kubectl wait --for=condition=Ready externalsecret/orders-db -n orders --timeout=60s
+kubectl wait --for=condition=Ready externalsecret/orders-db -n bookstore --timeout=60s
 
 # Secret의 존재와 key 개수 확인. 값은 출력하지 않는다.
-kubectl get secret orders-db -n orders
+kubectl get secret orders-db -n bookstore
 ```
 
 위 명령은 전제를 갖춘 환경에서 실행하는 적용·확인 예시다. 이 문서 작성 과정에서 실제 AWS 계정이나 클러스터에 배포한 결과는 아니다.
 
 ### 3.4 애플리케이션은 기존 Secret 사용 방식을 유지한다
 
-다음은 기존 Deployment의 컨테이너 설정에 넣는 `env` 부분이다. 완전한 Deployment manifest는 아니다.
+다음은 `bookstore` namespace의 가상 `order-api` Deployment에서 컨테이너 `order-api`에 넣는 `env` 부분이다. 완전한 Deployment manifest는 아니다.
 
 ```yaml
 env:
@@ -208,7 +210,7 @@ env:
         key: DB_PASSWORD
 ```
 
-Pod도 `orders` Namespace에 있어야 한다. 애플리케이션 입장에서는 평범한 환경변수이며, 외부 저장소의 경로나 ESO API를 알 필요가 없다. 다만 최초 배포 시 필수 Secret이 아직 없으면 컨테이너 시작이 막힐 수 있으므로, 배포 순서와 동기화 성공을 확인한다. [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
+Pod도 `bookstore` Namespace에 있어야 한다. 애플리케이션 입장에서는 평범한 환경변수이며, 외부 저장소의 경로나 ESO API를 알 필요가 없다. 다만 최초 배포 시 필수 Secret이 아직 없으면 컨테이너 시작이 막힐 수 있으므로, 배포 순서와 동기화 성공을 확인한다. [Kubernetes Secrets](https://kubernetes.io/docs/concepts/configuration/secret/)
 
 ### 3.5 비밀번호 교체는 세 단계로 확인한다
 
@@ -240,16 +242,20 @@ Pod도 `orders` Namespace에 있어야 한다. 애플리케이션 입장에서�
 ### 3.7 장애는 값 대신 동기화 경로를 확인한다
 
 ```bash
-kubectl get secretstore,externalsecret -n orders
-kubectl describe secretstore orders-aws -n orders
-kubectl describe externalsecret orders-db -n orders
-kubectl get externalsecret orders-db -n orders \
+kubectl get secretstore,externalsecret -n bookstore
+kubectl describe secretstore orders-aws -n bookstore
+kubectl describe externalsecret orders-db -n bookstore
+kubectl get externalsecret orders-db -n bookstore \
   -o jsonpath='{.status.refreshTime}{"\n"}'
 ```
 
 Store가 `Ready=False`라면 먼저 인증·연결 설정을 확인한다. Store가 준비되어도 개별 Secret 조회 권한이나 원본 key·property가 틀릴 수 있으므로, `ExternalSecret`의 condition과 event도 본다. `Ready=True`와 `SecretSynced`는 동기화 상태를 판단하는 근거이며, DB 로그인 성공을 보증하는 애플리케이션 검사는 아니다. [SecretStore](https://external-secrets.io/latest/api/secretstore/), [ExternalSecret status](https://external-secrets.io/latest/api/externalsecret/)
 
 이미 존재하는 Secret의 값이 남아 있다는 사실만으로 정상이라고 판단하지 않는다. 외부 저장소 접근이 끊기면 기존 값으로 당장 동작하더라도 다음 rotation을 놓칠 수 있다. Secret 존재 여부, 최근 동기화 시각, 오류 상태, 애플리케이션의 실제 인증 결과를 함께 확인하는 이유다.
+
+### 에어갭 환경에서 짚어볼 점
+
+ESO·CRD 이미지를 반입한 것만으로 외부 저장소 조회가 가능해지지는 않는다. 실제 provider endpoint와 인증 서비스까지 컨트롤러 실행 위치에서 도달해야 하며 DNS·TLS CA 신뢰·방화벽을 확인한다. 인터넷이 없는 환경이라면 접근 가능한 사내 Vault 같은 저장소를 쓰거나 허용된 사설 연결을 설계해야 한다. 특정 클라우드 provider 예제를 모든 폐쇄망에 그대로 적용할 수는 없다.
 
 ### 3.8 ESO를 도입해도 권한 경계는 남는다
 
@@ -264,6 +270,13 @@ ESO가 생성한 값은 Kubernetes Secret으로 클러스터 안에 저장된다
 3. **Secret 갱신과 애플리케이션 적용을 따로 확인한다.** 환경변수는 자동 갱신되지 않고, 파일 전달도 애플리케이션의 재로딩이 필요하다.
 4. **소유·삭제·갱신 정책은 구분해서 읽는다.** 특히 `Retain`과 `ExternalSecret` 삭제 시 수명은 별개다.
 5. **외부 권한과 Kubernetes 권한을 함께 설계한다.** 값이 Git에서 빠져도 클러스터 내부의 보호 책임은 남는다.
+
+## 생각해 볼 질문
+
+1. **ExternalSecret이 Ready=True인데 실행 중 앱이 옛 비밀번호를 쓰는 이유는?** ESO의 결과는 Secret 동기화다. env는 새 컨테이너 시작 시 읽고, 파일도 앱이 reload해야 하므로 종단 rotation은 별도로 확인한다.
+2. **Owner와 Retain을 같이 두면 ExternalSecret을 지워도 Secret이 남을까?** Retain은 provider 원본 삭제에 대한 정책이다. ExternalSecret 삭제는 ownerReference 기반 garbage collection이라는 다른 경로다.
+
+이 예제는 [CRD·Controller·Operator](Kubernetes-CRD-Controller-Operator.md)의 선언·실행 분리가 실제 보안 설정에서 어떻게 드러나는지 보여준다.
 
 ## 출처
 

@@ -1,962 +1,256 @@
 # Kubernetes StatefulSet
 
-Deployment로 MySQL을 배포하면 어떤 문제가 생길까?
+> **개발자를 위한 쉬운 쿠버네티스 · 15장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Volume-PersistentVolume.md) · [다음 장](./Kubernetes-DaemonSet-Job-CronJob.md)
+
+주문 API Pod는 교체되어도 같은 Service 뒤에서 같은 요청을 처리하면 된다. 하지만 DB의 두 번째 인스턴스를 교체할 때는 첫 번째 인스턴스의 디스크를 붙여서는 안 된다. 이전 장에서 배운 [PV와 PVC](Kubernetes-Volume-PersistentVolume.md)는 저장소의 수명을 분리했고, 이번 장은 여러 인스턴스와 저장소의 대응을 유지하는 문제를 다룬다.
 
 ## 결론부터 말하면
 
-**StatefulSet**은 **상태를 가진 애플리케이션**(데이터베이스, 메시지 큐 등)을 위한 워크로드다. Deployment와 달리 **고정된 이름**, **안정적인 네트워크 ID**, **영구 스토리지**를 보장한다.
+StatefulSet은 각 인스턴스에 ordinal이라는 순번을 부여하고, 이를 Pod 이름·네트워크 이름·개별 PVC와 연결해 유지하는 controller다. Pod를 교체해도 같은 논리적 인스턴스로 다시 찾을 수 있지만, 새 Pod는 새 UID와 새 프로세스이며 IP도 바뀔 수 있다.
+
+이 기능만으로 DB 복제, Primary 선출, failover, 백업이 구현되지는 않는다. `replicas: 3`인 MySQL StatefulSet을 만드는 것과 데이터를 복제하는 MySQL 클러스터를 구성하는 것은 별개의 일이다.
+
+| 유지하려는 것 | StatefulSet의 역할 | 별도로 필요한 것 |
+|---|---|---|
+| 인스턴스 이름 | `order-store-0` 같은 이름 재사용 | 실제 앱의 인스턴스 구성 |
+| 연결 주소 | Headless Service를 통한 개별 DNS 이름 | DNS·readiness·앱의 재접속 |
+| 디스크 대응 | ordinal별 PVC 생성과 재참조 | CSI, 저장소 상태, backup/restore |
+| DB 역할과 데이터 복제 | 직접 구현하지 않음 | DB 설정 또는 DB Operator |
+
+## 1. 모든 복제본이 서로 바뀌어도 되는가
+
+Deployment도 PVC를 참조할 수 있다. 따라서 데이터를 쓰면 반드시 StatefulSet을 써야 한다거나 Deployment로 DB를 띄우면 반드시 유실된다는 설명은 정확하지 않다. 단일 인스턴스와 명시적 PVC, 적절한 교체 전략으로 운영할 수도 있다. 중요한 차이는 여러 복제본 각각의 정체성을 controller가 관리해야 하는가다.
+
+일반 Deployment는 Pod template 하나를 복제한다. 어느 Pod가 사라져도 동일한 역할의 다른 Pod로 보충하면 된다. 반면 분산 저장 시스템에서는 멤버별 디스크와 이름이 구성에 포함될 수 있다. `replicas` 숫자만 복구하면 된다는 모델로는 이전 멤버의 상태를 찾아 연결하기 어렵다.
+
+StatefulSet은 이 문제를 ordinal로 푼다. 기본 시작 ordinal이 0이고 replicas가 3이면 `order-store-0`, `order-store-1`, `order-store-2`라는 이름을 사용한다. 두 번째 Pod가 없어지면 controller는 아무 새 이름 대신 `order-store-1`을 다시 만든다. 그러나 UID는 달라지므로 삭제된 Pod가 되살아나는 것이 아니다. 같은 이름의 새 실행 인스턴스다.
+
+이름 재사용은 container restart와도 다르다. 같은 Pod 안에서 kubelet이 컨테이너를 재시작하면 Pod UID는 그대로다. Pod 교체라면 논리 이름은 같아도 UID와 IP, 시작 시각을 다시 읽어야 한다. 장애 타임라인에서 이 차이를 놓치면 재시작과 재배치의 원인을 섞게 된다.
+
+## 2. 이름, DNS, PVC가 같은 ordinal에 모인다
+
+### Headless Service는 개별 인스턴스를 찾게 한다
+
+일반 Service는 Service의 가상 IP를 제공한다. Headless Service는 `clusterIP: None`으로 그 가상 IP를 만들지 않고 endpoint를 DNS로 찾게 한다. StatefulSet의 `serviceName`은 이 네트워크 이름을 관리할 Service를 가리킨다. StatefulSet이 Headless Service 자체를 대신 생성하는 것은 아니므로 함께 준비해야 한다.
+
+클러스터 도메인이 `cluster.local`이라면 다음과 같은 이름을 사용할 수 있다.
+
+```text
+order-store-0.order-store.bookstore.svc.cluster.local
+order-store-1.order-store.bookstore.svc.cluster.local
+order-store-2.order-store.bookstore.svc.cluster.local
+```
+
+Pod IP가 바뀌어도 앱은 같은 DNS 이름으로 다시 찾을 수 있다. 다만 DNS가 모든 인스턴스를 항상 즉시 반환한다는 뜻은 아니다. endpoint readiness, `publishNotReadyAddresses`, DNS negative cache와 클러스터 도메인 설정이 응답에 영향을 준다. 멤버들이 Ready가 되기 전에 서로를 발견해야 하는 앱이라면 discovery와 readiness 사이의 순환 의존성을 설계해야 한다. `publishNotReadyAddresses`를 켜는 것은 준비되지 않은 멤버도 발견하도록 허용하는 선택이므로, 일반 사용자 트래픽용 Service와 분리하는 것이 관계를 명확하게 한다.
+
+### PVC는 순번별로 만들어진다
+
+`volumeClaimTemplates`는 모든 Pod가 공유할 PVC 하나의 참조가 아니다. 각 ordinal에 대해 claim을 생성하는 템플릿이다. 이름이 `data`인 템플릿이라면 `data-order-store-0`, `data-order-store-1`처럼 대응한다. replacement Pod는 이 기존 claim을 다시 참조한다.
 
 ```mermaid
 flowchart LR
-    subgraph "Deployment (Stateless)"
-        D[Deployment]
-        D --> P1["my-app-7d8f9<br>(랜덤 이름)"]
-        D --> P2["my-app-x2k4m<br>(랜덤 이름)"]
-    end
-
-    subgraph "StatefulSet (Stateful)"
-        SS[StatefulSet]
-        SS --> S0["mysql-0<br>(고정 이름)"]
-        SS --> S1["mysql-1<br>(고정 이름)"]
-        SS --> S2["mysql-2<br>(고정 이름)"]
-    end
-
-    style SS stroke:#9C27B0,stroke-width:3px
+    S["StatefulSet<br>order-store"] --> P0["order-store-0"]
+    S --> P1["order-store-1"]
+    P0 --> C0["data-order-store-0"]
+    P1 --> C1["data-order-store-1"]
+    C0 --> V0["PV와 실제 저장소 A"]
+    C1 --> V1["PV와 실제 저장소 B"]
+    style S fill:#1565C0,color:#fff
+    style P0 fill:#2E7D32,color:#fff
+    style P1 fill:#2E7D32,color:#fff
+    style C0 fill:#6A1B9A,color:#fff
+    style C1 fill:#6A1B9A,color:#fff
 ```
 
-| 특징 | Deployment | StatefulSet |
-|------|------------|-------------|
-| Pod 이름 | 랜덤 (`app-7d8f9`) | **순차적** (`app-0`, `app-1`) |
-| 네트워크 ID | 불안정 | **안정적** (Headless Service) |
-| 스토리지 | 공유 또는 없음 | **개별 PVC** 유지 |
-| 배포/삭제 순서 | 동시 | **순차적** (0→1→2) |
-| 사용 대상 | 웹 서버, API | DB, Kafka, Redis Cluster |
+두 PVC에 같은 데이터가 복제되는 화살표는 없다. StatefulSet은 대응을 유지할 뿐 그 사이의 데이터 전송을 구현하지 않기 때문이다.
 
----
+## 3. 최소 구성으로 관계를 읽는다
 
-## 1. 왜 StatefulSet vs Deployment 비교가 많은가?
-
-### 1.1 "Cattle vs Pets" - 근본적인 철학 차이
-
-Kubernetes 세계에서 유명한 비유가 있다: **"Cattle, not Pets"** (소떼처럼, 애완동물처럼 다루지 마라).
-
-```mermaid
-flowchart LR
-    subgraph "Deployment - Cattle 🐄"
-        C1["pod-x7k2m"]
-        C2["pod-9p3qr"]
-        C3["💀 pod-abc12"]
-        C3 -.->|"대체"| C4["pod-new123"]
-    end
-
-    subgraph "StatefulSet - Pets 🐕"
-        P1["mysql-0"]
-        P2["mysql-1"]
-        P3["💀 mysql-2"]
-        P3 -.->|"복구"| P3R["mysql-2<br>(같은 이름!)"]
-    end
-
-    style C3 stroke:#f44336,stroke-width:2px
-    style P3 stroke:#f44336,stroke-width:2px
-    style C4 stroke:#4CAF50,stroke-width:2px
-    style P3R stroke:#4CAF50,stroke-width:2px
-```
-
-| 관점 | Deployment (Cattle) | StatefulSet (Pets) |
-|------|--------------------|--------------------|
-| **Pod 정체성** | 교체 가능, 일회용 | 고유한 정체성 유지 |
-| **죽으면?** | 새 Pod로 대체 (이름 바뀜) | **같은 이름** 으로 복구 |
-| **데이터** | 상태 없음 (Stateless) | 개별 데이터 보존 |
-| **비유** | 소떼의 한 마리가 아프면 대체 | 애완견이 아프면 치료 |
-
-**왜 비교가 많은가?**
-
-1. **Deployment가 기본이다**: 대부분의 애플리케이션은 Stateless이므로 Deployment를 먼저 배운다
-2. **StatefulSet은 특수 케이스다**: DB나 메시지 큐처럼 상태가 필요할 때만 사용
-3. **잘못 선택하면 문제가 생긴다**: Stateless 앱에 StatefulSet을 쓰면 불필요한 복잡성, Stateful 앱에 Deployment를 쓰면 데이터 손실
-
----
-
-## 2. 왜 Deployment로는 부족한가?
-
-### 2.1 데이터베이스의 요구사항
-
-MySQL, PostgreSQL, MongoDB 같은 데이터베이스를 Kubernetes에 배포한다고 생각해보자. 데이터베이스는 다음을 요구한다:
-
-| 요구사항 | 이유 |
-|----------|------|
-| **영구 스토리지** | 데이터가 Pod 재시작 후에도 유지되어야 함 |
-| **고정 네트워크 ID** | 클러스터 노드들이 서로를 찾아야 함 |
-| **순차적 배포** | Primary가 먼저 시작되어야 Replica가 연결 가능 |
-| **고정 이름** | 클러스터 설정에 노드 이름이 필요 |
-
-### 2.2 Deployment로 DB를 배포하면?
-
-**문제 1: Pod 이름이 랜덤**
-
-```bash
-# Deployment의 Pod 이름
-mysql-deployment-7d8f9b6c4d-x2k4m
-mysql-deployment-7d8f9b6c4d-9p3qr
-
-# Pod가 재시작되면?
-mysql-deployment-7d8f9b6c4d-abc12  ← 이름 바뀜!
-```
-
-MySQL 클러스터 설정에 `node1`, `node2`라고 적어뒀는데, Pod 이름이 바뀌면 찾을 수 없다.
-
-**문제 2: 네트워크 ID가 불안정**
-
-```mermaid
-flowchart LR
-    subgraph "Deployment"
-        P1["mysql-x2k4m<br>IP: 10.1.1.5"]
-        P2["mysql-9p3qr<br>IP: 10.1.1.6"]
-    end
-
-    P1 -.->|"재시작"| P1_NEW["mysql-abc12<br>IP: 10.1.1.99"]
-
-    style P1_NEW stroke:#f44336,stroke-width:2px
-```
-
-Pod가 재시작되면 IP도 바뀐다. 다른 노드가 기존 IP로 연결하면 실패한다.
-
-**문제 3: 스토리지가 뒤섞임**
-
-Deployment는 모든 Pod가 동일하다고 가정한다. 각 DB 인스턴스가 **자기만의** 데이터를 가져야 하는데, Deployment는 이를 보장하지 않는다.
-
-### 2.3 StatefulSet의 해결책
-
-| 문제 | StatefulSet의 해결책 |
-|------|---------------------|
-| Pod 이름 랜덤 | **순차적 이름** (`mysql-0`, `mysql-1`) |
-| 네트워크 ID 불안정 | **Headless Service**로 고정 DNS |
-| 스토리지 뒤섞임 | **개별 PVC** (VolumeClaimTemplate) |
-| 순서 없는 배포 | **순차적 배포/삭제** |
-
----
-
-## 3. StatefulSet의 핵심 특징
-
-### 3.1 안정적인 Pod 이름
-
-StatefulSet의 Pod는 **순차적인 인덱스**를 가진다:
-
-```
-mysql-0  (첫 번째)
-mysql-1  (두 번째)
-mysql-2  (세 번째)
-```
-
-Pod가 죽고 다시 생성되어도 **같은 이름**을 유지한다.
-
-```mermaid
-flowchart LR
-    SS[StatefulSet<br>mysql]
-
-    SS --> M0["mysql-0 ✅"]
-    SS --> M1["mysql-1 ✅"]
-    SS --> M2["mysql-2 💀"]
-
-    M2 -.->|"재생성"| M2_NEW["mysql-2 ✅<br>(같은 이름!)"]
-
-    style M2_NEW stroke:#4CAF50,stroke-width:2px
-```
-
-### 3.2 Headless Service와 안정적인 네트워크 ID
-
-StatefulSet은 **Headless Service**와 함께 사용한다. Headless Service는 `clusterIP: None`인 Service다.
+공통 주문 API는 여전히 `order-api` Deployment로 실행한다고 가정한다. 다음 `order-store`는 그 API와 별개의, 가상 저장 서비스다. 이미지와 `/ready`, `/var/lib/order-store` 동작은 설명용이고 실제 DB 제품이나 복제 클러스터 설치 예제가 아니다. `bookstore` namespace와 동적 provisioning을 지원하는 `book-disk` StorageClass가 준비되어 있어야 한다.
 
 ```yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql
-spec:
-  clusterIP: None        # Headless Service!
-  selector:
-    app: mysql
-  ports:
-  - port: 3306
-```
-
-**일반 Service vs Headless Service:**
-
-| 구분 | 일반 Service | Headless Service |
-|------|-------------|------------------|
-| ClusterIP | 있음 (가상 IP) | **없음** |
-| DNS 응답 | Service IP 1개 | **Pod IP 목록 전체** |
-| 용도 | 로드밸런싱 | 개별 Pod 접근 |
-
-**Headless Service가 제공하는 DNS:**
-
-```bash
-# 각 Pod에 고유한 DNS 이름
-mysql-0.mysql.default.svc.cluster.local
-mysql-1.mysql.default.svc.cluster.local
-mysql-2.mysql.default.svc.cluster.local
-
-# 형식: <pod-name>.<service-name>.<namespace>.svc.cluster.local
-```
-
-```mermaid
-flowchart TB
-    HS[Headless Service<br>mysql]
-
-    subgraph "DNS 레코드"
-        DNS0["mysql-0.mysql → 10.1.1.5"]
-        DNS1["mysql-1.mysql → 10.1.1.6"]
-        DNS2["mysql-2.mysql → 10.1.1.7"]
-    end
-
-    HS --> DNS0
-    HS --> DNS1
-    HS --> DNS2
-
-    style HS stroke:#9C27B0,stroke-width:2px
-```
-
-**왜 중요한가?**
-
-MySQL Replication 설정에서:
-```
-# Primary
-mysql-0.mysql
-
-# Replicas
-mysql-1.mysql → Primary: mysql-0.mysql
-mysql-2.mysql → Primary: mysql-0.mysql
-```
-
-Pod가 재시작되어도 DNS 이름은 그대로다!
-
-### 3.3 개별 영구 스토리지 (VolumeClaimTemplate)
-
-StatefulSet은 `volumeClaimTemplates`로 **각 Pod마다** PVC를 자동 생성한다.
-
-```yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: mysql
-spec:
-  serviceName: mysql
-  replicas: 3
-  selector:
-    matchLabels:
-      app: mysql
-  template:
-    metadata:
-      labels:
-        app: mysql
-    spec:
-      containers:
-      - name: mysql
-        image: mysql:8.0
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/mysql
-  volumeClaimTemplates:         # 핵심!
-  - metadata:
-      name: data
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      resources:
-        requests:
-          storage: 10Gi
-```
-
-**자동 생성되는 PVC:**
-
-```
-data-mysql-0   (mysql-0 전용)
-data-mysql-1   (mysql-1 전용)
-data-mysql-2   (mysql-2 전용)
-```
-
-```mermaid
-flowchart TB
-    SS[StatefulSet<br>mysql]
-
-    subgraph "Pod와 PVC 매핑"
-        M0[mysql-0] --> PVC0[data-mysql-0<br>10Gi]
-        M1[mysql-1] --> PVC1[data-mysql-1<br>10Gi]
-        M2[mysql-2] --> PVC2[data-mysql-2<br>10Gi]
-    end
-
-    PVC0 --> PV0[PV]
-    PVC1 --> PV1[PV]
-    PVC2 --> PV2[PV]
-
-    style SS stroke:#9C27B0,stroke-width:2px
-```
-
-**중요:** Pod가 삭제되어도 **PVC는 유지**된다. 새 Pod가 같은 이름으로 생성되면 기존 PVC에 다시 연결된다.
-
-### 3.4 순차적 배포와 삭제
-
-**배포 순서:** 0 → 1 → 2 (이전 Pod가 Ready 되어야 다음 Pod 생성)
-
-```mermaid
-sequenceDiagram
-    participant K as Kubernetes
-    participant M0 as mysql-0
-    participant M1 as mysql-1
-    participant M2 as mysql-2
-
-    K->>M0: 생성
-    Note over M0: Ready ✅
-    K->>M1: 생성 (mysql-0 Ready 후)
-    Note over M1: Ready ✅
-    K->>M2: 생성 (mysql-1 Ready 후)
-    Note over M2: Ready ✅
-```
-
-**삭제 순서:** 2 → 1 → 0 (역순)
-
-이 순서가 왜 중요한가?
-- **Primary가 먼저** 시작되어야 Replica가 연결 가능
-- **Replica가 먼저** 종료되어야 안전한 shutdown
-
----
-
-## 4. StatefulSet YAML 예시
-
-### 4.1 전체 구성
-
-```yaml
----
-# 1. Headless Service
-apiVersion: v1
-kind: Service
-metadata:
-  name: mysql
-  labels:
-    app: mysql
+  name: order-store
+  namespace: bookstore
 spec:
   clusterIP: None
   selector:
-    app: mysql
+    app: order-store
   ports:
-  - port: 3306
-    name: mysql
-
+  - name: peer
+    port: 8080
+    targetPort: peer
 ---
-# 2. StatefulSet
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: mysql
+  name: order-store
+  namespace: bookstore
 spec:
-  serviceName: mysql         # Headless Service 이름
+  serviceName: order-store
   replicas: 3
+  podManagementPolicy: OrderedReady
   selector:
     matchLabels:
-      app: mysql
+      app: order-store
   template:
     metadata:
       labels:
-        app: mysql
+        app: order-store
     spec:
+      terminationGracePeriodSeconds: 60
       containers:
-      - name: mysql
-        image: mysql:8.0
-        env:
-        - name: MYSQL_ROOT_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: mysql-secret
-              key: password
+      - name: order-store
+        image: registry.example.com/book/order-store:1.0.0
         ports:
-        - containerPort: 3306
+        - name: peer
+          containerPort: 8080
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: peer
         volumeMounts:
         - name: data
-          mountPath: /var/lib/mysql
-        readinessProbe:
-          exec:
-            command: ["mysqladmin", "ping"]
-          initialDelaySeconds: 10
-          periodSeconds: 5
+          mountPath: /var/lib/order-store
   volumeClaimTemplates:
   - metadata:
       name: data
     spec:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: standard
+      storageClassName: book-disk
+      accessModes: [ReadWriteOnce]
       resources:
         requests:
           storage: 10Gi
 ```
 
-### 4.2 핵심 필드 설명
+Headless Service의 selector와 Pod label이 맞고, StatefulSet의 `serviceName`이 그 Service 이름과 맞는다. 컨테이너의 `volumeMounts.name`은 claim template 이름 `data`와 맞는다. 각각 다른 관계이므로 Service가 endpoint를 못 찾는 문제를 PVC 이름 변경으로 해결할 수는 없다.
 
-| 필드 | 설명 |
-|------|------|
-| `serviceName` | Headless Service 이름 (필수) |
-| `replicas` | Pod 개수 |
-| `volumeClaimTemplates` | Pod별 PVC 템플릿 |
-| `podManagementPolicy` | `OrderedReady` (기본) 또는 `Parallel` |
+예제를 MySQL로 바꾸려면 이미지 교체 외에도 초기 인증 Secret, readiness의 의미, 복제 설정, 데이터 디렉터리 초기화 조건이 필요하다. MySQL 세 개를 실행했다고 `mysql-0`이 자동 Primary가 되는 것도 아니다. 역할을 ordinal에 연결하는 것은 앱 구성의 선택이며, 장애 이후에도 같은 역할을 영원히 맡는다는 뜻은 아니다.
 
----
+## 4. 순서는 어떤 작업에 적용되는가
 
-## 5. Pod Management Policy
+기본 `OrderedReady`는 scale-up 때 앞선 ordinal이 Running/Ready가 되기를 기다리며 다음 Pod를 만든다. scale-down은 높은 ordinal부터 줄인다. 앞선 인스턴스가 Ready가 되지 못하면 뒤의 인스턴스 생성도 지연되므로, readiness가 과도한 의존성을 검사하면 배포가 막힐 수 있다.
 
-### 5.1 OrderedReady (기본값)
+`podManagementPolicy: Parallel`은 scaling 때 다른 Pod의 Ready나 종료를 순서대로 기다리지 않게 한다. 이름과 PVC 대응은 유지된다. 병렬 기동을 지원하는 앱에는 유용하지만, 초기화 순서가 필요한 제품이라면 그 프로토콜을 먼저 확인해야 한다. 이 필드는 RollingUpdate 전략까지 모두 병렬로 바꾸는 스위치가 아니다.
 
-순차적으로 배포/삭제한다. DB 클러스터처럼 **순서가 중요한** 경우에 적합.
+또한 scale-down 순서를 StatefulSet 오브젝트 삭제에 그대로 확대하면 안 된다. StatefulSet 삭제 시 Pod의 순차 종료는 보장되지 않는다. 종료 순서가 중요한 경우 먼저 replicas를 0으로 줄이는 절차를 고려하되, DB 역할과 복제 상태, graceful shutdown, PVC retention 정책을 함께 판단한다. 순서가 있다는 사실만으로 DB가 안전하게 종료되는 것은 아니다.
 
-```yaml
-spec:
-  podManagementPolicy: OrderedReady  # 기본값
-```
+### RollingUpdate와 partition
 
-### 5.2 Parallel
-
-모든 Pod를 **동시에** 배포/삭제한다. 순서가 중요하지 않은 경우 더 빠르다.
+StatefulSet의 기본 RollingUpdate는 높은 ordinal부터 Pod를 교체하고 새 Pod가 Running/Ready가 되기를 기다린다. 다음은 StatefulSet spec의 발췌다.
 
 ```yaml
-spec:
-  podManagementPolicy: Parallel
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    partition: 2
 ```
 
-> **⚠️ 주의:** Primary/Replica 구조처럼 Pod 간 의존성이 있는 애플리케이션에서 `Parallel` 정책을 사용하면 **레이스 컨디션**이나 **시작 실패**가 발생할 수 있다. 이런 경우 `OrderedReady`를 사용하라.
+0부터 시작하는 세 인스턴스에서 partition이 2이면 ordinal 2 이상만 새 template을 적용한다. 2→1→0으로 partition을 낮추며 관찰하는 방식은 일부 인스턴스부터 검증할 때 유용하다. 그러나 어느 ordinal을 시험 대상으로 삼아도 DB 복제 프로토콜이 신·구 버전 혼합을 지원하는지 확인해야 한다.
 
----
+`OnDelete`는 template을 바꾼 뒤 기존 Pod를 자동 교체하지 않는다. 운영자가 삭제한 Pod가 새 template으로 다시 만들어진다. DB별 순서를 사람이 통제할 수 있지만 직접 수행할 절차와 검증 책임이 늘어난다.
 
-## 6. StatefulSet 업데이트 전략
+Ready가 되지 않는 잘못된 template 때문에 rollout이 막히면 정상 template으로 되돌리는 것만으로 항상 진행되지 않을 수 있다. 공식 문서의 forced rollback 절차처럼 잘못 만들어진 Pod를 별도로 제거해야 하는 경우가 있다. 이 역시 storage·DB 상태와 기존 인스턴스 종료를 확인하고 수행할 작업이다.
 
-### 6.1 RollingUpdate (기본값)
+## 5. Pod를 줄이는 것과 디스크를 버리는 것은 별개다
+
+기본적으로 StatefulSet의 PVC는 scale-down이나 StatefulSet 삭제 후에도 남는다. 다시 늘릴 때 이전 데이터를 연결할 수 있게 하는 선택이다. 따라서 Pod 개수가 0이어도 저장소 비용과 데이터 관리 책임은 남을 수 있다.
+
+Kubernetes 1.32 stable인 `persistentVolumeClaimRetentionPolicy`는 이 결정을 명시한다. 다음은 삭제와 축소 모두 데이터를 보존하는 spec 발췌다.
 
 ```yaml
-spec:
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      partition: 0       # 이 인덱스 이상만 업데이트
+persistentVolumeClaimRetentionPolicy:
+  whenDeleted: Retain
+  whenScaled: Retain
 ```
 
-**역순으로** 업데이트: 2 → 1 → 0
+`whenScaled: Delete`이면 scale-down에서 불필요해진 ordinal의 PVC를 controller가 삭제하는 경로가 생긴다. `whenDeleted: Delete`는 StatefulSet 삭제에 따른 정리를 선택한다. 그 뒤 실제 디스크까지 지워지는지는 PV reclaim policy와 provisioner의 처리에 달려 있다. 따라서 PVC retention과 PV reclaim을 함께 읽어야 한다.
 
-**partition 활용:** 카나리 배포
+이 차이는 앞의 scale-to-zero 종료 절차에서도 중요하다. `whenScaled: Delete`인 환경에서 순차 종료를 위해 replicas를 0으로 줄이면 PVC 삭제까지 유발할 수 있다. 종료 순서를 원했을 뿐인데 저장소를 잃는 결과가 되지 않도록 먼저 정책과 복구 수단을 확인해야 한다.
 
-```yaml
-# partition: 2 → mysql-2만 새 버전
-# partition: 1 → mysql-2, mysql-1만 새 버전
-# partition: 0 → 전체 업데이트
+기존 StatefulSet의 `volumeClaimTemplates`는 자유롭게 수정할 수 있는 필드가 아니다. 이미 생성된 PVC의 용량 변경과 앞으로 생성할 claim template 관리도 별개다. 스토리지 변경은 이전 장의 확장·이동 절차와 연결해서 계획한다.
+
+## 6. 심화: 네트워크 단절은 프로세스 종료 증거가 아니다
+
+StatefulSet은 같은 논리적 인스턴스를 중복 생성하지 않도록 보수적으로 동작한다. 그런데 Node와 control plane 사이의 통신이 끊겨도 그 Node에서 DB 프로세스는 계속 실행 중일 수 있다. API에서 `NotReady`가 보인다는 사실만으로 DB가 죽었다고 단정할 수 없다.
+
+강제 Pod 삭제는 이 차이를 드러낸다. API 오브젝트를 즉시 제거하면 controller가 같은 이름의 새 Pod를 만들 수 있지만, 이전 Node의 프로세스를 확실히 종료하는 명령은 아니다. 두 인스턴스가 같은 정체성으로 DB나 외부 시스템에 쓰면 split-brain과 손상이 생길 수 있다. API 이름의 유일성만으로 물리적 프로세스의 유일성이 보장되지는 않는다.
+
+그러므로 `--force --grace-period=0`이나 Node 오브젝트 삭제를 고장 난 Pod의 일반 복구 명령으로 삼지 않는다. 기존 Node가 다시 쓰지 못하도록 전원·스토리지·네트워크 수준에서 차단하는 fencing, DB의 멤버십과 quorum 처리, driver의 detach/attach 절차가 검증되어야 한다. [StatefulSet Pod 강제 삭제 문서](https://kubernetes.io/docs/tasks/run-application/force-delete-stateful-set-pod/)는 바로 이 운영 책임을 설명한다.
+
+복구 시간은 단계별 조건에 따라 달라진다. Node 상태 감지, taint/toleration, eviction controller, Pod 오브젝트 삭제, volume detach/attach, 재스케줄링, DB recovery가 따로 진행된다. 클러스터 설정과 장애 형태에 따라 어느 단계가 멈추는지 확인해야 한다.
+
+```bash
+kubectl get statefulset order-store -n bookstore
+kubectl get pods -n bookstore -l app=order-store -o wide
+kubectl describe pod order-store-1 -n bookstore
+kubectl get pvc -n bookstore
 ```
 
-### 6.2 OnDelete
+이 관찰로 어느 ordinal이 어떤 Node·UID·PVC와 연결되어 있는지 추적한다. replica가 셋이라는 숫자는 DB의 복제 지연이나 quorum 건강 상태를 알려주지 않는다. 그 부분은 DB의 관리 도구와 지표로 확인한다.
 
-Pod를 수동으로 삭제해야만 업데이트된다.
+## 7. 심화: zone 분산과 DB의 고가용성
 
-```yaml
-spec:
-  updateStrategy:
-    type: OnDelete
-```
+세 Pod를 만들었는데 같은 Node나 zone에 모이면 한 장애로 함께 영향을 받을 수 있다. Pod anti-affinity나 topology spread는 실패 도메인에 분산하는 데 쓰인다. 하지만 `DoNotSchedule` 조건이 엄격하면 다른 zone의 자원 부족으로 Pod가 Pending이 될 수도 있다. 이때 무조건 제약을 완화하기보다 가용성 목표와 실제 확보한 capacity를 함께 본다.
 
----
+Pod가 여러 zone에 있다는 사실과 데이터가 zone 사이에 복제된다는 사실도 별개다. 각 Pod가 zonal disk를 쓰면 앱의 복제 프로토콜이 데이터를 복제해야 한다. GKE의 regional disk 같은 스토리지 복제도 별도 제품 구성이고, class 이름이 `premium-rwo`라는 이유로 생기지 않는다. 디스크 복제만으로 DB의 Primary 선출과 client 재연결이 자동 해결되는 것도 아니다.
 
-## 7. StatefulSet vs Deployment 선택 기준
+EKS standard EBS CSI와 Auto Mode의 provisioner 차이, GKE disk class와 regional disk, AKS block/file class 선택은 [Volume 장의 클라우드 절](Kubernetes-Volume-PersistentVolume.md#7-심화-클라우드-이름보다-실제-class를-읽는다)에서 이어 읽을 수 있다. StatefulSet은 그 인프라 위에 인스턴스 대응을 더하는 계층이다.
 
-```mermaid
-flowchart TB
-    Q1{상태 저장 필요?}
-    Q1 -->|No| DEP[Deployment]
-    Q1 -->|Yes| Q2{각 인스턴스가<br>고유해야?}
+## 8. Database Operator가 맡는 별도의 문제
 
-    Q2 -->|No| DEP
-    Q2 -->|Yes| Q3{안정적인<br>네트워크 ID 필요?}
+DB를 운영하려면 Primary/Replica 구성, 복제 상태 관찰, failover, backup/restore, 업그레이드와 client 접속 전환을 관리해야 한다. Operator는 이 DB 운영 지식을 reconciliation으로 구현한다. 새 API 종류를 등록하는 CRD와 실제 동작을 수행하는 controller의 차이는 [CRD, Controller, Operator](Kubernetes-CRD-Controller-Operator.md)에서 다룬다.
 
-    Q3 -->|No| DEP
-    Q3 -->|Yes| SS[StatefulSet]
-
-    style DEP stroke:#4CAF50,stroke-width:2px
-    style SS stroke:#9C27B0,stroke-width:3px
-```
-
-| 사용 대상 | 권장 워크로드 |
-|----------|--------------|
-| **Deployment** | 웹 서버, API 서버, 마이크로서비스 |
-| **StatefulSet** | MySQL, PostgreSQL, MongoDB, Kafka, Zookeeper, Redis Cluster, Elasticsearch |
-
----
-
-## 8. StatefulSet을 사용하지 말아야 할 경우
-
-### 8.1 Anti-Patterns
-
-StatefulSet은 강력하지만, **잘못 사용하면 오히려 복잡성만 증가** 한다.
-
-| Anti-Pattern | 문제점 | 권장 |
-|--------------|--------|------|
-| **Stateless 앱에 StatefulSet 사용** | 불필요한 PVC 생성, 느린 배포 | Deployment 사용 |
-| **안정적 네트워크 ID 불필요** | Headless Service 관리 부담 | Deployment 사용 |
-| **순서가 중요하지 않은 앱** | OrderedReady로 인한 느린 스케일링 | Deployment 사용 |
-
-```mermaid
-flowchart TB
-    Q1{안정적 네트워크 ID<br>또는 개별 스토리지<br>필요?}
-    Q1 -->|No| ANTI["❌ StatefulSet 안티패턴<br>Deployment 사용"]
-    Q1 -->|Yes| OK["✅ StatefulSet 적합"]
-
-    style ANTI stroke:#f44336,stroke-width:2px
-    style OK stroke:#4CAF50,stroke-width:2px
-```
-
-### 8.2 StatefulSet의 한계
-
-| 한계 | 설명 |
-|------|------|
-| **느린 복구** | 노드 장애 시 Pod 재스케줄링이 Deployment보다 느림 (PV 마운트 대기) |
-| **Rolling Update 실패 시 수동 복구** | `OrderedReady` 정책에서 롤링 업데이트 실패 시 수동 개입 필요 |
-| **VolumeClaimTemplates 변경 불가** | 기존 StatefulSet의 PVC 템플릿 수정 불가, 새로 생성해야 함 |
-| **애플리케이션 레벨 클러스터링 미지원** | Primary/Replica 설정은 별도로 해야 함 |
-
-> **⚠️ 노드 장애 시 다운타임:** StatefulSet Pod는 `ReadWriteOnce` PV를 사용하므로, 노드 장애 시 새 노드에서 Pod가 시작되기까지 시간이 걸린다. eviction 지연은 두 단계로 구성된다:
-> - **Node NotReady 판정:** `node-monitor-grace-period`(기본 **40초**) 동안 Kubelet 상태 갱신이 없으면 Node Controller가 Node를 NotReady로 마킹
-> - **Pod eviction 트리거:** NotReady Node에 `node.kubernetes.io/unreachable:NoExecute` taint가 추가되고, Pod의 기본 `tolerationSeconds`(**300초 = 5분**) 이후 Pod가 evict 대상이 됨
->
-> 하지만 **eviction이 트리거된다고 해서 자동으로 대체 Pod가 생기는 것은 아니다.** StatefulSet은 Split-Brain 방지를 위해 기존 Pod 객체가 API 서버에서 **완전히 삭제**되어야만 동일 ordinal의 새 Pod를 생성한다. Unreachable Node의 Pod는 `Terminating`/`Unknown` 상태에 머물며 자동 삭제되지 않으므로, 복구하려면 다음 중 하나가 필요하다:
-> - 노드가 복구되어 Kubelet이 정상적으로 Pod를 종료
-> - Node 객체를 `kubectl delete node <name>`으로 삭제
-> - `kubectl delete pod <name> --force --grace-period=0`으로 강제 삭제 ([공식 문서](https://kubernetes.io/docs/tasks/run-application/force-delete-stateful-set-pod/))
->
-> 결과적으로 toleration이 만료된 5분 40초 뒤에도 **운영자의 개입이 없으면 Pod는 계속 Terminating 상태로 남는다.** 이 값들은 controller-manager 플래그와 Pod의 tolerations 설정으로 조정 가능하다.
-
----
-
-## 9. k8s에서 DB 운영 vs 관리형 DB (RDS)
-
-### 9.1 현실적인 고민
-
-**"StatefulSet으로 MySQL을 운영할까, RDS를 쓸까?"** - 이건 실무에서 자주 나오는 질문이다.
-
-```mermaid
-flowchart TB
-    subgraph "K8s StatefulSet"
-        K1["✅ 멀티클라우드 자유"]
-        K2["✅ 비용 최적화 가능"]
-        K3["❌ 운영 복잡도 높음"]
-        K4["❌ 백업/복구 직접 구현"]
-    end
-
-    subgraph "관리형 DB (RDS, Cloud SQL)"
-        R1["✅ 자동 백업/복구"]
-        R2["✅ 고가용성 내장"]
-        R3["❌ 벤더 종속"]
-        R4["❌ 비용 높음"]
-    end
-```
-
-### 9.2 언제 무엇을 선택할까?
-
-| 상황 | 권장 선택 | 이유 |
-|------|----------|------|
-| **프로덕션 핵심 DB** | 관리형 DB (RDS) | 자동 백업, 페일오버, 운영 부담 감소 |
-| **개발/테스트 환경** | StatefulSet | 비용 절감, 유연성 |
-| **캐시 레이어** (Redis, Memcached) | StatefulSet | 데이터 손실 허용, 재구축 용이 |
-| **멀티클라우드 필수** | StatefulSet + Operator | 벤더 종속 회피 |
-| **분산 DB** (Cassandra, CockroachDB) | StatefulSet + Operator | 애초에 분산 설계된 DB |
-
-### 9.3 사용자 경험에서 배우는 교훈
-
-> "StatefulSet으로 MySQL을 운영하려고 했는데, 백업, 복제, 장애 복구를 직접 구현하다 보니 DB 운영이 본업이 되어버렸다. 결국 RDS로 전환했고, 그 비용은 충분히 가치가 있었다."
-
-**핵심:** StatefulSet은 **인프라** 를 제공할 뿐, **DB 운영** (백업, 복제, 장애 조치, 업그레이드)은 별도로 해결해야 한다.
-
-### 9.4 비용 비교 예시 (참고용)
-
-| 항목 | K8s StatefulSet | AWS RDS |
-|------|-----------------|---------|
-| **월 인프라 비용** (db.m5.large급) | ~$70-100 | ~$150-200 |
-| **운영 인력 비용** | 높음 (DBA 필요) | 낮음 |
-| **백업 구현** | 직접 (Velero 등) | 자동 |
-| **페일오버** | 직접 구현 | 자동 (Multi-AZ) |
-
-> **결론:** 인프라 비용만 보면 K8s가 저렴하지만, **총 소유 비용(TCO)** 을 고려하면 관리형 DB가 유리한 경우가 많다. 특히 팀에 전담 DBA가 없다면 관리형 DB를 권장한다.
-
----
-
-## 10. 클라우드별 실무 운영
-
-### 10.1 StorageClass 설정
-
-**StatefulSet의 성능과 안정성은 StorageClass 선택에 크게 좌우된다.**
-
-| 클라우드 | 권장 StorageClass | 특징 |
-|----------|------------------|------|
-| **AWS EKS** | `gp3` (EBS CSI) | IOPS/처리량 독립 설정 가능, gp2보다 20% 저렴 |
-| **Azure AKS** | `managed-premium` | Premium SSD, 프로덕션 권장 |
-| **GCP GKE** | `premium-rwo` | SSD 영구 디스크, 리전 복제 지원 |
-
-```yaml
-# AWS EKS - gp3 StorageClass 예시
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: ebs-gp3
-provisioner: ebs.csi.aws.com
-parameters:
-  type: gp3
-  iops: "3000"
-  throughput: "125"
-  encrypted: "true"
-volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
-```
-
-```yaml
-# Azure AKS - Premium StorageClass 예시
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: azure-premium
-provisioner: disk.csi.azure.com
-parameters:
-  skuName: Premium_LRS
-volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
-```
-
-```yaml
-# GCP GKE - Premium StorageClass 예시
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: premium-rwo
-provisioner: pd.csi.storage.gke.io
-parameters:
-  type: pd-ssd
-volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
-```
-
-> **⚠️ storageClassName 주의:** YAML 예시의 `storageClassName: standard`는 **예시일 뿐** 이다. 모든 클러스터에 `standard`가 있는 것은 아니다. 반드시 `kubectl get sc`로 사용 가능한 StorageClass를 확인하라. 잘못 지정하면 PVC가 **Pending** 상태에 머문다.
-
-### 10.2 클라우드별 주의사항
-
-| 클라우드 | 주의사항 |
-|----------|----------|
-| **AWS EKS** | EBS CSI Driver 설치 필수, IRSA 설정 필요 |
-| **Azure AKS** | Azure Disk는 단일 노드에만 마운트 가능 (ReadWriteOnce) |
-| **GCP GKE** | Regional PD 사용 시 존 장애에도 데이터 보존 |
-
-### 10.3 멀티 AZ/Region 고려사항
-
-```mermaid
-flowchart LR
-    subgraph "Zone A"
-        P0["mysql-0<br>Primary"]
-        PV0["PV (Zone A)"]
-        P0 --> PV0
-    end
-
-    subgraph "Zone B"
-        P1["mysql-1<br>Replica"]
-        PV1["PV (Zone B)"]
-        P1 --> PV1
-    end
-
-    P0 -.->|"복제"| P1
-
-    style P0 stroke:#9C27B0,stroke-width:2px
-```
-
-**Pod Topology Spread** 또는 **Pod Anti-Affinity**를 사용해 Pod를 여러 Zone에 분산하라:
-
-```yaml
-spec:
-  template:
-    spec:
-      topologySpreadConstraints:
-      - maxSkew: 1
-        topologyKey: topology.kubernetes.io/zone
-        whenUnsatisfiable: DoNotSchedule
-        labelSelector:
-          matchLabels:
-            app: mysql
-```
-
----
-
-## 11. PVC Retention Policy (Kubernetes 1.27+)
-
-### 11.1 자동 PVC 삭제
-
-**Kubernetes 1.27부터 Beta**, **1.32부터 Stable**로 PVC 자동 삭제를 지원한다.
-
-```yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: mysql
-spec:
-  persistentVolumeClaimRetentionPolicy:
-    whenDeleted: Retain    # StatefulSet 삭제 시
-    whenScaled: Delete     # Scale Down 시
-```
-
-| 정책 | whenDeleted | whenScaled | 동작 |
-|------|-------------|------------|------|
-| **기본값** | Retain | Retain | PVC 수동 삭제 필요 |
-| **완전 삭제** | Delete | Delete | 자동 정리 (데이터 손실!) |
-| **Scale Down만 정리** | Retain | Delete | 스케일 다운 시만 PVC 삭제 |
-
-> **⚠️ 주의:** `whenDeleted: Delete`를 설정하면 StatefulSet 삭제 시 **데이터도 함께 삭제** 된다. 프로덕션에서는 신중하게 사용하라.
-
----
-
-## 12. Database Operators
-
-### 12.1 왜 Operator인가?
-
-StatefulSet만으로는 **DB 운영의 본질적인 문제** 를 해결하지 못한다:
-
-| StatefulSet이 해주는 것 | StatefulSet이 안 해주는 것 |
-|------------------------|---------------------------|
-| Pod 순서 보장 | Primary/Replica 역할 설정 |
-| 개별 PVC | 자동 백업/복구 |
-| 안정적 네트워크 ID | 자동 페일오버 |
-| 롤링 업데이트 | DB 버전 업그레이드 자동화 |
-| - | DB 메트릭 수집 및 모니터링 |
-
-**Operator**는 이런 "안 해주는 것"을 자동화한다. Kubernetes API를 확장해서 DB 운영 지식을 코드로 구현한 것이다.
-
-> **Operator가 "API를 확장한다"는 게 정확히 무슨 뜻인가?** CRD로 새 리소스 타입을 등록하고, 그 리소스를 감시하는 컨트롤러가 reconciliation loop를 돌리는 구조다. 그 메커니즘 자체는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)에서 다룬다. 이 절은 그 위에서 "DB에 적용하면 무엇이 좋아지는가"에 집중한다.
-
-### 12.2 주요 Database Operators
-
-| DB | Operator | 특징 |
-|----|----------|------|
-| **PostgreSQL** | [CloudNativePG](https://cloudnative-pg.io/) | CNCF 프로젝트, 완전 선언적, 외부 의존성 없음 |
-| **PostgreSQL** | Zalando Postgres Operator | Patroni 기반, 검증된 안정성 |
-| **MySQL** | [MySQL Operator (Oracle)](https://github.com/mysql/mysql-operator) | InnoDB Cluster 관리, 공식 지원 |
-| **MySQL** | Percona Operator for MySQL | Group Replication, ProxySQL 통합 |
-| **MongoDB** | [Percona Operator for MongoDB](https://www.percona.com/mongodb/software/percona-operator-for-mongodb) | 샤딩, 백업, PITR 지원 |
-
-### 12.3 Operator 사용 예시 (CloudNativePG)
+여기서 Operator가 언제나 StatefulSet을 만든다고 가정해서는 안 된다. CloudNativePG는 자체 Pod controller를 사용하며 StatefulSet에 의존하지 않는다. 다음은 CNPG Operator와 CRD가 설치된 별도 PostgreSQL 구성의 형태다. 앞의 가상 `order-store`에 적용하는 StatefulSet patch가 아니다.
 
 ```yaml
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: my-postgres
+  name: book-postgres
+  namespace: bookstore
 spec:
-  instances: 3                    # 자동으로 Primary 1 + Replica 2
+  instances: 3
   storage:
+    storageClass: book-disk
     size: 10Gi
-  backup:
-    barmanObjectStore:            # 자동 백업 설정
-      destinationPath: s3://my-bucket/backups
-      s3Credentials:
-        accessKeyId:
-          name: aws-creds
-          key: ACCESS_KEY_ID
-        secretAccessKey:
-          name: aws-creds
-          key: SECRET_ACCESS_KEY
 ```
 
-**Operator가 자동으로 해주는 것:**
-- StatefulSet, Service, ConfigMap 생성
-- Primary 선출 및 Replica 동기화
-- 자동 페일오버 (Primary 장애 시)
-- 정기 백업 및 WAL 아카이빙
-- 무중단 마이너 버전 업그레이드
+이 선언의 `instances`는 CNPG가 해석하는 DB 클러스터의 목표다. DB replication과 failover는 CNPG의 구현·설정에 의해 수행되며, Kubernetes StatefulSet의 공통 기능이 아니다. 스토리지, 네트워크, 인증, 애플리케이션의 재접속 정책이 맞아야 실제로 서비스할 수 있다.
 
-### 12.4 StatefulSet 직접 관리 vs Operator
+백업도 별도 구성이다. CNPG의 in-tree `barmanObjectStore`는 1.26부터 deprecated이며 2026-10-23 기준 공식 문서는 Barman Cloud Plugin 경로를 안내한다. object store 위치만 적는다고 정기 base backup이 예약되는 것은 아니다. 지원 plugin 구성과 자격 증명, `Backup`/`ScheduledBackup`, WAL 보관, 복원 테스트를 함께 설계해야 한다. 자동 failover가 있어도 연결이 끊길 수 있으므로 업그레이드를 무조건 무중단이라고 표현할 수 없다.
 
-| 항목 | StatefulSet 직접 관리 | Operator 사용 |
-|------|----------------------|---------------|
-| **학습 곡선** | 낮음 | 중간 |
-| **운영 복잡도** | 높음 | 낮음 |
-| **자동화 수준** | 수동 | 자동 |
-| **프로덕션 권장** | ⚠️ 주의 | ✅ 권장 |
+MySQL Operator나 Percona 계열 등 다른 제품도 같은 기준으로 평가한다. 어느 리소스를 생성하는지보다 지원 DB topology·버전, 장애 때의 동작, restore 절차, 보안과 유지보수 책임이 중요하다. Operator를 설치하면 DBA의 책임이 사라지는 것은 아니다.
 
-> **권장:** 프로덕션 환경에서 DB를 K8s에 배포해야 한다면, StatefulSet을 직접 관리하기보다 **검증된 Operator**를 사용하라. Operator는 수년간의 운영 경험이 코드로 녹아있다.
+관리형 DB도 선택지다. DB 운영 일부를 서비스 제공자에게 위임할 수 있지만, HA·backup·PITR은 선택한 상품과 옵션·보존 기간에 달려 있다. 네트워크 접근, 인증, 스키마 변경과 앱 복구 책임은 여전히 남는다. Kubernetes 직접 운영과 비교할 때는 디스크 가격 외에도 온콜, 복구 훈련, 업그레이드 시간과 허용 가능한 데이터 손실·복구 시간을 함께 계산해야 한다.
 
----
+## 생각해 볼 질문
 
-## 13. 주의사항
+### 1. `order-store-1`을 교체했을 때 같은 것과 달라질 수 있는 것은 무엇인가?
 
-### 13.1 PVC 삭제는 수동 (기본값)
+논리적 이름과 ordinal, 기존 PVC에 대한 대응은 유지할 수 있다. UID·IP·프로세스는 달라질 수 있다. 이름이 같다는 사실은 이전 프로세스가 메모리에 갖고 있던 상태까지 복구되었다는 뜻이 아니다.
 
-StatefulSet을 삭제해도 **PVC는 자동 삭제되지 않는다**. 데이터 보호를 위해 의도적으로 설계된 것이다. (11절의 Retention Policy로 변경 가능)
+### 2. replicas를 3으로 늘리면 DB가 고가용성이 되는가?
 
-```bash
-# StatefulSet 삭제
-kubectl delete statefulset mysql
+Pod 세 개와 개별 PVC가 생길 뿐이다. DB 복제, 역할 선출, quorum, 실패 도메인 분산, client 재접속과 검증된 복구 수단이 추가로 필요하다. 실제 DB 상태를 관찰해야 HA를 평가할 수 있다.
 
-# PVC는 여전히 존재
-kubectl get pvc
-# data-mysql-0   Bound   ...
-# data-mysql-1   Bound   ...
+### 3. NotReady Node의 Pod를 강제 삭제하면 왜 데이터가 손상될 수 있는가?
 
-# PVC 수동 삭제 (데이터 삭제됨!)
-kubectl delete pvc data-mysql-0 data-mysql-1 data-mysql-2
-```
+통신 단절 때문에 보이지 않을 뿐 기존 프로세스가 쓰기를 계속할 수 있기 때문이다. API에서 이름을 비우고 새 Pod를 만드는 것과 기존 writer를 차단하는 것은 다른 작업이다. 강제 교체에는 fencing과 스토리지·DB 절차가 필요하다.
 
-### 13.2 Headless Service 필수
+## 다음 장으로
 
-StatefulSet은 `serviceName`에 지정된 Headless Service가 **반드시 존재해야** 한다.
-
-### 13.3 스토리지 클래스 확인
-
-`volumeClaimTemplates`에서 사용하는 StorageClass가 **동적 프로비저닝**을 지원하는지 확인하라.
-
-```bash
-# 사용 가능한 StorageClass 확인
-kubectl get storageclass
-
-# 기본 StorageClass 확인
-kubectl get sc -o jsonpath='{.items[?(@.metadata.annotations.storageclass\.kubernetes\.io/is-default-class=="true")].metadata.name}'
-```
-
-### 13.4 graceful shutdown
-
-StatefulSet 삭제 전에 **replicas를 0으로** 스케일 다운하면 순차적으로 안전하게 종료된다.
-
-```bash
-# 안전한 종료
-kubectl scale statefulset mysql --replicas=0
-
-# Pod가 모두 종료된 후 삭제
-kubectl delete statefulset mysql
-```
-
-> **⚠️ terminationGracePeriodSeconds:** 절대로 0으로 설정하지 마라. 데이터 손상 위험이 있다.
-
-### 13.5 노드 장애 시 Pod 교착 상태
-
-**StatefulSet은 Split-Brain 방지를 위해 같은 이름의 Pod가 동시에 2개 뜨는 것을 절대적으로 막는다.**
-
-노드가 갑자기 죽어서(전원 장애 등) Kubelet이 상태 보고를 못 하면:
-
-```mermaid
-sequenceDiagram
-    participant Node as 장애 노드
-    participant Master as Control Plane
-    participant Pod as mysql-0
-
-    Node->>Node: 전원 장애 발생
-    Note over Node: Kubelet 응답 없음
-
-    Master->>Pod: 상태: Unknown/Terminating
-    Note over Master: "확실히 죽었다"는<br>신호가 없음
-
-    Master->>Master: 새 Pod 생성 보류
-    Note over Pod: ❌ 무한 Terminating<br>(서비스 장애 지속)
-```
-
-**Deployment와의 차이:**
-- **Deployment:** 노드 장애 시에도 기본 toleration(`tolerationSeconds: 300`)에 따라 **eviction 지연 후(기본 5분)** 다른 노드에 새 Pod가 생성된다. 단, Pod 정체성이 교체 가능하므로 eviction만 발생하면 즉시 대체 Pod가 Ready될 수 있다
-- **StatefulSet:** eviction이 발생해도 기존 Pod가 **확실히 종료되었다는 확인**(Pod 오브젝트 완전 삭제) 없이는 동일 ordinal의 새 Pod를 생성하지 않음. Split-Brain 방지 때문에 더 보수적으로 동작
-
-**해결책:** 노드가 완전히 죽은 것을 확인한 후 강제 삭제
-
-```bash
-# 1. 노드 상태 확인 (NotReady인지 확인)
-kubectl get nodes
-
-# 2. Pod 상태 확인 (Terminating 상태인지)
-kubectl get pods -l app=mysql
-
-# 3. 노드가 복구 불가능함을 확인한 후 강제 삭제
-kubectl delete pod mysql-0 --force --grace-period=0
-```
-
-> **⚠️ 주의:** `--force --grace-period=0`은 **정말 노드가 죽은 것이 확실할 때만** 사용하라. 노드가 살아있는데 강제 삭제하면 **동일 데이터에 두 Pod가 접근**하여 데이터 손상이 발생할 수 있다.
-
----
-
-## 14. 자주 쓰는 명령어
-
-```bash
-# StatefulSet 조회
-kubectl get statefulset
-kubectl describe statefulset mysql
-
-# Pod 조회 (순서대로 표시)
-kubectl get pods -l app=mysql
-
-# 특정 Pod 접속
-kubectl exec -it mysql-0 -- mysql -u root -p
-
-# 스케일링 (순차적으로 증가/감소)
-kubectl scale statefulset mysql --replicas=5
-
-# 롤링 업데이트 상태
-kubectl rollout status statefulset mysql
-
-# PVC 조회
-kubectl get pvc -l app=mysql
-```
-
----
-
-## 15. 정리
-
-```mermaid
-flowchart LR
-    subgraph "StatefulSet 핵심"
-        A[고정 이름<br>mysql-0, mysql-1]
-        B[안정적 DNS<br>mysql-0.mysql]
-        C[개별 PVC<br>data-mysql-0]
-        D[순차적 배포<br>0 → 1 → 2]
-    end
-
-    SS[StatefulSet] --> A
-    SS --> B
-    SS --> C
-    SS --> D
-
-    style SS stroke:#9C27B0,stroke-width:3px
-```
-
-| 질문 | 답변 |
-|------|------|
-| DB를 Deployment로 배포해도 되나요? | ⚠️ 단일 인스턴스는 가능, 클러스터는 StatefulSet 또는 Operator |
-| PVC가 자동 삭제되나요? | ❌ 기본값은 수동 삭제, 1.27+에서 Retention Policy 설정 가능 |
-| 일반 Service를 써도 되나요? | ❌ Headless Service 필수 |
-| 프로덕션 DB를 K8s에 배포해도 되나요? | ⚠️ 가능하지만, 관리형 DB(RDS) 또는 Operator 권장 |
-
-**핵심 기억:**
-1. StatefulSet = **상태가 있는** 애플리케이션용 (DB, 메시지 큐)
-2. **고정 이름** (`mysql-0`) + **고정 DNS** (`mysql-0.mysql`)
-3. **VolumeClaimTemplate**으로 Pod별 개별 스토리지
-4. **Headless Service** 필수 (`clusterIP: None`)
-5. **순차적** 배포(0→1→2), **역순** 삭제(2→1→0)
-6. **프로덕션 DB**는 관리형 DB(RDS) 또는 **Operator** 권장
-
-**선택 가이드:**
-
-```mermaid
-flowchart TB
-    Q1{K8s에서<br>DB 운영 필요?}
-    Q1 -->|No| RDS["관리형 DB<br>(RDS, Cloud SQL)"]
-    Q1 -->|Yes| Q2{운영 역량<br>충분?}
-
-    Q2 -->|No| OP["Operator 사용<br>(CloudNativePG 등)"]
-    Q2 -->|Yes| Q3{개발/테스트<br>환경?}
-
-    Q3 -->|Yes| SS["StatefulSet<br>직접 관리"]
-    Q3 -->|No| OP
-
-    style RDS stroke:#4CAF50,stroke-width:2px
-    style OP stroke:#2196F3,stroke-width:2px
-    style SS stroke:#9C27B0,stroke-width:2px
-```
-
----
+StatefulSet도 기본 목표는 인스턴스를 계속 실행하는 것이다. 완료되면 멈춰야 하는 DB migration이나 매일 수행할 backup에는 다른 실행 모델이 필요하다. [DaemonSet, Job, CronJob](Kubernetes-DaemonSet-Job-CronJob.md)에서 Node별 실행과 유한 작업의 수명을 연결한다.
 
 ## 출처
 
-- [Kubernetes Documentation - StatefulSets](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) - 공식 문서
-- [Kubernetes Documentation - Headless Services](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services) - 공식 문서
-- [Kubernetes Documentation - Run a Replicated Stateful Application](https://kubernetes.io/docs/tasks/run-application/run-replicated-stateful-application/) - 공식 튜토리얼
-- [Kubernetes Blog - StatefulSet PVC Auto-Deletion (1.27)](https://kubernetes.io/blog/2023/05/04/kubernetes-1-27-statefulset-pvc-auto-deletion-beta/) - PVC Retention Policy
-- [Google Cloud Blog - To run or not to run a database on Kubernetes](https://cloud.google.com/blog/products/databases/to-run-or-not-to-run-a-database-on-kubernetes-what-to-consider) - DB on K8s 고려사항
-- [CloudNativePG](https://cloudnative-pg.io/) - PostgreSQL Operator
-- [MySQL Operator for Kubernetes](https://github.com/mysql/mysql-operator) - MySQL 공식 Operator
-- [Spacelift - StatefulSet vs Deployment](https://spacelift.io/blog/statefulset-vs-deployment) - 비교 가이드
+- [Kubernetes StatefulSets](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/) — identity, 순서, 전략, PVC retention
+- [Kubernetes Headless Services](https://kubernetes.io/docs/concepts/services-networking/service/#headless-services) — Service와 DNS의 역할
+- [Force Delete StatefulSet Pods](https://kubernetes.io/docs/tasks/run-application/force-delete-stateful-set-pod/) — 중복 인스턴스와 데이터 위험
+- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — PVC·PV 수명과 확장
+- [CloudNativePG controller](https://cloudnative-pg.io/docs/devel/controller/) — custom Pod controller
+- [CloudNativePG backup](https://cloudnative-pg.io/docs/current/backup/) — backup 구성과 책임
+- [Barman Cloud Plugin migration](https://cloudnative-pg.io/plugin-barman-cloud/docs/migration/) — in-tree backup에서 plugin으로의 전환
+- [MySQL Operator](https://github.com/mysql/mysql-operator) — 별도 DB Operator의 예

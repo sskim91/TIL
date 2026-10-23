@@ -1,356 +1,178 @@
 # Kubernetes Introduction
 
-Google이 10년간 수십억 개의 컨테이너를 운영하며 쌓은 노하우, 그것이 Kubernetes다.
+> **개발자를 위한 쉬운 쿠버네티스 · 1장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [다음 장](./Kubernetes-Architecture.md)
+
+개발자를 위한 쉬운 쿠버네티스 — 컨테이너를 실행한 다음에 남는 일들
 
 ## 결론부터 말하면
 
-**Kubernetes는 Borg의 운영 경험과 설계 아이디어를 바탕으로 만든 오픈소스 컨테이너 오케스트레이션 시스템이다.** Borg 코드를 그대로 공개한 것이 아니라, 10년간의 운영 교훈을 Go 언어로 새로 구현했다. 경쟁자들(Docker Swarm, Mesos)이 있었지만, "벤더 중립적 거버넌스 + 선언적 인프라 + 압도적 에코시스템"이라는 삼박자를 갖춘 건 k8s뿐이었다.
+**Kubernetes는 컨테이너로 만든 애플리케이션의 실행 상태를 여러 서버에 걸쳐 관리하는 시스템이다.** 개발자가 어떤 이미지를 몇 개 실행할지, 어떤 주소로 연결할지, 어떤 설정과 저장소를 사용할지 표현하면, 여러 구성 요소가 그 의도를 실제 상태에 가깝게 만들기 위해 일한다.
 
-```mermaid
-timeline
-    title Kubernetes가 표준이 되기까지
-    2003-2004 : Google Borg 개발 (내부 컨테이너 오케스트레이션)
-    2013 : Docker 등장 (컨테이너 대중화)
-    2014 : Kubernetes 오픈소스 공개
-    2015-07 : Kubernetes 1.0 릴리스 (Google이 CNCF 기증 발표)
-    2015-12 : CNCF 공식 설립 (k8s가 창립 프로젝트)
-    2017 : Docker가 k8s 지원 발표 (사실상 항복 선언)
-    2019~ : EKS, GKE, AKS 모든 클라우드가 k8s 채택
-```
+이 책은 리소스 이름과 명령어를 외우는 대신 그 과정을 이해하는 데 초점을 둔다. `kubectl apply`가 성공했는데 앱은 왜 실행되지 않는지, Pod가 실행 중인데 사용자는 왜 접속할 수 없는지 설명할 수 있다면 Kubernetes를 운영할 때 보는 화면이 달라진다. 상태를 확인할 명령어에 앞서, **무슨 일이 어디에서 일어나야 하는지** 떠올릴 수 있기 때문이다.
 
-| 요인 | 설명 |
-|------|------|
-| **Google의 경험** | 10년간 Borg/Omega로 검증된 설계 |
-| **벤더 중립** | CNCF 거버넌스로 특정 회사 종속 방지 |
-| **선언적 설계** | "원하는 상태"만 선언하면 시스템이 알아서 |
-| **에코시스템** | 모니터링, CI/CD, 보안 도구가 모두 k8s 우선 지원 |
+## 1. 컨테이너를 실행하고 나서 시작되는 문제
 
----
+주문을 받는 백엔드 API를 만들었다고 생각해 보자. 로컬에서 테스트했고, 실행 환경을 Docker 이미지로 묶었다. 서버에서 컨테이너를 시작하니 HTTP 요청에도 응답한다. 여기까지는 개발자에게 익숙한 배포다. 그런데 서비스를 운영한다는 것은 이 순간의 성공을 한 번 확인하는 것으로 끝나지 않는다.
 
-## 1. 컨테이너 오케스트레이션이 왜 필요했는가?
+앱 프로세스가 종료되면 다시 실행해야 한다. 요청이 늘어나면 실행 개수를 늘려야 하고, 새 버전을 배포할 때는 기존 요청을 처리하면서 교체해야 한다. 서버 한 대를 점검하는 동안에도 서비스가 필요하다면 다른 서버의 앱으로 요청을 보낼 수 있어야 한다. 앱을 늘리거나 옮긴 뒤에도 호출하는 쪽은 연결 대상을 찾을 수 있어야 한다.
 
-### 1.1 Docker만으로는 부족했다
+각 문제에는 이미 해법이 있다. 프로세스 관리 도구, 배포 스크립트, reverse proxy, 로드 밸런서, 모니터링을 조합할 수 있다. Kubernetes가 없으면 자동화할 수 없다는 뜻은 아니다. 다만 서버와 애플리케이션이 많아질수록 이 도구들이 같은 현재 상태를 보게 만들고, 변경 도중의 실패를 처리하는 연결 작업이 커진다.
 
-2013년 Docker가 등장하면서 "컨테이너"가 대중화되었다. 개발자들은 열광했다. "내 로컬에서는 되는데?"라는 악몽이 사라졌기 때문이다.
+예를 들어 새 컨테이너를 실행하는 데는 성공했지만 로드 밸런서의 대상 목록을 바꾸는 데 실패했다고 해 보자. 배포 스크립트는 어디서부터 다시 실행해야 할까? 이전 서버의 컨테이너가 아직 살아 있는지, 새 서버의 앱이 준비됐는지, 요청이 어느 쪽으로 가는지를 따로 확인해야 한다. 자동화가 어려워지는 지점은 개별 명령의 문법보다 **부분적으로 성공한 작업들의 상태를 계속 맞추는 일** 에 있다.
 
-하지만 프로덕션에 배포하려니 문제가 생겼다. Docker는 "컨테이너를 만들고 실행하는 것"까지만 해결했다. 수백, 수천 개의 컨테이너를 **어떻게 관리할 것인가**는 별개의 문제였다.
+Kubernetes는 이 운영 문제를 공통된 API와 상태 관리 방식으로 다룬다. 컨테이너를 언제 어떤 서버에서 실행할지 조율한다는 뜻에서 이런 일을 **컨테이너 오케스트레이션(container orchestration)** 이라고 부른다. 이름은 길지만, 핵심은 실행 명령 하나가 아니라 실행 상태를 지속해서 관리한다는 데 있다. 공식 문서가 Kubernetes를 정해진 순서의 작업을 실행하는 단순한 오케스트레이션과 구분하는 이유도 여기에 있다. 각 구성 요소는 자기 책임의 상태를 계속 관찰하고 조정한다.
 
-| 문제 | 설명 |
-|------|------|
-| **스케일링** | 트래픽이 늘면 컨테이너를 몇 개나 띄워야 하지? |
-| **장애 복구** | 컨테이너가 죽으면 누가 다시 띄우지? |
-| **로드 밸런싱** | 요청을 어떤 컨테이너로 보내지? |
-| **롤링 업데이트** | 무중단 배포는 어떻게? |
-| **서비스 디스커버리** | MSA에서 서비스끼리 어떻게 찾지? |
+## 2. “세 개를 실행해”에서 “세 개가 필요해”로
 
-### 1.2 Google은 이미 10년 전에 이 문제를 풀었다
+배포 스크립트를 작성하면 보통 할 일을 순서대로 적는다. 이미지를 받고, 컨테이너를 실행하고, 상태를 확인하고, 기존 컨테이너를 내리는 식이다. 이런 접근은 실행 절차가 명확해서 이해하기 쉽다. 문제는 스크립트가 끝난 뒤에도 환경이 계속 변한다는 것이다.
 
-여기서 흥미로운 사실이 있다. Google은 2003년부터 내부적으로 **Borg**라는 시스템을 운영하고 있었다. Gmail, YouTube, 검색 — Google의 모든 서비스가 Borg 위에서 돌아갔다. 매주 수십억 개의 컨테이너가 실행되었다.
+Kubernetes에서는 먼저 원하는 상태를 기록한다. 주문 API가 세 개 필요하다면 세 개가 필요하다는 의도가 남는다. 시스템은 현재 상태를 관찰하고 차이를 줄이는 작업을 반복한다. 관찰하고 조정하는 프로그램을 **controller**, 그 반복을 **reconciliation** 이라고 한다. 이 용어의 내부 동작은 다음 장에서 살펴본다. 지금은 배포 명령이 종료된 뒤에도 의도가 남고 이를 관리하는 주체가 있다는 점이 중요하다.
 
 ```mermaid
 flowchart LR
-    subgraph "2003-2013: Google 내부"
-        A[Borg] --> B[Omega]
-    end
-
-    subgraph "2014~: 오픈소스"
-        B --> C[Kubernetes]
-    end
-
-    style A stroke:#4CAF50,stroke-width:3px
-    style C stroke:#326CE5,stroke-width:3px
+    D["원하는 상태<br>주문 API 복제본 3개"] -->|"읽음"| C["Controller"]
+    O["관찰한 상태<br>관리 중인 복제본 2개"] -->|"비교"| C
+    C -->|"부족한 복제본 생성 요청"| A["Kubernetes API"]
+    A -->|"후속 구성 요소가 처리"| N["새 실행 단위 준비"]
+    N -.->|"결과를 다시 관찰"| O
+    style D fill:#1565C0,color:#fff
+    style C fill:#E65100,color:#fff
 ```
 
-Borg를 운영하면서 Google 엔지니어들은 중요한 깨달음을 얻었다:
+이 그림은 개념을 위한 단순화다. 실제로는 하나의 프로그램이 복제본을 만들고 실행하는 모든 일을 처리하지 않는다. 요청을 저장하는 구성 요소, 실행할 서버를 고르는 구성 요소, 그 서버에서 컨테이너를 실행하는 구성 요소가 나뉜다. 중간 단계가 실패하면 원하는 상태에 아직 도달하지 못한 채 남을 수도 있다.
 
-> "컨테이너 오케스트레이션은 결국 **선언적**(Declarative)이어야 한다. '이 컨테이너를 이 서버에 띄워라'가 아니라, '이 서비스는 항상 3개의 인스턴스가 떠 있어야 한다'고 선언하면 시스템이 알아서 맞춰야 한다."
+따라서 선언적이라는 말은 “적어 놓기만 하면 반드시 성공한다”는 뜻이 아니다. 세 개를 실행할 자원이 부족하거나 이미지를 받을 수 없다면 Kubernetes도 세 개를 실행할 수 없다. 차이는 의도와 관찰 결과가 시스템에 남아 있고, 이를 바탕으로 조정과 확인을 계속할 수 있다는 것이다.
 
-이 철학이 Kubernetes의 핵심이 되었다.
+## 3. 앱 하나를 실행하는데 왜 리소스가 여러 개일까
 
----
+Kubernetes를 처음 읽을 때 가장 부담스러운 부분은 용어의 수다. Pod, Deployment, Service, ConfigMap, Secret, PVC를 한 번에 만나면 컨테이너 하나를 실행하기 위해 왜 이렇게 많은 개념이 필요한지 의문이 든다.
 
-## 2. 경쟁자들은 왜 졌는가?
+이름부터 외우기보다 앱을 운영하며 내려야 하는 결정을 나눠 보자. 무엇을 실행할지와 몇 개를 유지할지는 비슷하지만, 어디로 요청을 받을지는 다른 결정이다. 배포 버전은 바뀌어도 DB 연결 설정은 유지할 수 있고, 앱을 새로 만들어도 저장 데이터는 남겨야 한다. 변경 시점과 수명이 다른 것들을 하나의 거대한 설정으로 묶으면 수정의 영향도 함께 커진다.
 
-2014-2017년, 컨테이너 오케스트레이션 시장은 삼국지였다. Docker Swarm, Apache Mesos, 그리고 Kubernetes가 치열하게 경쟁했다.
+Kubernetes는 이런 의도를 **리소스(resource)** 라는 종류별 API로 표현한다. 그 API에 등록한 구체적인 항목을 **오브젝트(object)** 라고 한다. 이 책의 `order-api`라는 Deployment나 Service가 각각 하나의 오브젝트다. 두 용어의 세부 구분보다, 일단 설정 파일의 항목이 클러스터에 저장되고 관리되는 대상으로 이어진다고 이해하면 된다.
 
-| 플랫폼 | 배경 | 장점 | 패배 원인 |
-|--------|------|------|----------|
-| **Docker Swarm** | Docker Inc. | 단순함, Docker와 통합 | 기능 부족, 벤더 종속 우려 |
-| **Apache Mesos** | Twitter, Airbnb | 대규모 확장성 | 복잡함, 컨테이너 특화 아님 |
-| **Kubernetes** | Google + 커뮤니티 | 균형 잡힌 설계, CNCF | - |
+| 운영하면서 결정할 일 | 주로 살펴볼 리소스 | 이번 단계에서 기억할 역할 |
+|---|---|---|
+| 어떤 컨테이너를 함께 실행할까? | Pod | 컨테이너를 배치하고 실행하는 기본 단위 |
+| 같은 앱을 몇 개 유지하고 어떻게 교체할까? | Deployment | Pod의 복제본과 버전 교체를 관리하는 선언 |
+| 바뀌는 앱들을 어떤 이름과 주소로 찾을까? | Service | 선택한 앱들을 안정적인 접속 정보로 연결 |
+| 앱에 어떤 설정을 전달할까? | ConfigMap, Secret | 실행 이미지와 분리할 일반 설정과 접근을 통제할 민감 정보 |
+| 앱이 교체되어도 어디에 데이터를 남길까? | PersistentVolumeClaim | 지속해서 사용할 저장소에 대한 요청 |
 
-### 2.1 Docker Swarm: 너무 단순했다
+표만 보면 여러 설정을 다시 연결해야 한다는 점은 여전하다. Kubernetes를 배우는 핵심도 바로 그 연결이다. Service가 Pod를 어떻게 찾는지, Deployment가 Pod와 어떤 관계를 갖는지, 저장소 요청을 실제로 처리하는 주체가 누구인지를 하나씩 알아야 한다. 뒤의 장들은 이 표의 행을 해설하면서 행과 행 사이를 연결한다.
 
-Docker Swarm은 Docker를 만든 회사가 직접 만들었다. `docker swarm init` 한 줄이면 클러스터가 만들어졌다. 단순함이 장점이었지만, 엔터프라이즈가 원하는 기능(RBAC, 세밀한 네트워킹, 커스텀 스케줄링)이 부족했다.
+## 4. 같은 클러스터를 보는 두 가지 경로
 
-더 큰 문제는 **Docker Inc.라는 단일 회사가 통제**한다는 점이었다. 기업들은 특정 벤더에 종속되는 것을 꺼렸다.
+백엔드 개발자는 “요청이 들어오면 누가 처리하는가”를 따라가며 시스템을 이해하는 데 익숙하다. Kubernetes에서도 이 방법이 유용하다. 다만 여기에는 서로 다른 두 종류의 요청이 있다.
 
-### 2.2 Mesos: 너무 복잡했다
+하나는 **클러스터 상태를 바꾸는 요청** 이다. 개발자가 Deployment를 만들거나 수정할 때 보내는 Kubernetes API 요청이 여기에 해당한다. 다른 하나는 **애플리케이션을 사용하는 요청** 이다. 사용자가 주문 API를 호출하는 HTTP 요청이다.
 
-Mesos는 Twitter가 사용하던 강력한 시스템이었다. 수만 대의 노드를 관리할 수 있었다. 하지만 컨테이너만을 위한 시스템이 아니었다. Hadoop, Spark 등 다양한 워크로드를 실행할 수 있는 "범용 분산 시스템"이었다.
+Deployment를 만드는 요청이 성공했다고 해서 주문 API가 준비됐다는 뜻은 아니다. 반대로 클러스터 관리 API에 일시적으로 접근하지 못하더라도 이미 실행 중인 앱의 요청 처리가 반드시 같은 순간에 중단되는 것은 아니다. 어떤 구성 요소와 의존성이 영향을 받았는지 살펴야 한다.
 
-이 범용성이 역으로 단점이 되었다. 컨테이너만 돌리려는 팀에게는 과하게 복잡했다.
+이 차이를 이해하면 관찰 순서도 정리된다. “배포가 안 된다”면 원하는 선언이 저장됐는지와 실행 단계가 진행됐는지를 본다. “접속이 안 된다”면 앱이 준비되어 있는지와 실제 트래픽 경로를 본다. 두 문제가 연결될 수는 있지만, 처음부터 같은 문제로 취급하면 원인을 찾는 범위가 불필요하게 넓어진다.
 
-### 2.3 Kubernetes: 적당히 복잡하고, 누구의 것도 아니었다
+## 5. 자동화가 대신하지 않는 판단
 
-Kubernetes는 Mesos보다 단순하고, Swarm보다 강력했다. 그리고 결정적으로 **CNCF**(Cloud Native Computing Foundation)라는 중립적 재단에 기부되었다.
+Kubernetes는 반복적인 상태 관리를 제공하지만 애플리케이션의 의미까지 알지는 못한다. 프로세스가 살아 있어도 주문을 저장할 DB에 연결하지 못할 수 있다. 새 버전이 정상적으로 시작해도 이전 버전과 같은 DB 스키마를 함께 사용할 수 없을 수 있다. 데이터 파일이 남아 있어도 그 파일만으로 DB를 일관되게 복구할 수 있는 것은 아니다.
 
-```mermaid
-flowchart TB
-    subgraph "CNCF - 벤더 중립"
-        K[Kubernetes]
-    end
+이런 조건은 개발자가 앱의 동작과 운영 요구를 바탕으로 설계해야 한다. 건강 상태를 어떻게 판단할지, 종료 신호를 받으면 진행 중인 요청을 어떻게 처리할지, 재시도되는 배치가 같은 주문을 두 번 처리하지 않게 할지 같은 질문이 남는다. Kubernetes의 기능을 이해하는 것과 앱이 그 기능에 맞게 동작하도록 만드는 것은 함께 가야 한다.
 
-    G[Google] -->|기부| K
-    R[Red Hat] -->|기여| K
-    M[Microsoft] -->|기여| K
-    A[Amazon] -->|기여| K
+또한 공통 API를 사용한다고 환경의 차이가 사라지는 것도 아니다. 같은 저장소 요청이라도 설치된 드라이버와 스토리지 시스템이 다르면 제공되는 특성이 다르다. 외부 주소를 요구하는 리소스를 만들었다고 모든 환경에서 즉시 주소가 생기는 것도 아니다. 리소스가 무엇을 요청하는지와 그 요청을 처리할 구현이 있는지는 구분해야 한다.
 
-    style K stroke:#326CE5,stroke-width:3px
-```
+이 때문에 Kubernetes는 모든 서비스의 출발점일 필요는 없다. 단순한 애플리케이션 하나에 이미 충분한 관리형 실행 환경이 있다면, 별도의 클러스터를 운영하는 비용이 더 클 수 있다. 이 책의 목적은 Kubernetes를 무조건 도입하도록 설득하는 것이 아니라, 이미 사용하거나 운영해야 할 때 시스템을 설명할 수 있게 하는 것이다.
 
-Google, Microsoft, Amazon, Red Hat이 모두 CNCF 멤버로 참여했다. 어느 한 회사가 Kubernetes를 독점할 수 없는 구조가 만들어졌다.
+### 에어갭 환경에서 짚어볼 점
 
-**2017년, Docker Inc.가 Kubernetes 지원을 발표했다.** Swarm을 버린 것은 아니고, Swarm과 나란히 Kubernetes도 고를 수 있게 하겠다는 발표였다. 그래도 자사 오케스트레이터의 경쟁자를 플랫폼에 들였다는 점에서 이것은 사실상 항복 선언이었다.
+인터넷과 분리된 환경에서도 이 동작 모델은 같다. 달라지는 것은 모델을 실현하는 데 필요한 의존성을 어디에서 제공하느냐다. 이미지, 차트, 인증서, 이름 해석, 저장소 드라이버 등을 내부에서 준비해야 할 수 있다. “인터넷이 없다”는 말 하나로 모두 같은 환경이라고 볼 수는 없다. 사설 레지스트리가 있는지, 어떤 DNS와 인증서 체계를 사용하는지, 필요한 controller가 이미 설치됐는지에 따라 조건이 다르다.
 
----
+뒤의 장에서는 해당 기능을 설명한 뒤 이 의존성을 짚는다. 에어갭 환경을 별도의 Kubernetes로 배우기보다, **평소 숨겨져 있던 실행 조건이 더 잘 드러나는 환경** 으로 바라보면 일반 개념과 운영 경험이 연결된다.
 
-## 3. Kubernetes의 핵심 설계 철학
+## 6. 이 책을 읽는 방법
 
-### 3.1 선언적(Declarative) vs 명령적(Imperative)
+이 책은 HTTP 서버를 만들고 컨테이너 이미지로 배포해 본 백엔드 개발자를 독자로 가정한다. 특정 언어와 프레임워크를 요구하지 않는다. 대신 Kubernetes 고유의 개념은 해결하려는 문제부터 설명한다. 처음부터 모든 옵션을 기억하려고 하기보다, “이 설정을 누가 읽고 무엇을 바꾸는가”라는 질문을 붙들고 읽기를 권한다.
 
-전통적인 인프라 관리는 **명령적**이었다. "서버 1에 ssh 접속해서 nginx 띄워라, 서버 2에도 띄워라..." 이런 식이다.
+공통 사례는 `order-api`라는 가상의 주문 API다. `bookstore`라는 namespace에 배포하고, 앱은 `8080` 포트에서 HTTP 요청을 받는다고 가정한다. namespace는 클러스터 안에서 이름과 리소스를 구분하는 범위이며 다음 장에서 설명한다. 예제 이미지 `registry.example.com/book/order-api:1.0.0`은 설명용 자리표시자다. 실제 공개 이미지가 아니므로 그대로 다운로드할 수 있는 실습 자료로 읽으면 안 된다.
 
-```bash
-# 명령적: "무엇을 해라"
-ssh server1 "docker run nginx"
-ssh server2 "docker run nginx"
-ssh server3 "docker run nginx"
-```
+예제를 실행하지 않아도 개념을 이해할 수 있도록 상태 변화와 예상 결과를 함께 해설한다. 일부 필드만 보여 주는 코드는 발췌라고 표시하고, 준비 조건이 있는 manifest는 그 조건을 밝힌다. `/livez`, `/readyz`, `/startupz` 같은 경로도 앱이 구현한다고 가정한 예시다. 모든 웹 프레임워크에 자동으로 생기는 기능은 아니다.
 
-Kubernetes는 **선언적**이다. "nginx가 3개 떠 있어야 한다"고 선언하면 끝이다.
+각 장은 앞의 장에서 생긴 의문을 이어받는다. 검색으로 특정 장에 먼저 들어왔다면 도입부의 선행 문서 링크를 따라 필요한 개념만 보충해도 된다. 장 끝의 질문은 명령어를 기억하는지 검사하는 문제가 아니다. 조건이 달라졌을 때 결과를 자신의 말로 설명할 수 있는지 확인하는 장치다.
 
-```yaml
-# 선언적: "이렇게 되어야 한다"
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: nginx
-spec:
-  replicas: 3  # "nginx가 3개 떠 있어야 한다"
-  selector:
-    matchLabels:
-      app: nginx
-  template:
-    metadata:
-      labels:
-        app: nginx
-    spec:
-      containers:
-      - name: nginx
-        image: nginx:1.25
-```
+## 이 시리즈의 읽는 순서
 
-왜 선언적이 좋은가? 상황별로 비교해보면 명확하다:
+### 1부. 배포 요청은 어떻게 실행 중인 앱이 되는가
 
-| 상황 | 명령적 | 선언적 |
-|------|--------|--------|
-| 서버 하나가 죽음 | 수동으로 다시 띄워야 함 | k8s가 자동으로 복구 |
-| 3개 → 5개 스케일 아웃 | 스크립트 수정 필요 | `replicas: 5`로 변경 |
-| 현재 상태 확인 | 서버마다 ssh로 확인 | `kubectl get pods` |
-| 롤백 | 이전 스크립트 찾아서 실행 | `kubectl rollout undo` |
+| 장 | 제목 | 중심 질문 |
+|---|---|---|
+| 1 | [Introduction](./Kubernetes-Introduction.md) | 컨테이너 실행 다음에는 어떤 운영 문제가 남는가? |
+| 2 | [클러스터의 동작 구조](./Kubernetes-Architecture.md) | apply 이후 누가 만들고, 배치하고, 실행하는가? |
+| 3 | [Pod](./Kubernetes-Pod.md) | 컨테이너 재시작과 Pod 교체는 어떻게 다른가? |
+| 4 | [ReplicaSet과 Deployment](./Kubernetes-ReplicaSet-Deployment.md) | 실행 개수와 버전은 어떻게 관리되는가? |
+| 5 | [이미지 태그와 Digest](./Kubernetes-Image-Tag-Digest.md) | 같은 선언에서 다른 코드가 실행될 수 있는가? |
+| 6 | [ConfigMap과 Secret](./Kubernetes-ConfigMap-Secret.md) | 설정은 언제 앱에 반영되는가? |
 
-### 3.2 자가 치유(Self-Healing)
+### 2부. 사용자 요청은 어떻게 앱을 찾아가는가
 
-Kubernetes는 끊임없이 "현재 상태"와 "원하는 상태"를 비교한다. 이것을 **Reconciliation Loop**라고 부른다.
+| 장 | 제목 | 중심 질문 |
+|---|---|---|
+| 7 | [Service라는 오브젝트](./Kubernetes-Service-Object.md) | Service와 Pod는 어떤 관계인가? |
+| 8 | [Service의 접속 범위](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) | ClusterIP, NodePort, LoadBalancer는 무엇이 다른가? |
+| 9 | [Service 내부 동작](./Kubernetes-Service-Internals.md) | 이름과 주소가 실제 연결로 바뀌는 과정은 무엇인가? |
+| 10 | [Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md) | 실행 중인 앱은 요청을 받을 준비도 된 것인가? |
+| 11 | [Ingress](./Kubernetes-Ingress.md) | HTTP 경로를 누가 실제로 처리하는가? |
+| 12 | [Gateway API](./Kubernetes-Gateway-API.md) | 진입점과 경로의 책임을 왜 나누는가? |
+| 13 | [Ingress와 Egress](./Kubernetes-Ingress-vs-Egress.md) | 리소스 이름과 통신 방향은 어떻게 다른가? |
 
-```mermaid
-flowchart LR
-    A["원하는 상태<br>replicas: 3"] --> C{비교}
-    B["현재 상태<br>pods: 2"] --> C
-    C -->|차이 발견| D[Pod 1개 생성]
-    D --> E["현재 상태<br>pods: 3"]
+### 3부. 데이터와 작업의 생명주기를 다루는 방법
 
-    style C fill:#1565C0,color:#fff
-```
+| 장 | 제목 | 중심 질문 |
+|---|---|---|
+| 14 | [Volume, PV, PVC](./Kubernetes-Volume-PersistentVolume.md) | 앱이 교체되어도 데이터는 어떻게 남는가? |
+| 15 | [StatefulSet](./Kubernetes-StatefulSet.md) | 각 인스턴스의 이름과 저장소가 중요한 때는 언제인가? |
+| 16 | [DaemonSet, Job, CronJob](./Kubernetes-DaemonSet-Job-CronJob.md) | 서비스·종료되는 작업·Node별 작업은 어떻게 다른가? |
 
-컨테이너가 죽어도, 노드가 죽어도, k8s는 "3개가 떠 있어야 한다"는 선언을 지키기 위해 자동으로 복구한다. 운영자가 새벽에 일어나서 수동으로 복구할 필요가 없다.
+### 4부. 실행 중인 시스템의 변경과 관찰
 
-### 3.3 추상화 계층
+| 장 | 제목 | 중심 질문 |
+|---|---|---|
+| 17 | [배포 전략](./Kubernetes-Deployment-Strategy.md) | 새 버전으로 바뀔 때 요청과 실행 상태는 어떻게 변하는가? |
+| 18 | [관측과 확장](./Kubernetes-Metrics-Server-Prometheus.md) | 숫자는 누가 측정하고 무엇을 판단하는 데 쓰는가? |
 
-Kubernetes는 인프라를 추상화한다. 이 추상화 덕분에 **어떤 클라우드에서든 같은 YAML로 배포**할 수 있다.
+### 5부. 클러스터의 권한과 확장을 이해하기
 
-| 개념 | 역할 |
-|------|------|
-| **Pod** | 컨테이너의 최소 배포 단위 |
-| **Service** | Pod들 앞에 고정된 엔드포인트 제공 |
-| **Deployment** | Pod의 배포/업데이트/롤백 관리 |
-| **Ingress** | 외부 트래픽을 Service로 라우팅 |
-| **ConfigMap/Secret** | 설정과 민감 정보 분리 |
-
-AWS에서 GCP로 옮겨도 애플리케이션 코드와 YAML 파일은 거의 바뀌지 않는다. 이것이 "Write once, run anywhere"의 현대적 버전이다.
-
----
-
-## 4. MSA에서 k8s가 특히 강력한 이유
-
-### 4.1 서비스 디스커버리 내장
-
-MSA에서 가장 어려운 문제 중 하나가 "서비스 A가 서비스 B를 어떻게 찾지?"이다. 전통적으로는 Eureka, Consul 같은 별도 서비스 디스커버리 도구가 필요했다.
-
-Kubernetes는 **Service**라는 개념으로 이 문제를 기본 제공한다:
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: user-service
-spec:
-  selector:
-    app: user
-  ports:
-  - port: 80
-```
-
-이렇게 정의하면, 다른 Pod에서 `http://user-service`로 요청할 수 있다. Pod의 IP가 바뀌어도, Pod 수가 늘어나도, `user-service`라는 DNS 이름은 변하지 않는다.
-
-### 4.2 사이드카 패턴과 서비스 메시
-
-MSA에서 공통 기능(로깅, 모니터링, 인증, 암호화)을 어떻게 처리할까? 각 서비스마다 구현하면 중복이고, 라이브러리로 만들면 언어마다 따로 만들어야 한다.
-
-Kubernetes의 Pod는 여러 컨테이너를 함께 실행할 수 있다. 이것이 **사이드카 패턴**이다:
-
-```mermaid
-flowchart LR
-    subgraph Pod
-        A[애플리케이션<br>컨테이너]
-        B[Envoy Proxy<br>사이드카]
-    end
-
-    C[외부 트래픽] --> B
-    B --> A
-
-    style B stroke:#FF6B6B,stroke-width:2px
-```
-
-Istio, Linkerd 같은 서비스 메시가 이 패턴을 활용한다. 애플리케이션 코드 수정 없이 mTLS 암호화와 트래픽 관리를 추가할 수 있다. 분산 추적도 프록시가 span을 보내 주지만, 여러 서비스를 거친 요청을 하나의 trace로 이으려면 애플리케이션이 받은 trace 헤더를 다음 요청으로 전달해야 한다.
-
-### 4.3 수평 확장의 자동화
-
-MSA의 장점 중 하나가 "서비스별 독립적 스케일링"이다. 주문 서비스는 3개, 결제 서비스는 10개처럼 트래픽에 따라 다르게 조절할 수 있다.
-
-Kubernetes의 **HPA**(Horizontal Pod Autoscaler)는 이것을 자동화한다:
-
-```yaml
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: user-service-hpa
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: user-service
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-```
-
-CPU 사용률이 70%를 넘으면 자동으로 Pod를 늘리고, 내려가면 줄인다. 운영자가 수동으로 스케일링할 필요가 없다.
-
----
-
-## 5. 에코시스템이 승패를 갈랐다
-
-Kubernetes가 표준이 된 가장 큰 이유 중 하나는 **압도적인 에코시스템**이다.
-
-```mermaid
-flowchart TB
-    K[Kubernetes] --> A[CI/CD]
-    K --> B[모니터링]
-    K --> C[서비스 메시]
-    K --> D[보안]
-    K --> E[스토리지]
-
-    A --> A1[ArgoCD]
-    A --> A2[Flux]
-    B --> B1[Prometheus]
-    B --> B2[Grafana]
-    C --> C1[Istio]
-    C --> C2[Linkerd]
-    D --> D1[Falco]
-    D --> D2[OPA]
-
-    style K fill:#326CE5,color:#fff
-```
-
-CNCF 산하 프로젝트만 해도 수십 개다. 모니터링(Prometheus), 로깅(Fluentd), CI/CD(ArgoCD), 보안(Falco) — 무엇을 하든 Kubernetes 위에서 잘 동작하는 도구가 이미 있다.
-
-이것은 네트워크 효과를 만들었다. 더 많은 사람이 k8s를 쓰니까 더 많은 도구가 만들어지고, 더 많은 도구가 있으니까 더 많은 사람이 k8s를 선택했다.
-
----
-
-## 6. 정리
-
-### 왜 Kubernetes가 이겼는가?
-
-Kubernetes의 승리는 기술적 우월성만으로 설명되지 않는다. 정치적, 생태계적 요인이 결합되었다:
-
-| 요인 | 설명 |
-|------|------|
-| **검증된 설계** | Google이 10년간 Borg로 수십억 컨테이너를 운영하며 검증 |
-| **벤더 중립** | CNCF 거버넌스로 특정 회사 종속 방지 |
-| **적당한 복잡도** | Swarm보다 강력하고, Mesos보다 단순 |
-| **선언적 모델** | 자가 치유, 버전 관리, GitOps와 자연스럽게 연결 |
-| **에코시스템** | Prometheus, Istio, ArgoCD 등 풍부한 도구 |
-| **클라우드 지원** | AWS(EKS), GCP(GKE), Azure(AKS) 모두 관리형 k8s 제공 |
-
-### 결국 Kubernetes는
-
-"**컨테이너를 어떻게 운영할 것인가?**"라는 질문에 대한 가장 합리적인 답이었다. Google의 검증된 설계, 중립적 거버넌스, 풍부한 에코시스템 — 이 조합을 이길 수 있는 경쟁자는 없었다.
-
----
-
-## 관련 문서
-
-이 시리즈의 다른 문서들을 통해 Kubernetes의 각 리소스를 깊이 학습할 수 있다.
-
-| 문서 | 설명 |
-|------|------|
-| [Kubernetes Pod](./Kubernetes-Pod.md) | 컨테이너의 최소 배포 단위 |
-| [Kubernetes ReplicaSet & Deployment](./Kubernetes-ReplicaSet-Deployment.md) | Pod의 복제와 배포 관리 |
-| [Kubernetes Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md) | Liveness, Readiness, Startup Probe |
-| [Kubernetes Deployment Strategy](./Kubernetes-Deployment-Strategy.md) | Rolling, Blue/Green, Canary 배포 전략 |
-| [Service 오브젝트](./Kubernetes-Service-Object.md) | Service는 어떤 오브젝트인가 (Service 시리즈 1편, 읽는 순서 안내 포함) |
-| [Kubernetes Service](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) | ClusterIP, NodePort, LoadBalancer 타입별 사용법 (Service 시리즈 2편) |
-| [Kubernetes Ingress](./Kubernetes-Ingress.md) | HTTP 라우팅과 TLS |
-| [Kubernetes ConfigMap & Secret](./Kubernetes-ConfigMap-Secret.md) | 설정과 민감 정보 분리 |
-| [Kubernetes Volume & PersistentVolume](./Kubernetes-Volume-PersistentVolume.md) | 스토리지, PV/PVC, StorageClass |
-| [Kubernetes StatefulSet](./Kubernetes-StatefulSet.md) | 상태를 가진 애플리케이션 |
-| [Kubernetes DaemonSet, Job, CronJob](./Kubernetes-DaemonSet-Job-CronJob.md) | 노드별 Pod, 배치 작업 |
-
-기본 리소스를 익힌 다음에는 **클러스터가 스스로를 확장하고 통제하는 층** 으로 넘어가면 좋다. 위의 리소스들이 "무엇을 배포하는가"라면, 아래는 "그 배포가 누구의 권한으로, 어떤 검문을 거쳐, 어떻게 관측되는가"를 다룬다.
-
-| 문서 | 설명 |
-|------|------|
-| [Pod는 어떻게 쿠버네티스 API에 자기를 증명할까](./Kubernetes-ServiceAccount-RBAC.md) | ServiceAccount 신원과 RBAC — 인증과 인가 |
-| [쿠버네티스는 어떻게 자기 자신을 확장할까](./Kubernetes-CRD-Controller-Operator.md) | CRD, 컨트롤러의 reconciliation loop, Operator |
-| [내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까](./Kubernetes-Admission-Webhook.md) | API 요청 수명주기와 Admission Webhook |
-| [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Kubernetes-Service-Mesh.md) | 서비스 메시, 사이드카 프록시, mTLS |
-| [kubectl top의 숫자는 어디서 오는가](./Kubernetes-Metrics-Server-Prometheus.md) | metrics-server, kube-state-metrics, Prometheus |
-| [rollout restart를 했는데 왜 예전 코드가 그대로 돌까](./Kubernetes-Image-Tag-Digest.md) | 이미지 태그와 digest, imagePullPolicy |
-
----
+| 장 | 제목 | 중심 질문 |
+|---|---|---|
+| 19 | [ServiceAccount와 RBAC](./Kubernetes-ServiceAccount-RBAC.md) | 누가 어떤 API 작업을 할 수 있는가? |
+| 20 | [CRD, Controller, Operator](./Kubernetes-CRD-Controller-Operator.md) | 새 리소스를 등록하면 누가 그 의미를 실행하는가? |
+| 21 | [Admission Webhook](./Kubernetes-Admission-Webhook.md) | 저장되기 전에 누가 요청을 바꾸거나 거절하는가? |
+| 22 | [배포부터 접속까지, 하나의 장애를 설명하기](./Kubernetes-Troubleshooting-From-Apply-to-Request.md) | 원하는 상태와 실제 상태가 어긋난 곳을 어떻게 찾는가? |
+
+## 본편에서 이어 읽는 주제
+
+아래 글은 본편을 이해하기 위한 필수 선행 학습이 아니다. 관련 업무를 만났을 때 본편의 모델을 실제 도구와 환경으로 확장하는 읽기다.
+
+| 분야 | 문서 | 먼저 읽으면 좋은 본편 |
+|---|---|---|
+| 외부 연결 | [LoadBalancer와 클라우드](./Kubernetes-Service-LoadBalancer-Cloud.md) | 8·11장 |
+| 통신 정책 | [Egress와 NetworkPolicy](./Kubernetes-Egress-NetworkPolicy.md) | 13장 |
+| 서비스 간 통신 | [Service Mesh](./Kubernetes-Service-Mesh.md) → [Istio Gateway와 VirtualService](./Istio-Ingress-Gateway-Ingress가-있는데-왜-VirtualService를-따로-쓸까.md) | 12·19·21장 |
+| 설정 공급 | [External Secrets Operator](./Kubernetes-External-Secrets-Operator.md) | 6·19·20장 |
+| 장치 확장 | [GPU Device Plugin](./Kubernetes-GPU-Device-Plugin.md) | 3·16·20장 |
+| 패키징 | [Helm의 역할](./Helm-쿠버네티스의-패키지-매니저는-왜-필요한가.md) → [첫 Helm Chart 읽기와 실습](./Helm-내-첫-Helm-Chart-helm-create부터-helm-install까지.md) | 6장 이후 |
+| 이미지 공급 | [Harbor](./Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가.md) → [Helm과 Harbor의 연결](./Helm과-Harbor를-왜-같이-써야-하는가.md) | 5장, Helm 개념 |
+| CI 실행 | [Jenkins와 Tekton의 역할](./Jenkins가-있는데-왜-Tekton이-빌드할까.md) → [Pipeline과 PipelineRun](./Tekton의-Pipeline과-PipelineRun은-왜-따로-존재할까.md) | 16·19·20장 |
+| 이벤트 연결 | [Tekton Triggers](./Tekton-Triggers는-어떻게-git-push를-PipelineRun으로-바꿀까.md) → [Jenkins에서 EventListener 호출하기](./Jenkins-Job에서-Tekton-EventListener로-webhook을-쏠-수-있을까.md) | Pipeline과 PipelineRun |
+
+## 생각해 볼 질문
+
+**배포 스크립트가 컨테이너 세 개를 실행하는 것과 원하는 복제본 수를 세 개로 기록하는 것은 무엇이 다른가?** 실행 이후의 변화에도 의도를 계속 관리할 주체가 있는지가 다르다. 다만 스크립트 기반 시스템도 별도의 감시와 복구를 붙일 수 있으므로 선언적 도구만 자동화할 수 있다는 뜻은 아니다.
+
+**Kubernetes가 컨테이너를 다시 시작해 준다면 애플리케이션 장애 대응은 끝난 것일까?** 재시작이 해결하지 못하는 설정 오류, 외부 의존성 장애, 데이터 불일치가 있다. 시스템이 복구하는 실행 상태와 애플리케이션의 정상 기능을 함께 봐야 한다.
+
+**같은 YAML을 다른 환경에 적용하면 같은 결과를 기대해도 될까?** API가 표현하는 의도는 비슷해도 자원, 네트워크, 저장소, 추가 controller 등 실행 조건은 다를 수 있다. 다음 장부터는 그 의도를 실제로 처리하는 주체를 살펴본다.
 
 ## 출처
 
-- [Kubernetes 공식 문서](https://kubernetes.io/docs/) - 공식 문서
-- [Large-scale cluster management at Google with Borg](https://research.google/pubs/pub43438/) - Google Borg 논문
-- [CNCF 공식 사이트](https://www.cncf.io/)
-- [The History of Kubernetes](https://blog.risingstack.com/the-history-of-kubernetes/)
+- [Kubernetes Overview](https://kubernetes.io/docs/concepts/overview/) — Kubernetes의 범위와 제공하지 않는 기능.
+- [Kubernetes Components](https://kubernetes.io/docs/concepts/overview/components/) — 클러스터 구성 요소와 역할.
+- [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) — 원하는 상태와 관찰 상태를 연결하는 반복 제어.
+- [Objects In Kubernetes](https://kubernetes.io/docs/concepts/overview/working-with-objects/) — 오브젝트와 의도 기록의 관계.

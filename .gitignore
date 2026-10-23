@@ -22,3 +22,6 @@ env/
 
 # OMC runtime (oh-my-claudecode)
 .omc/
+
+# Local AI work and review artifacts
+.github/superpowers/work/

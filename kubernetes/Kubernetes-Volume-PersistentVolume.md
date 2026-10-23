@@ -1,1199 +1,315 @@
 # Kubernetes Volume과 Persistent Storage
 
-Docker에서 `-v` 옵션 없이 MySQL 컨테이너를 실행하면 어떻게 될까? 컨테이너를 삭제하고 재생성하는 순간, 모든 데이터가 사라진다. Kubernetes의 Pod도 마찬가지다 — Pod가 재스케줄링되거나 재생성되면 컨테이너의 writable layer가 새로 만들어지면서 이전 데이터는 모두 유실된다.
+> **개발자를 위한 쉬운 쿠버네티스 · 14장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Ingress-vs-Egress.md) · [다음 장](./Kubernetes-StatefulSet.md)
+
+주문 API가 업로드 파일을 `/data`에 저장했다고 하자. 응답까지 성공했는데 새 버전으로 Pod를 교체하자 파일이 보이지 않는다. 프로세스를 다시 띄우는 일과 데이터를 다시 연결하는 일은 서로 다른 문제다. 앞에서 배운 [Pod](Kubernetes-Pod.md)와 [Deployment](Kubernetes-ReplicaSet-Deployment.md)는 실행을 복구하지만, 어떤 저장소를 다시 사용할지는 별도로 선언해야 한다.
 
 ## 결론부터 말하면
 
-**Volume** 은 Pod 수준의 스토리지이고, **PersistentVolume(PV)** 은 클러스터 수준의 스토리지다. **PVC** 는 개발자가 "나 10Gi 스토리지 필요해"라고 요청하는 **요청서** 다.
+Volume은 컨테이너에 저장 공간을 연결하는 Pod의 선언이다. 그중 `emptyDir`은 같은 Pod 안의 컨테이너 재시작을 넘어 살아 있고, PVC를 참조하는 Volume은 Pod 교체를 넘어 유지되는 저장소를 연결할 수 있다. PV는 실제 저장소를 Kubernetes에서 표현하는 클러스터 범위의 오브젝트, PVC는 이를 요청하는 namespace 범위의 오브젝트다.
 
-```mermaid
-flowchart TB
-    subgraph "개발자 영역"
-        Pod["Pod<br>(애플리케이션)"]
-        PVC["PVC<br>(요청서: 10Gi RWO)"]
-    end
+그러나 PVC가 `Bound`라는 사실은 연결할 저장소가 정해졌다는 뜻이다. Node 연결, 파일시스템 mount, 앱의 쓰기 성공, 백업으로부터의 복구 성공은 그다음에 각각 확인해야 한다.
 
-    subgraph "Kubernetes Control Plane"
-        Bind["자동 바인딩"]
-    end
+| 확인한 사실 | 아직 답하지 못한 질문 |
+|---|---|
+| PVC가 Bound다 | Node와 컨테이너에 mount되었는가? |
+| 컨테이너에 mount되었다 | 앱 UID의 권한으로 쓰고 다시 읽을 수 있는가? |
+| 앱이 데이터를 썼다 | Pod 교체 후 같은 저장소를 참조하는가? |
+| VolumeSnapshot이 준비되었다 | DB가 일관된 상태로 복구되고 앱이 읽을 수 있는가? |
 
-    subgraph "인프라 관리자 영역"
-        PV["PV<br>(실제 스토리지)"]
-        Storage["실제 저장소<br>(AWS EBS, NFS, GCP PD)"]
-    end
+## 1. 무엇의 수명보다 오래 살아야 하는가
 
-    Pod -->|"마운트"| PVC
-    PVC -->|"바인딩"| Bind
-    Bind -->|"매칭"| PV
-    PV -->|"연결"| Storage
+컨테이너 이미지의 파일은 읽기 전용 계층에 있고, 실행 중 변경은 각 컨테이너의 writable layer에 기록된다. Kubernetes에서 컨테이너가 crash하여 kubelet이 새 인스턴스를 시작할 때 이 계층의 보존에 의존해서는 안 된다. 같은 Pod 안의 컨테이너 재시작이어도 새 컨테이너는 깨끗한 상태로 출발한다. Docker의 특정 `restart` 명령 동작을 Kubernetes의 복구 계약으로 옮겨 생각하면 이 경계를 놓친다. [Volumes 공식 문서](https://kubernetes.io/docs/concepts/storage/volumes/)가 Volume을 도입하는 이유도 이 문제다.
 
-    style PVC stroke:#2196F3,stroke-width:3px
-    style PV stroke:#4CAF50,stroke-width:3px
-```
+그렇다고 모든 데이터에 영구 디스크가 필요한 것은 아니다. 다운로드 중인 임시 파일이나 다시 만들 수 있는 캐시는 컨테이너 재시작까지만 견디면 될 수 있다. `emptyDir`은 Pod가 Node에 배치될 때 마련되는 빈 디렉터리이며, 같은 Pod의 여러 컨테이너가 공유할 수 있다. 컨테이너 하나가 crash해도 남지만 Pod가 제거되면 해당 데이터도 사라진다. 교체 Pod는 이름이나 label이 같아도 다른 Pod이므로 새 `emptyDir`을 받는다.
 
-**왜 PV와 PVC가 분리되어 있을까?** Spring DI에서 인터페이스와 구현체를 분리하는 이유와 같다. **느슨한 결합(Loose Coupling)** 을 위해서다.
-
-| 개념 | Spring DI | Kubernetes |
-|------|-----------|------------|
-| 인터페이스 (요구사항) | `UserRepository` | **PVC** |
-| 구현체 (실제 리소스) | `JpaUserRepository` | **PV** |
-| 바인딩 | `@Autowired` | Control Plane |
-| 환경별 설정 | `@Profile("prod")` | **StorageClass** |
-
-| 구분 | Volume | PersistentVolume |
-|------|--------|------------------|
-| 생명주기 | Pod와 함께 | Pod와 **독립** |
-| 정의 위치 | Pod spec 내부 | 별도 리소스 |
-| 재사용 | 불가능 | **가능** |
-| 대표 유형 | emptyDir, hostPath | NFS, AWS EBS, GCP PD |
-
-### 실무 관점: 솔직히 얼마나 쓰나?
-
-**PV를 직접 만드는 경우는 거의 없다.** 동적 프로비저닝이 기본이라 PVC만 정의하면 PV는 자동 생성된다.
-
-**PVC도 생각보다 직접 쓸 일이 많지 않다.** 클라우드 환경에서는 관리형 서비스로 대체하는 경우가 많다:
-
-| 워크로드 | PVC 필요? | 실무에서의 선택 |
-|----------|-----------|-----------------|
-| 웹 서버, API 서버 | ❌ | Stateless - 스토리지 불필요 |
-| 데이터베이스 | △ | RDS, CloudSQL 같은 **관리형 DB** |
-| 파일 업로드 | △ | S3, GCS 같은 **오브젝트 스토리지** |
-| 캐시 (Redis) | △ | ElastiCache, Memorystore |
-
-**그럼 PVC는 언제 쓰나?**
-
-| 케이스 | 이유 |
-|--------|------|
-| Kafka, Elasticsearch 클러스터 | 관리형 서비스 비용이 비싸거나 커스터마이징 필요 |
-| CI/CD 빌드 캐시 | 빌드 속도 향상 |
-| ML 학습 데이터 | 대용량 데이터셋 마운트 |
-| 온프레미스 환경 | 관리형 서비스 없음 |
-| 비용 최적화 | 관리형 서비스보다 직접 운영이 저렴한 경우 |
-
-> **결론:** 이 문서의 내용은 **"왜 이렇게 동작하는지"** 이해하기 위한 것이다. 실무에서 PV YAML을 직접 작성할 일은 드물고, PVC도 StatefulSet의 `volumeClaimTemplates`가 자동 생성하는 경우가 더 많다.
-
----
-
-## 1. 왜 Volume이 필요한가?
-
-### 1.1 컨테이너의 휘발성 문제
-
-컨테이너는 **불변(Immutable)** 하게 설계되었다. 컨테이너 이미지 자체는 불변이고, 각 컨테이너 인스턴스에는 writable layer가 붙는다. 이 writable layer는 컨테이너가 **삭제될 때** 함께 사라진다. 재현 가능한 배포를 위한 의도된 설계지만, 데이터베이스처럼 상태를 유지해야 하는 애플리케이션에는 치명적이다.
-
-```bash
-# MySQL 컨테이너 실행 (볼륨 없음)
-docker run -d --name mysql mysql:8.0
-
-# 데이터 추가
-docker exec mysql mysql -e "CREATE DATABASE myapp;"
-
-# ⚠️ 주의: `docker restart`만으로는 writable layer가 유지되므로 데이터는 남는다.
-# writable layer는 컨테이너가 '삭제'될 때 함께 사라진다.
-docker rm -f mysql                       # 컨테이너 삭제 → writable layer 파기
-docker run -d --name mysql mysql:8.0     # 새 컨테이너 → 빈 상태
-
-# 데이터 확인 - 사라졌다!
-docker exec mysql mysql -e "SHOW DATABASES;"
-```
-
-**Kubernetes에서도 동일하다.** Pod 내부에서 컨테이너만 재시작(RestartPolicy에 의한 자동 복구)되는 경우에는 writable layer가 유지되지만, **Pod가 재생성/재스케줄링되면** 새 컨테이너로 출발하므로 이전 데이터는 모두 유실된다. 즉 "컨테이너 재시작"이 아니라 "Pod 재생성"이 진짜 데이터 손실 트리거다.
-
-### 1.2 Pod 내 컨테이너 간 데이터 공유
-
-또 다른 문제가 있다. 하나의 Pod에 여러 컨테이너가 있을 때, 어떻게 데이터를 공유할까?
-
-```mermaid
-flowchart LR
-    subgraph Pod
-        App["App Container<br>(로그 생성)"]
-        Sidecar["Log Shipper<br>(로그 전송)"]
-        Vol["📁 Volume<br>/var/log"]
-    end
-
-    App -->|"쓰기"| Vol
-    Sidecar -->|"읽기"| Vol
-    Sidecar -->|"전송"| ELK["ELK Stack"]
-
-    style Vol stroke:#FF9800,stroke-width:3px
-```
-
-Sidecar 패턴에서 로그를 수집하거나, Init Container가 설정 파일을 준비하는 경우 **Volume을 통한 공유** 가 필수다.
-
----
-
-## 2. Volume의 종류
-
-Kubernetes는 다양한 Volume 유형을 제공한다.
-
-| 종류 | 용도 | 생명주기 | 사용 사례 |
-|------|------|----------|-----------|
-| **emptyDir** | 임시 스크래치 공간 | Pod 삭제 시 삭제 | 캐시, 컨테이너 간 공유 |
-| **hostPath** | 노드 파일시스템 접근 | 노드에 종속 | 로그 수집, 모니터링 에이전트 |
-| **configMap** | 설정 파일 주입 | ConfigMap에 종속 | 설정 파일 |
-| **secret** | 민감한 정보 주입 | Secret에 종속 | 인증서, 비밀번호 |
-| **persistentVolumeClaim** | 영구 스토리지 | PVC에 종속 | 데이터베이스, 파일 저장소 |
-
-### 2.1 emptyDir - 임시 스토리지
-
-`emptyDir`은 Pod가 생성될 때 빈 디렉토리로 시작하고, Pod가 삭제되면 함께 사라진다.
+다음은 관계를 설명하는 가상 주문 API다. `bookstore` namespace가 있다고 가정하며 `registry.example.com/book/order-api:1.0.0`과 `/data`, `/scratch`에 파일을 쓰는 앱 동작은 설명용 계약이다. 공개 실습 이미지가 아니므로 그대로 실행 성공을 기대하는 예제는 아니다.
 
 ```yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: cache-pod
+  name: order-api
+  namespace: bookstore
+  labels:
+    app: order-api
 spec:
   containers:
-  - name: app
-    image: nginx
+  - name: order-api
+    image: registry.example.com/book/order-api:1.0.0
+    ports:
+    - containerPort: 8080
     volumeMounts:
-    - name: cache-volume
-      mountPath: /cache
-  - name: sidecar
-    image: busybox
-    command: ['sh', '-c', 'while true; do ls /cache; sleep 10; done']
-    volumeMounts:
-    - name: cache-volume
-      mountPath: /cache
+    - name: scratch
+      mountPath: /scratch
   volumes:
-  - name: cache-volume
-    emptyDir: {}          # Pod 삭제 시 사라짐
+  - name: scratch
+    emptyDir: {}
 ```
 
-**언제 사용하나?**
-- 컨테이너 간 임시 데이터 공유
-- 캐시 데이터 저장
-- 체크포인트 저장 (재계산 가능한 데이터)
+`volumeMounts`는 컨테이너 내부의 경로를 정하고, `volumes`는 그 이름에 어떤 저장 공간을 연결할지 정한다. 두 곳의 `name`이 연결점이다. 앱과 로그 전송 컨테이너가 같은 `emptyDir`을 서로 다른 경로로 mount하는 것도 가능하다. Init Container가 준비한 파일을 앱에 넘길 때도 같은 구조를 쓴다.
 
-### 2.2 hostPath의 위험성
+`emptyDir.medium: Memory`를 선택하면 메모리 기반 공간이 된다. 디스크 I/O를 피할 수 있지만 쓴 데이터가 메모리 회계에 들어가므로 무제한 임시 저장소처럼 쓰면 안 된다. 일반 `emptyDir`도 Node의 디스크 여유와 ephemeral-storage 관리에서 자유롭지 않다.
 
-`hostPath`는 노드의 파일시스템을 직접 마운트한다. **프로덕션에서는 피해야 한다.**
+### Node의 경로를 연결하면 영구 저장소인가
 
-```yaml
-# ⚠️ 위험한 예시 - 프로덕션에서 사용 금지
-volumes:
-- name: host-volume
-  hostPath:
-    path: /data
-    type: DirectoryOrCreate
-```
+`hostPath`는 Node의 파일시스템 경로를 컨테이너에 노출한다. Node의 파일은 Pod가 사라진 뒤에도 남을 수 있지만, 다른 Node로 이동한 Pod가 그 파일을 받는다는 뜻은 아니다. 같은 `/data`라는 문자열도 Node가 다르면 다른 디스크다.
 
-**왜 위험한가?**
+로그 수집기나 Node 에이전트처럼 호스트를 관찰해야 하는 프로그램에는 정당한 용도가 있다. 이 경우에도 읽기 전용 mount, 필요한 경로와 권한의 제한, Node 디스크 사용 관리는 필요하다. 일반 API의 사용자 파일을 보존하기 위해 임의의 `hostPath`를 쓰면 배치 위치와 데이터 위치를 운영자가 직접 맞춰야 한다. 뒤의 [DaemonSet](Kubernetes-DaemonSet-Job-CronJob.md)은 이처럼 Node에 붙어야 하는 프로세스의 실행 모델을 설명한다.
 
-| 문제 | 설명 |
-|------|------|
-| **노드 종속성** | Pod가 다른 노드로 스케줄링되면 데이터 접근 불가 |
-| **보안 위험** | 노드 파일시스템에 직접 접근 → 탈출 공격 가능 |
-| **데이터 불일치** | 여러 Pod가 같은 경로 사용 시 충돌 |
+## 2. Pod와 저장소의 생명주기를 분리한다
 
-**합법적인 사용 사례:**
-- DaemonSet으로 로그 수집 (Fluentd, Filebeat)
-- 노드 모니터링 에이전트
-- 개발 환경에서의 테스트
+Pod마다 클라우드 볼륨 ID나 NFS 서버 경로를 적으면 앱 배포자가 인프라 세부 사항을 모두 알아야 한다. 개발과 운영의 스토리지도 다르므로 환경을 바꿀 때 Pod 정의가 바뀐다. 이를 분리하는 장치가 PV와 PVC다.
 
----
-
-## 3. 왜 PV와 PVC가 분리되어 있는가?
-
-이것이 가장 중요한 "Why" 질문이다.
-
-### 3.1 만약 분리되어 있지 않다면?
-
-PVC 없이 Pod에서 직접 스토리지를 정의한다고 상상해보자.
-
-```yaml
-# ❌ 가상의 직접 연결 방식 (실제로는 이렇게 하지 않음)
-apiVersion: v1
-kind: Pod
-metadata:
-  name: mysql
-spec:
-  containers:
-  - name: mysql
-    image: mysql:8.0
-    volumeMounts:
-    - name: data
-      mountPath: /var/lib/mysql
-  volumes:
-  - name: data
-    awsElasticBlockStore:       # AWS 직접 참조
-      volumeID: vol-0123456789
-      fsType: ext4
-```
-
-**문제점:**
-
-| 문제 | 설명 |
-|------|------|
-| **클라우드 종속** | AWS에서 GCP로 이전하려면 모든 Pod spec 수정 필요 |
-| **환경 불일치** | 개발(minikube)과 프로덕션(AWS)의 spec이 달라짐 |
-| **역할 혼란** | 개발자가 `vol-0123456789` 같은 인프라 세부사항을 알아야 함 |
-| **재사용 불가** | 같은 스토리지를 다른 Pod에서 사용하려면 복붙 필요 |
-
-### 3.2 Spring DI와의 비유
-
-Java 개발자라면 이 패턴이 익숙할 것이다.
-
-```java
-// ❌ 직접 의존 (Tight Coupling)
-public class UserService {
-    private MySQLUserRepository repository = new MySQLUserRepository();
-}
-
-// ✅ 인터페이스 의존 (Loose Coupling)
-public class UserService {
-    private UserRepository repository;  // 인터페이스에 의존
-
-    @Autowired
-    public UserService(UserRepository repository) {
-        this.repository = repository;   // 구현체는 주입받음
-    }
-}
-```
-
-Kubernetes의 PV/PVC도 동일한 패턴이다:
+PV에는 용량, 접근 모드, 실제 저장소 연결 정보와 반환 정책이 들어간다. PVC에는 필요한 용량과 접근 모드, 사용할 StorageClass 같은 요구가 들어간다. Pod는 같은 namespace의 PVC 이름을 참조한다. Spring의 인터페이스와 구현 분리를 떠올려도 좋지만, 바인딩은 메서드 호출이 아니라 비동기 controller가 두 오브젝트의 상태를 맞추는 과정이다. 요구를 분리해도 저장소의 성능·장애 도메인·지원 모드까지 같아지는 것은 아니다.
 
 ```mermaid
 flowchart LR
-    subgraph "Spring DI"
-        Service["UserService"]
-        Interface["UserRepository<br>(인터페이스)"]
-        Impl["JpaUserRepository<br>(구현체)"]
-    end
-
-    subgraph "Kubernetes"
-        Pod2["Pod"]
-        PVC2["PVC<br>(요구사항)"]
-        PV2["PV<br>(실제 스토리지)"]
-    end
-
-    Service -->|"의존"| Interface
-    Interface -.->|"@Autowired"| Impl
-
-    Pod2 -->|"마운트"| PVC2
-    PVC2 -.->|"바인딩"| PV2
-
-    style Interface stroke:#2196F3,stroke-width:3px
-    style PVC2 stroke:#2196F3,stroke-width:3px
-    style Impl stroke:#4CAF50,stroke-width:3px
-    style PV2 stroke:#4CAF50,stroke-width:3px
+    Pod["Pod의 Volume<br>PVC 이름 참조"] --> PVC["PVC<br>namespace의 저장소 요청"]
+    PVC ---|"1:1 binding"| PV["PV<br>클러스터의 저장소 표현"]
+    PV --> Storage["외부 디스크 또는 파일 서버"]
+    style Pod fill:#1565C0,color:#fff
+    style PVC fill:#2E7D32,color:#fff
+    style PV fill:#6A1B9A,color:#fff
+    style Storage fill:#455A64,color:#fff
 ```
 
-### 3.3 역할 분리
+PV 자체는 데이터 바이트를 담는 Kubernetes DB가 아니다. 실제 바이트는 외부 디스크나 파일 서버에 있다. etcd에 오브젝트가 보존되었다고 사용자 파일 백업이 만들어지는 것도 아니다.
 
-PV/PVC 분리의 핵심은 **관심사의 분리(Separation of Concerns)** 다.
+### 정적 프로비저닝은 이미 있는 저장소를 등록한다
 
-```mermaid
-flowchart TB
-    subgraph "인프라 관리자"
-        Admin["👨‍💼 관리자"]
-        PV["PV 생성<br>NFS: 192.168.1.100:/data<br>AWS EBS: vol-xxx"]
-        SC["StorageClass 정의<br>gp2, gp3, io1"]
-    end
-
-    subgraph "개발자"
-        Dev["👩‍💻 개발자"]
-        PVC3["PVC 작성<br>10Gi, RWO 필요"]
-        Pod3["Pod 배포"]
-    end
-
-    Admin --> PV
-    Admin --> SC
-    Dev --> PVC3
-    Dev --> Pod3
-
-    PVC3 -.->|"자동 바인딩"| PV
-
-    style PVC3 stroke:#2196F3,stroke-width:3px
-    style PV stroke:#4CAF50,stroke-width:3px
-```
-
-| 역할 | 책임 | 알아야 할 것 |
-|------|------|-------------|
-| **인프라 관리자** | PV 생성, StorageClass 정의 | NFS 서버 주소, AWS EBS 설정 |
-| **개발자** | PVC 정의, Pod에 마운트 | 필요한 용량과 접근 모드만 |
-
-개발자는 "10Gi 스토리지가 필요해"라고만 말하면 된다. 그것이 NFS인지 AWS EBS인지 알 필요 없다.
-
----
-
-## 4. PV/PVC 실전 예제
-
-### 4.1 정적 프로비저닝 (Static Provisioning)
-
-관리자가 미리 PV를 생성해두고, 개발자가 PVC로 요청하는 방식이다.
-
-**Step 1: 관리자가 PV 생성**
+다음은 관리자가 이미 준비한 NFS 서버를 등록하는 별도 인프라 예제다. 서버 주소와 export 경로는 가상이며, 모든 대상 Node에서의 네트워크 접근과 NFS mount 지원, 서버 측 권한이 필요하다. NFS 서버를 생성하는 YAML은 아니다.
 
 ```yaml
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: pv-nfs-data
+  name: bookstore-nfs
 spec:
+  storageClassName: ""
   capacity:
     storage: 10Gi
-  accessModes:
-    - ReadWriteMany           # 여러 노드에서 읽기/쓰기
+  accessModes: [ReadWriteMany]
   persistentVolumeReclaimPolicy: Retain
   nfs:
-    server: 192.168.1.100
-    path: /exported/data
-```
-
-**Step 2: 개발자가 PVC 생성**
-
-```yaml
+    server: 192.0.2.10
+    path: /export/bookstore
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: my-pvc
+  name: order-files
+  namespace: bookstore
 spec:
-  accessModes:
-    - ReadWriteMany
+  storageClassName: ""
+  volumeName: bookstore-nfs
+  accessModes: [ReadWriteMany]
   resources:
     requests:
-      storage: 5Gi            # 5Gi 요청 → 10Gi PV에 바인딩됨
+      storage: 5Gi
 ```
 
-**Step 3: Pod에서 PVC 사용**
+PVC의 `storageClassName: ""`는 기본 StorageClass를 사용하지 않겠다는 명시적 선택이다. 생략하면 default class가 할당될 수 있어서 class 없는 PV와 맞지 않을 수 있다. `volumeName`은 이번 예제에서 연결하려는 PV를 특정한다. 이 경우에도 class·access modes·capacity는 검사하지만, binding 단계의 node affinity 검사는 우회할 수 있다. 그렇다고 실제 Pod scheduling의 PV node affinity 제약이 사라지는 것은 아니다. 또한 PVC의 `volumeName` 지정과, 다른 PVC가 가져가지 못하도록 PV의 `claimRef`로 예약하는 것은 구분한다.
+
+10Gi PV에 5Gi PVC가 바인딩되어도 남은 5Gi가 별도 PVC에 나뉘어 배정되지는 않는다. PV/PVC의 바인딩은 1:1이다. 실제 파일 서버의 사용량 제한은 Kubernetes에 적은 capacity 숫자만으로 보장되는지도 따로 확인해야 한다.
+
+앞의 Pod에서 `volumes`를 다음처럼 바꾸고 `volumeMounts`도 `name: data`, `mountPath: /data`로 함께 바꾸면 같은 요청을 소비한다. 아래는 Pod 전체가 아니라 해당 필드의 발췌다.
 
 ```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: app-pod
-spec:
-  containers:
-  - name: app
-    image: nginx
-    volumeMounts:
-    - name: data
-      mountPath: /data
-  volumes:
-  - name: data
-    persistentVolumeClaim:
-      claimName: my-pvc       # PVC 이름만 참조
+volumes:
+- name: data
+  persistentVolumeClaim:
+    claimName: order-files
 ```
 
-**바인딩 과정:**
+정적 프로비저닝은 레거시라는 뜻이 아니다. 이미 운영 중인 스토리지나 관리자가 명시적으로 배정하는 저장소에는 여전히 의미가 있다.
 
-```mermaid
-sequenceDiagram
-    participant Admin as 관리자
-    participant PV as PV (10Gi)
-    participant K8s as Control Plane
-    participant PVC as PVC (5Gi 요청)
-    participant Dev as 개발자
+## 3. StorageClass와 CSI가 실제 저장소를 마련한다
 
-    Admin->>PV: PV 생성
-    Note over PV: status: Available
+PVC 요청마다 관리자가 PV를 미리 만들기는 번거롭다. 동적 프로비저닝에서는 StorageClass가 provisioner와 생성 정책을 정하고, 이를 감시하는 provisioner가 실제 저장소를 만들고 PV를 등록한다. StorageClass 오브젝트만 생성한다고 해당 드라이버나 스토리지 제품이 설치되는 것은 아니다.
 
-    Dev->>PVC: PVC 생성
-    PVC->>K8s: "5Gi RWX 필요"
-    K8s->>K8s: 조건 맞는 PV 검색
-    K8s->>PV: 바인딩
-    Note over PV: status: Bound
-    Note over PVC: status: Bound
-```
+CSI(Container Storage Interface)는 Kubernetes와 스토리지 드라이버가 통신하는 표준 인터페이스다. 예전처럼 벤더의 모든 구현을 Kubernetes 코드에 포함하는 대신 드라이버를 별도로 배포하고 업데이트할 수 있게 한다. Controller 측 기능은 볼륨 생성·삭제·연결 등을, Node 측 기능은 Node에서 사용할 준비와 Pod 경로 노출 등을 담당한다. 모든 드라이버가 같은 기능을 구현하는 것은 아니며 파일 스토리지처럼 별도 attach가 없는 경우도 있다.
 
-### 4.2 동적 프로비저닝 (Dynamic Provisioning)
-
-정적 프로비저닝의 문제: 관리자가 미리 PV를 만들어야 한다. 만약 개발자가 50개의 PVC를 요청하면?
-
-**동적 프로비저닝** 은 PVC가 생성되면 자동으로 PV를 생성한다.
-
-```mermaid
-flowchart LR
-    PVC4["PVC 생성<br>storageClassName: gp3"]
-    SC2["StorageClass<br>gp3"]
-    Provisioner["Provisioner<br>(AWS EBS CSI)"]
-    PV3["PV 자동 생성"]
-    EBS["AWS EBS<br>볼륨 생성"]
-
-    PVC4 -->|"1. 요청"| SC2
-    SC2 -->|"2. 위임"| Provisioner
-    Provisioner -->|"3. 생성"| EBS
-    Provisioner -->|"4. PV 생성"| PV3
-    PV3 -->|"5. 바인딩"| PVC4
-
-    style SC2 stroke:#FF9800,stroke-width:3px
-```
-
-**StorageClass 정의 (관리자):**
+다음은 AWS EKS의 standard EBS CSI driver가 설치되고 적절한 IAM 권한이 준비된 경우의 독립 예제다. 앞의 NFS PVC를 이 class로 변환하는 명령은 아니다.
 
 ```yaml
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
-  name: fast-ssd
-provisioner: ebs.csi.aws.com    # AWS EBS CSI 드라이버
+  name: book-ebs
+provisioner: ebs.csi.aws.com
 parameters:
   type: gp3
-  iops: "3000"
-  throughput: "125"
-reclaimPolicy: Delete
+  encrypted: "true"
+reclaimPolicy: Retain
+allowVolumeExpansion: true
 volumeBindingMode: WaitForFirstConsumer
-```
-
-**PVC에서 StorageClass 사용 (개발자):**
-
-```yaml
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: fast-storage
+  name: order-export
+  namespace: bookstore
 spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: fast-ssd    # StorageClass 지정
+  storageClassName: book-ebs
+  accessModes: [ReadWriteOnce]
   resources:
     requests:
       storage: 20Gi
 ```
 
-PV를 직접 만들 필요 없다. PVC만 생성하면 Kubernetes가 알아서 PV와 실제 스토리지를 생성한다.
+### PVC가 Pending이어도 정상일 수 있다
 
----
+`WaitForFirstConsumer`는 소비할 Pod의 배치 조건을 알 때까지 provisioning과 binding을 미룬다. 특히 특정 zone에만 붙을 수 있는 디스크를 Pod와 무관한 위치에 먼저 만드는 문제를 줄인다. 따라서 PVC만 만들었을 때 `Pending`인 것을 곧바로 장애라고 판정하지 않는다.
 
-## 5. StorageClass - 동적 프로비저닝의 핵심
+소비 Pod가 생기면 scheduler는 Node 자원, affinity, topology, 저장소 조건을 함께 고려한다. 적합한 Node 후보에 맞춰 볼륨을 마련하고 연결해야 하므로 어느 한쪽 조건이 막혀도 진행되지 않는다. `nodeName`으로 scheduler를 우회하면 이 협조 과정이 일어나지 않아 PVC가 대기할 수 있다. 특정 Node를 원할 때도 scheduler가 처리할 selector/affinity로 표현하는 것이 이 모델에 맞는다. [StorageClass 공식 문서](https://kubernetes.io/docs/concepts/storage/storage-classes/)는 두 binding mode의 전제를 설명한다.
 
-### 5.1 왜 StorageClass가 필요한가?
+`Immediate`는 consumer를 기다리지 않고 binding/provisioning을 시도한다. 네트워크 파일 스토리지나 topology 제약이 없는 구성에 적합할 수 있으므로 모든 환경에 `WaitForFirstConsumer`를 강제할 이유는 없다.
 
-같은 클러스터에서도 다양한 성능의 스토리지가 필요하다:
+## 4. 연결 성공을 단계별로 읽는다
 
-| 워크로드 | 요구사항 | StorageClass |
-|----------|----------|--------------|
-| 로그 저장 | 저렴한 HDD | `standard` |
-| 웹 서버 캐시 | 일반 SSD | `gp3` |
-| 데이터베이스 | 고성능 SSD | `io2` |
-| 빅데이터 분석 | 대용량 처리량 | `st1` |
-
-StorageClass는 **스토리지의 "등급"** 을 정의한다. 개발자는 성능 요구사항에 맞는 클래스를 선택하기만 하면 된다.
-
-### 5.2 클라우드별 기본 Provisioner
-
-| 클라우드 | Provisioner | 기본 StorageClass |
-|----------|-------------|-------------------|
-| AWS EKS | `ebs.csi.aws.com` | `gp2`, `gp3` |
-| GCP GKE | `pd.csi.storage.gke.io` | `standard`, `premium-rwo` |
-| Azure AKS | `disk.csi.azure.com` | `default`, `managed-premium` |
-| 온프레미스 | `nfs.csi.k8s.io`, `local.csi.k8s.io` | 직접 정의 |
-
-**기본 StorageClass 확인:**
+실제 진단에서는 PVC와 Pod를 따로 본다. 다음 명령은 독자가 허가받은 환경에서 관찰할 때의 예이며, 여기서 실행해 얻은 결과가 아니다.
 
 ```bash
-kubectl get storageclass
-
-# 출력 예시 (업그레이드된 구형 EKS 클러스터)
-NAME            PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE
-gp2 (default)   kubernetes.io/aws-ebs   Delete          WaitForFirstConsumer   # ⚠️ in-tree 드라이버 (아래 타임라인 참고)
-gp3             ebs.csi.aws.com         Delete          WaitForFirstConsumer   # ✅ 현대 CSI 드라이버
+kubectl get pvc -n bookstore
+kubectl describe pvc order-files -n bookstore
+kubectl describe pod order-api -n bookstore
+kubectl get pv bookstore-nfs -o yaml
 ```
 
-`(default)` 표시가 있는 클래스는 PVC에서 `storageClassName`을 생략하면 자동으로 사용된다.
+PVC가 `Pending`이면 class 존재, matching PV, provisioner Events, consumer 유무와 scheduler 조건을 먼저 확인한다. `Bound`인데 Pod가 `ContainerCreating`에 머무르면 저장소는 선택되었지만 attach/mount에서 막혔을 수 있다. `FailedAttachVolume`과 `FailedMount`를 같은 오류로 뭉개면 실제 디스크 연결과 Node의 mount 문제를 구분하기 어렵다.
 
-> **`awsElasticBlockStore` in-tree 드라이버 타임라인 ([공식 문서](https://kubernetes.io/docs/concepts/storage/volumes/#awselasticblockstore) 기준):**
-> - **v1.19**: `awsElasticBlockStore` in-tree 플러그인 **deprecated**
-> - **v1.23**: AWS EBS **CSI Migration이 기본 활성화** (기존 in-tree API로 들어온 요청을 kubelet이 자동으로 CSI 드라이버로 리다이렉트)
-> - **v1.27**: in-tree 플러그인 **제거(removed)**
->
-> 따라서 `gp2` StorageClass가 `kubernetes.io/aws-ebs`로 표시되어도, v1.23+ 클러스터는 실제로는 CSI 드라이버(`ebs.csi.aws.com`)가 요청을 처리한다. 신규 워크로드는 `gp3` + CSI를 직접 지정하는 것이 권장된다.
+CSI 볼륨이라면 관련 `VolumeAttachment`와 controller/Node plugin 로그가 추가 증거가 될 수 있다. 기존 Node에서 RWO 볼륨이 아직 사용 중인데 새 Node에 붙이려는 상황에서는 기존 인스턴스의 실제 종료와 detach를 확인해야 한다. API에서 Pod를 지웠다는 사실만으로 디스크 사용자가 사라졌다고 판단하지 않는다.
 
-### 5.3 volumeBindingMode - 언제 바인딩할 것인가?
+컨테이너가 시작된 뒤에도 앱 UID/GID, 파일 권한, readOnly 설정, 용량·inode 부족으로 쓰기가 실패할 수 있다. mount 성공 뒤의 검증은 앱이 사용하는 경로에서의 쓰기·읽기와 앱 오류를 확인하는 일이다. 데이터가 주문 처리의 일부라면 파일 존재뿐 아니라 DB의 참조와 실제 파일의 대응까지 확인해야 한다.
 
-`volumeBindingMode`는 PV 바인딩과 동적 프로비저닝이 **언제** 발생하는지를 결정한다.
+## 5. 접근 모드와 삭제 정책은 다른 질문이다
 
-| 모드 | 바인딩 시점 | 사용 사례 |
-|------|-------------|-----------|
-| **Immediate** | PVC 생성 즉시 | 단일 AZ 클러스터, 온프레미스 |
-| **WaitForFirstConsumer** | Pod가 스케줄링될 때 | **멀티 AZ 클라우드 환경** (권장) |
+### 누가 동시에 연결할 수 있는가
 
-**왜 `WaitForFirstConsumer`가 중요한가?**
+| 접근 모드 | 의미 |
+|---|---|
+| ReadWriteOnce, RWO | 하나의 Node에서 읽기/쓰기 mount |
+| ReadOnlyMany, ROX | 여러 Node에서 읽기 전용 mount |
+| ReadWriteMany, RWX | 여러 Node에서 읽기/쓰기 mount |
+| ReadWriteOncePod, RWOP | 클러스터에서 하나의 Pod만 읽기/쓰기 mount |
 
-AWS나 GCP 같은 클라우드에서 스토리지는 특정 **가용 영역(AZ)** 에 생성된다. `Immediate` 모드에서는 PVC 생성 시점에 바로 PV를 생성하므로, AZ-a에 스토리지가 생성될 수 있다. 하지만 Pod가 AZ-b에 스케줄링되면 **스토리지에 접근할 수 없다**.
+RWO를 단일 Pod 보장으로 해석하면 안 된다. 같은 Node의 여러 Pod가 접근할 수 있으며, RWX가 지원되어도 동시 쓰기의 잠금과 파일 형식 일관성은 앱이 책임진다. RWOP는 Kubernetes 1.29에서 stable이 된 CSI 전용 기능이며, CSI driver와 관련 sidecar의 지원 버전이 필요하다. 접근 모드는 스토리지의 지원 능력과 scheduling/mount 계약을 나타내며 DB transaction이나 쓰기 복제를 대신하지 않는다.
 
-```mermaid
-flowchart TB
-    subgraph "❌ Immediate 모드의 문제"
-        PVC_I["PVC 생성"]
-        PV_I["PV 생성<br>(AZ-a)"]
-        Pod_I["Pod 스케줄링<br>(AZ-b)"]
-        Fail["❌ 접근 불가!"]
-    end
+### PVC를 지우면 무엇이 남는가
 
-    subgraph "✅ WaitForFirstConsumer"
-        PVC_W["PVC 생성"]
-        Pending["PV: Pending"]
-        Pod_W["Pod 스케줄링<br>(AZ-b 결정)"]
-        PV_W["PV 생성<br>(AZ-b)"]
-        Success["✅ 정상 접근"]
-    end
+PV의 reclaim policy는 PVC가 반환된 뒤 저장소를 어떻게 처리할지 정한다. `Delete`는 지원 provisioner가 PV와 외부 저장소를 삭제하는 경로이며, `Retain`은 잔존 데이터의 정리·재사용 결정을 관리자에게 남긴다. 동적 PV는 생성 시 StorageClass의 정책을 이어받으므로 중요한 데이터라면 실제 PV의 정책도 확인한다. 오래된 `Recycle`을 새 운영 설계의 선택지로 쓰지 않는다.
 
-    PVC_I --> PV_I
-    PV_I --> Pod_I
-    Pod_I --> Fail
+`Retain` PV의 `Released`는 이전 claim이 해제되었다는 상태다. 데이터가 자동으로 초기화되어 다음 사용자에게 넘겨도 된다는 뜻은 아니다. `claimRef`만 제거하면 과거 데이터가 새 claim에 노출될 수 있다. 원래 소유자, 기존 사용자의 실제 종료, 데이터 정리 또는 복구 목적, 백업, 스토리지 관리 절차를 확인한 다음 재배정해야 한다.
 
-    PVC_W --> Pending
-    Pending --> Pod_W
-    Pod_W --> PV_W
-    PV_W --> Success
-
-    style Fail stroke:#f44336,stroke-width:2px
-    style Success stroke:#4CAF50,stroke-width:2px
-```
-
-**결론:** 클라우드 환경에서는 `WaitForFirstConsumer`를 사용하라. Pod가 스케줄링되는 노드의 위치를 확인한 후 같은 AZ에 스토리지를 생성한다.
-
----
-
-## 6. Access Modes와 Reclaim Policy
-
-### 6.1 Access Modes
-
-PV가 어떻게 마운트될 수 있는지를 정의한다.
-
-| 모드 | 약어 | 의미 | 사용 사례 |
-|------|------|------|-----------|
-| **ReadWriteOnce** | RWO | 하나의 노드에서 읽기/쓰기 | 단일 Pod 데이터베이스 |
-| **ReadOnlyMany** | ROX | 여러 노드에서 읽기 전용 | 공유 설정 파일 |
-| **ReadWriteMany** | RWX | 여러 노드에서 읽기/쓰기 | 공유 파일 스토리지 |
-| **ReadWriteOncePod** | RWOP | 하나의 Pod에서만 읽기/쓰기 | 엄격한 단일 접근 필요 시 |
-
-> **참고:** `ReadWriteOncePod`는 Kubernetes 1.29에서 **정식(GA)** 기능이 되었다. 1.22~1.28 버전에서는 `ReadWriteOncePod` Feature Gate를 활성화해야 사용할 수 있다.
-
-> **주의 (RWO 오해):** `ReadWriteOnce`는 "하나의 **노드** "에서만 마운트 가능하다는 의미다. 같은 노드에 있는 **여러 Pod가 동시에 접근할 수 있다**. 진정한 단일 Pod 접근 보장이 필요하면 `ReadWriteOncePod`(RWOP)를 사용해야 한다.
-
-**주의:** 모든 스토리지가 모든 모드를 지원하지는 않는다.
-
-| 스토리지 유형 | RWO | ROX | RWX |
-|---------------|-----|-----|-----|
-| AWS EBS | ✅ | ❌ | ❌ |
-| AWS EFS | ✅ | ✅ | ✅ |
-| GCP PD | ✅ | ✅ | ❌ |
-| NFS | ✅ | ✅ | ✅ |
-
-### 6.2 Reclaim Policy
-
-PVC가 삭제되면 PV는 어떻게 되는가?
-
-| 정책 | 동작 | 사용 사례 |
-|------|------|-----------|
-| **Retain** | PV와 데이터 유지 (수동 정리 필요) | 중요 데이터, 수동 백업 후 삭제 |
-| **Delete** | PV와 실제 스토리지 자동 삭제 | 일시적 데이터, 동적 프로비저닝 |
-| **Recycle** | 데이터 삭제 후 재사용 (deprecated) | 사용 금지 |
-
-```mermaid
-flowchart LR
-    subgraph "Retain 정책"
-        PVC_R["PVC 삭제"]
-        PV_R["PV: Released<br>(데이터 유지)"]
-        Admin_R["관리자<br>수동 정리"]
-    end
-
-    subgraph "Delete 정책"
-        PVC_D["PVC 삭제"]
-        PV_D["PV: 삭제"]
-        Storage_D["실제 스토리지<br>삭제"]
-    end
-
-    PVC_R --> PV_R
-    PV_R --> Admin_R
-
-    PVC_D --> PV_D
-    PV_D --> Storage_D
-
-    style PV_R stroke:#FF9800,stroke-width:2px
-    style Storage_D stroke:#f44336,stroke-width:2px
-```
-
-**Retain 정책의 PV 재사용:**
+PVC가 `Terminating`에 남는 것도 곧바로 고장이 아니다. `kubernetes.io/pvc-protection` 같은 finalizer는 사용 중인 저장소를 삭제하는 사고를 막는다. 같은 이름의 claim이 다른 namespace에도 있을 수 있으므로 사용 Pod를 찾을 때 namespace를 맞춘다.
 
 ```bash
-# Released 상태의 PV 확인
-kubectl get pv
-# NAME        STATUS     CLAIM
-# pv-data     Released   default/old-pvc
-
-# claimRef 제거하여 Available로 변경
-kubectl patch pv pv-data -p '{"spec":{"claimRef": null}}'
+kubectl get pods -n bookstore -o json | jq -r \
+  '.items[] | select(any(.spec.volumes[]?; .persistentVolumeClaim.claimName == "order-files")) | .metadata.name'
 ```
 
----
+사용 Pod를 발견했다고 즉시 삭제하기보다 소유 controller와 중단 영향을 확인한다. finalizer 강제 제거는 데이터 사용자가 없음을 API 목록만으로 추정해 실행할 일반 해결책이 아니다. 담당 controller의 실패 원인과 실제 저장소의 사용·삭제 상태를 확인하고, 보호 절차를 우회할 책임과 복구 방안이 정해진 경우의 제한적 최후 수단이다.
 
-## 7. 실전 시나리오
+## 6. 심화: 확장, 이동, snapshot은 복구와 연결해서 본다
 
-### 7.1 StatefulSet + volumeClaimTemplates
+### PVC 용량 확장
 
-StatefulSet은 각 Pod마다 **개별 PVC** 를 자동 생성한다.
+확장을 지원하는 드라이버와 `allowVolumeExpansion: true`인 StorageClass가 전제다. PVC의 요청 용량을 늘리면 저장소 백엔드 확장과 파일시스템 확장이 진행되며, 둘은 같은 순간에 끝나지 않을 수 있다. 온라인 확장 가능 여부도 driver·파일시스템에 달려 있다.
 
-> **참고:** StatefulSet은 **Headless Service** 가 필수다. Headless Service를 통해 각 Pod에 안정적인 DNS 이름(`mysql-0.mysql`, `mysql-1.mysql`)이 부여되어, 클러스터 노드 간 통신이 가능해진다.
+PVC Events/conditions와 실제 mount 경로의 용량을 함께 보아야 한다. `FileSystemResizePending`이면 파일시스템 단계가 남았다는 단서다. 문구 하나만 보고 중요한 DB Pod를 즉시 지우기보다 해당 driver의 지원 절차와 앱의 안전한 재시작 조건을 확인한다. 일반적으로 PVC 축소는 지원하지 않으므로 잘못 늘린 값을 단순히 되돌리는 방식도 피한다.
 
-```yaml
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: mysql
-spec:
-  serviceName: mysql            # Headless Service 이름 (필수, 먼저 생성해야 함)
-  replicas: 3
-  selector:
-    matchLabels:
-      app: mysql
-  template:
-    metadata:
-      labels:
-        app: mysql
-    spec:
-      containers:
-      - name: mysql
-        image: mysql:8.0
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/mysql
-  volumeClaimTemplates:         # 각 Pod마다 PVC 자동 생성
-  - metadata:
-      name: data
-    spec:
-      accessModes: ["ReadWriteOnce"]
-      storageClassName: fast-ssd
-      resources:
-        requests:
-          storage: 10Gi
-```
+StatefulSet의 `volumeClaimTemplates`와 이미 생성된 각 PVC는 별개의 오브젝트다. 템플릿 수정만으로 모든 기존 디스크가 커진다고 생각하면 안 된다. 각 claim의 확장 상태와 이후 생성될 claim의 설정을 구분해 관리한다.
 
-**결과:**
+### 파일 복사와 데이터 이동
 
-```bash
-kubectl get pvc
-# NAME           STATUS   VOLUME                                     CAPACITY
-# data-mysql-0   Bound    pvc-abc123                                10Gi
-# data-mysql-1   Bound    pvc-def456                                10Gi
-# data-mysql-2   Bound    pvc-ghi789                                10Gi
-```
+두 PVC를 임시 Pod에 mount하여 `cp`나 `rsync`로 복사하는 것은 일반 파일 이동에 쓸 수 있는 방법이다. 그러나 실행 중인 DB 파일을 복사하면 서로 다른 시점의 데이터 페이지와 로그가 섞일 수 있다. 파일이 모두 복사되었다는 결과는 DB 일관성 증거가 아니다.
 
-각 Pod(`mysql-0`, `mysql-1`, `mysql-2`)가 자신만의 PVC와 PV를 갖는다.
+이동 계획에는 쓰기 중단 또는 DB 고유의 backup/restore 도구, 권한·소유자·숨김 파일 보존, 검증, 앱 전환, 실패 시 되돌아갈 원본 보존이 포함되어야 한다. RWO 디스크 두 개가 다른 zone에 있으면 같은 임시 Pod에 mount할 수 없는 문제도 먼저 해결해야 한다.
 
-**PVC 명명 규칙:** `<volumeClaimTemplate.name>-<statefulset.name>-<ordinal>`
-- `data-mysql-0` = `data`(템플릿 이름) + `mysql`(StatefulSet 이름) + `0`(순서)
+### VolumeSnapshot과 복원용 PVC
 
-이 명명 규칙 덕분에 Pod가 재시작되어도 **같은 이름의 PVC** 에 다시 연결된다.
-
-### 7.2 PVC 용량 확장
-
-Kubernetes 1.11부터 PVC 용량을 늘릴 수 있다 (줄이기는 불가).
-
-**전제 조건:**
-- StorageClass에 `allowVolumeExpansion: true` 설정
-- 스토리지 프로바이더가 확장 지원
-
-```yaml
-# StorageClass 설정
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: expandable-ssd
-provisioner: ebs.csi.aws.com
-allowVolumeExpansion: true      # 확장 허용
-```
-
-```bash
-# PVC 용량 확장
-kubectl patch pvc my-pvc -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
-
-# 또는 YAML 편집
-kubectl edit pvc my-pvc
-# spec.resources.requests.storage를 20Gi로 변경
-```
-
-**왜 Pod 재시작이 필요할 수 있는가?**
-
-PVC 용량 확장은 **두 단계** 로 이루어진다:
-
-| 단계 | 설명 |
-|------|------|
-| 1. 스토리지 백엔드 확장 | AWS EBS 볼륨 크기 증가 (자동) |
-| 2. 파일시스템 확장 | 컨테이너 내부 ext4/xfs 확장 |
-
-최신 CSI 드라이버는 **온라인 파일시스템 확장** 을 지원하지만, 이것이 실패하거나 지원되지 않으면 Pod 재시작이 필요하다. Pod를 재시작하면 볼륨을 다시 마운트하는 과정에서 Kubelet이 파일시스템을 확장해준다.
-
-```bash
-# 확장 진행 상태 확인
-kubectl describe pvc my-pvc
-# Conditions:
-#   Type: FileSystemResizePending  ← 파일시스템 확장 대기 중
-
-# Pod 재시작으로 파일시스템 확장 완료
-kubectl delete pod <pod-name>
-```
-
-### 7.3 PV 데이터 마이그레이션
-
-기존 PV의 데이터를 새 PV로 옮기는 방법:
-
-```bash
-# 1. 임시 Pod로 두 PVC를 동시에 마운트
-apiVersion: v1
-kind: Pod
-metadata:
-  name: data-migration
-spec:
-  containers:
-  - name: migration
-    image: busybox
-    command: ['sh', '-c', 'cp -av /old-data/. /new-data/ && sleep infinity']  # 숨김 파일 포함
-    volumeMounts:
-    - name: old-volume
-      mountPath: /old-data
-    - name: new-volume
-      mountPath: /new-data
-  volumes:
-  - name: old-volume
-    persistentVolumeClaim:
-      claimName: old-pvc
-  - name: new-volume
-    persistentVolumeClaim:
-      claimName: new-pvc
-```
-
----
-
-## 8. CSI 드라이버 - 스토리지 확장의 표준
-
-### 8.1 왜 CSI가 등장했는가?
-
-초기 Kubernetes는 스토리지 드라이버를 **Kubernetes 코드 내부(in-tree)** 에 직접 포함했다. AWS EBS, GCE PD, NFS 등의 코드가 Kubernetes 소스 코드에 포함되어 있었다.
-
-**문제점:**
-
-| 문제 | 설명 |
-|------|------|
-| **릴리스 종속** | 새 스토리지 기능 추가 시 Kubernetes 릴리스를 기다려야 함 |
-| **유지보수 부담** | 모든 스토리지 벤더 코드를 Kubernetes 팀이 관리 |
-| **버그 영향** | 특정 스토리지 드라이버 버그가 Kubernetes 전체에 영향 |
-| **테스트 복잡도** | 모든 스토리지 조합을 Kubernetes가 테스트해야 함 |
-
-### 8.2 CSI (Container Storage Interface)
-
-CSI는 컨테이너 오케스트레이터(Kubernetes, Mesos 등)와 스토리지 시스템 사이의 **표준 인터페이스** 다.
-
-```mermaid
-flowchart LR
-    subgraph "Before: In-Tree"
-        K8s_old["Kubernetes 코드"]
-        EBS_old["AWS EBS 코드"]
-        GCE_old["GCE PD 코드"]
-        NFS_old["NFS 코드"]
-        K8s_old --- EBS_old
-        K8s_old --- GCE_old
-        K8s_old --- NFS_old
-    end
-
-    subgraph "After: CSI (Out-of-Tree)"
-        K8s_new["Kubernetes"]
-        CSI["CSI 인터페이스"]
-        EBS_new["EBS CSI Driver"]
-        GCE_new["GCE CSI Driver"]
-        NFS_new["NFS CSI Driver"]
-        K8s_new -->|"표준 API"| CSI
-        CSI --> EBS_new
-        CSI --> GCE_new
-        CSI --> NFS_new
-    end
-
-    style CSI stroke:#2196F3,stroke-width:3px
-```
-
-**CSI의 장점:**
-
-| 장점 | 설명 |
-|------|------|
-| **독립 릴리스** | 스토리지 벤더가 자체 일정에 맞춰 드라이버 업데이트 |
-| **책임 분리** | 각 벤더가 자신의 드라이버 유지보수 |
-| **빠른 기능 추가** | Kubernetes 업그레이드 없이 새 스토리지 기능 사용 가능 |
-| **표준화** | 하나의 드라이버가 여러 오케스트레이터에서 동작 |
-
-### 8.3 관리형 Kubernetes에서의 CSI
-
-EKS, GKE, AKS 같은 **관리형 Kubernetes** 에서는 CSI 드라이버가 어떻게 관리되는가?
-
-| 클라우드 | CSI 드라이버 | 관리 방식 |
-|----------|--------------|-----------|
-| **AWS EKS** | EBS CSI Driver | **애드온으로 설치** (기본 미설치) |
-| **GCP GKE** | GCE PD CSI Driver | **기본 설치됨** |
-| **Azure AKS** | Azure Disk CSI Driver | **기본 설치됨** |
-
-> **주의 (AWS EKS):** EKS 1.23+에서 EBS CSI Driver를 직접 설치해야 한다. 기존 in-tree 드라이버(`kubernetes.io/aws-ebs`)는 deprecated되었다.
-
-```bash
-# EKS에서 EBS CSI Driver 애드온 확인
-aws eks describe-addon --cluster-name my-cluster --addon-name aws-ebs-csi-driver
-
-# 또는 kubectl로 확인
-kubectl get pods -n kube-system -l app.kubernetes.io/name=aws-ebs-csi-driver
-```
-
----
-
-## 9. VolumeSnapshot - 데이터 백업과 복원
-
-### 9.1 왜 VolumeSnapshot이 필요한가?
-
-PV로 데이터 영속성을 확보했다면, 다음 질문은 **"이 데이터를 어떻게 백업하고 복원할까?"** 다.
-
-기존 방법들의 한계:
-
-| 방법 | 문제점 |
-|------|--------|
-| `cp`, `rsync` | 대용량 데이터에서 느림, 일관성 보장 어려움 |
-| 데이터베이스 덤프 | 애플리케이션별로 다름, 자동화 어려움 |
-| 클라우드 콘솔 스냅샷 | Kubernetes와 분리되어 관리, 자동화 복잡 |
-
-**VolumeSnapshot** 은 Kubernetes 네이티브 방식으로 PV의 **특정 시점 복사본** 을 생성한다.
-
-### 9.2 VolumeSnapshot 동작 방식
-
-```mermaid
-flowchart LR
-    PVC_orig["PVC<br>(원본)"]
-    PV_orig["PV<br>(10Gi 데이터)"]
-    Snapshot["VolumeSnapshot<br>(특정 시점 복사본)"]
-    PVC_restore["PVC<br>(복원용)"]
-    PV_restore["PV<br>(새로 생성)"]
-
-    PVC_orig --> PV_orig
-    PV_orig -->|"1. 스냅샷 생성"| Snapshot
-    Snapshot -->|"2. 스냅샷에서 복원"| PV_restore
-    PV_restore --> PVC_restore
-
-    style Snapshot stroke:#FF9800,stroke-width:3px
-```
-
-**VolumeSnapshotClass 정의:**
+VolumeSnapshot은 CSI가 제공하는 시점 복제를 Kubernetes API로 요청하는 기능이다. snapshot CRD, snapshot controller, 지원 CSI driver와 VolumeSnapshotClass가 필요하다. 다음 예제는 앞의 EBS driver와 `order-export` PVC를 사용하며, 앱의 일관성을 확보할 별도 절차가 있다는 전제다.
 
 ```yaml
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshotClass
 metadata:
-  name: ebs-snapshot-class
-driver: ebs.csi.aws.com           # CSI 드라이버
-deletionPolicy: Delete            # 스냅샷 삭제 시 실제 스냅샷도 삭제
-```
-
-**VolumeSnapshot 생성:**
-
-```yaml
+  name: book-ebs-snapshot
+driver: ebs.csi.aws.com
+deletionPolicy: Retain
+---
 apiVersion: snapshot.storage.k8s.io/v1
 kind: VolumeSnapshot
 metadata:
-  name: mysql-snapshot-20241201
+  name: order-export-before-change
+  namespace: bookstore
 spec:
-  volumeSnapshotClassName: ebs-snapshot-class
+  volumeSnapshotClassName: book-ebs-snapshot
   source:
-    persistentVolumeClaimName: mysql-data    # 원본 PVC
-```
-
-**스냅샷에서 PVC 복원:**
-
-```yaml
+    persistentVolumeClaimName: order-export
+---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: mysql-data-restored
+  name: order-export-restored
+  namespace: bookstore
 spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: gp3
+  storageClassName: book-ebs
+  accessModes: [ReadWriteOnce]
   resources:
     requests:
-      storage: 10Gi
+      storage: 20Gi
   dataSource:
-    name: mysql-snapshot-20241201       # 스냅샷에서 복원
+    name: order-export-before-change
     kind: VolumeSnapshot
     apiGroup: snapshot.storage.k8s.io
 ```
 
-### 9.3 실무 사용 사례
+복원 전에 snapshot의 `readyToUse`와 오류를 확인하고, 복원 class의 driver·용량 등 호환 조건을 확인한다. 여기서는 같은 namespace의 snapshot을 새 PVC의 source로 사용한다. 실제 복원에서는 snapshot 생성과 준비 완료를 기다린 뒤 복원 claim을 생성하는 순서로 검증한다.
 
-| 사례 | 설명 |
-|------|------|
-| **데이터베이스 백업** | 정기적 스냅샷으로 특정 시점 복원 가능 |
-| **애플리케이션 롤백** | 배포 전 스냅샷 → 문제 시 복원 |
-| **개발/테스트 환경 복제** | 프로덕션 스냅샷으로 스테이징 환경 생성 |
-| **재해 복구(DR)** | 다른 리전으로 스냅샷 복사 후 복원 |
+스토리지 시점 복제는 앱 일관성, 독립된 백업 보관, 다른 리전 복제, DB의 point-in-time recovery를 자동으로 제공하지 않는다. DB에는 제품이 지원하는 quiesce·backup 절차가 필요하고, flush 한 번을 모든 DB의 복구 보장으로 취급할 수 없다. 복원용 PVC가 Bound가 된 뒤 새 Pod에서 DB recovery, 스키마·데이터, 앱의 읽기·쓰기를 확인해야 비로소 복구 검증이라고 부를 수 있다. [VolumeSnapshot 공식 문서](https://kubernetes.io/docs/concepts/storage/volume-snapshots/)는 스냅샷 API와 storage 구현의 역할을 구분한다.
 
-> **주의:** 스냅샷 생성 시 **데이터 일관성** 을 위해 애플리케이션을 일시 정지(Quiesce)하거나, 데이터베이스의 경우 flush 후 스냅샷을 생성하는 것이 안전하다.
+## 7. 심화: 클라우드 이름보다 실제 class를 읽는다
 
----
+2026-10-23 기준 AWS EKS의 standard EBS CSI 경로는 `ebs.csi.aws.com`이고, EKS Auto Mode의 EBS provisioner는 `ebs.csi.eks.amazonaws.com`이다. 설치와 관리 주체가 다르므로 모든 EKS에 동일 애드온 설치 명령을 적용하면 안 된다. Standard 경로에서도 IAM 구성은 IRSA만 있는 것이 아니라 EKS Pod Identity 등 지원 방식을 확인해야 한다. [AWS EBS CSI 문서](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html)가 이 구분의 기준이다.
 
-## 10. 클라우드별 실무 가이드 (EKS/GKE/AKS)
+기존 class에 `kubernetes.io/aws-ebs`가 보인다면 in-tree 플러그인과 CSI migration 이력을 확인한다. `awsElasticBlockStore`는 1.19 deprecated, CSI migration은 1.23 기본 활성화, in-tree 코드는 1.27 제거라는 이력이 있다. 오래된 provisioner 문자열만으로 실제 I/O가 어떤 driver를 거치는지 단정하지 않는다. 새 구성은 해당 환경이 지원하는 CSI class를 명시하는 편이 관계를 읽기 쉽다.
 
-실무에서 Kubernetes를 직접 설치하는 경우는 드물다. 대부분 **관리형 Kubernetes(EKS, GKE, AKS)** 를 사용한다. 각 클라우드에서 스토리지를 다룰 때 알아야 할 핵심 사항을 정리한다.
-
-### 10.1 AWS EKS
-
-**기본 설정:**
-
-| 항목 | 값 |
-|------|-----|
-| 기본 StorageClass | `gp2` (in-tree, deprecated) |
-| 권장 StorageClass | `gp3` (CSI) |
-| CSI 드라이버 | **수동 설치 필요** (EKS 애드온) |
-| 파일 스토리지 | EFS (RWX 필요 시) |
-
-**필수 작업:**
+GKE의 `standard-rwo`는 pd-balanced, `premium-rwo`는 pd-ssd를 사용하는 class의 예다. `premium-rwo`라는 이름 자체가 regional replication을 뜻하지는 않는다. Regional Persistent Disk에는 복제 유형과 zone topology 조건이 별도로 있다. AKS도 `managed-csi`, `managed-csi-premium`, Azure Files 계열처럼 block/file 선택이 갈린다. class 이름은 설치 모드와 버전에 따라 실제 정의를 확인한다.
 
 ```bash
-# 0. IAM 역할에 AmazonEBSCSIDriverPolicy 권한 연결 (사전 필수!)
-# aws iam attach-role-policy --role-name EBS_CSI_DriverRole \
-#   --policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
-
-# 1. EBS CSI Driver 애드온 설치 (필수!)
-eksctl create addon --name aws-ebs-csi-driver --cluster my-cluster \
-  --service-account-role-arn arn:aws:iam::111122223333:role/EBS_CSI_DriverRole
-
-# 2. gp3 StorageClass 생성 (권장)
-cat <<EOF | kubectl apply -f -
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: gp3
-  annotations:
-    storageclass.kubernetes.io/is-default-class: "true"
-provisioner: ebs.csi.aws.com
-parameters:
-  type: gp3
-  encrypted: "true"
-volumeBindingMode: WaitForFirstConsumer
-allowVolumeExpansion: true
-EOF
-
-# 3. 기존 gp2 기본 해제 (업그레이드된 클러스터에서만 필요)
-kubectl patch storageclass gp2 -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"false"}}}'
-```
-
-> **참고:** EKS 1.23+ 버전으로 **신규 생성된 클러스터** 에서는 `gp2` StorageClass가 기본으로 존재하지 않을 수 있다. 이 경우 3번 단계(gp2 기본 해제)는 건너뛰고 gp3만 생성하면 된다.
-
-**gp2 vs gp3:**
-
-| 항목 | gp2 | gp3 |
-|------|-----|-----|
-| 기본 IOPS | 용량에 비례 (3 IOPS/GB) | **3,000 IOPS** (고정) |
-| 기본 처리량 | 128 MiB/s | **125 MiB/s** |
-| 비용 | $0.10/GB | **$0.08/GB** (20% 저렴) |
-| IOPS 조정 | 불가 | 최대 16,000까지 설정 가능 |
-
-> **결론:** 신규 클러스터에서는 **gp3를 기본으로 사용** 하라. 더 저렴하고 성능도 좋다.
-
-### 10.2 GCP GKE
-
-**기본 설정:**
-
-| 항목 | 값 |
-|------|-----|
-| 기본 StorageClass | `standard-rwo` (SSD) |
-| CSI 드라이버 | **기본 설치됨** |
-| 파일 스토리지 | Filestore (RWX 필요 시) |
-
-**StorageClass 옵션:**
-
-| StorageClass | 스토리지 유형 | 사용 사례 |
-|--------------|---------------|-----------|
-| `standard-rwo` | pd-balanced (기본) | 일반 워크로드 |
-| `premium-rwo` | pd-ssd | 고성능 데이터베이스 |
-| `standard` | pd-standard (HDD) | 로그, 백업 (저비용) |
-
-GKE는 설정이 간단하다. 대부분 기본 설정으로 충분하다.
-
-### 10.3 Azure AKS
-
-**기본 설정:**
-
-| 항목 | 값 |
-|------|-----|
-| 기본 StorageClass | `managed-csi` (Standard SSD LRS) |
-| CSI 드라이버 | **기본 설치됨** |
-| 파일 스토리지 | Azure Files (RWX 필요 시) |
-
-**StorageClass 옵션 ([AKS 공식 문서](https://learn.microsoft.com/en-us/azure/aks/create-volume-azure-disk) 기준):**
-
-| StorageClass | 스토리지 유형 | 사용 사례 |
-|--------------|---------------|-----------|
-| `managed-csi` | Standard SSD LRS | 일반 워크로드 (기본값) |
-| `managed-csi-premium` | Premium SSD LRS | 고성능 데이터베이스 |
-| `azurefile-csi` | Azure Files (Standard) | RWX 필요 시 |
-| `azurefile-csi-premium` | Azure Files (Premium) | RWX + 고IOPS 필요 시 |
-
-### 10.4 클라우드 공통 권장사항
-
-| 항목 | 권장 사항 |
-|------|-----------|
-| **volumeBindingMode** | `WaitForFirstConsumer` (멀티 AZ 필수) |
-| **allowVolumeExpansion** | `true` (용량 부족 대응) |
-| **encrypted** | `true` (보안 컴플라이언스) |
-| **Reclaim Policy** | 프로덕션은 `Retain`, 개발은 `Delete` |
-| **VolumeSnapshot** | 정기 백업 정책 수립 |
-
-**실무 체크리스트:**
-
-```bash
-# 1. StorageClass 확인
 kubectl get storageclass
-
-# 2. CSI 드라이버 정상 동작 확인
-kubectl get pods -n kube-system | grep csi
-
-# 3. PVC Pending 문제 디버깅
-kubectl describe pvc <pvc-name>
-kubectl get events --field-selector reason=ProvisioningFailed
+kubectl get storageclass book-ebs -o yaml
 ```
 
----
+가격표나 class의 이름보다 provisioner, binding mode, reclaim policy, 확장 지원, topology, 암호화 정책을 읽는 것이 먼저다. 여러 Node의 동시 파일 접근이 필요하다면 EFS/NFS/Filestore/Azure Files 같은 파일 저장소 경로를 검토하고, 단일 Node block disk와 같은 계약으로 취급하지 않는다. 관리형 DB나 object storage를 사용하면 API Pod의 영구 mount 자체가 필요 없어질 수도 있지만, 데이터의 복구 책임이 사라지는 것은 아니다.
 
-## 11. 트러블슈팅 - 퇴근을 앞당기는 팁
+## 생각해 볼 질문
 
-### 11.1 PVC가 Terminating에서 멈추는 현상
+### 1. 앱 컨테이너만 재시작했는데 임시 파일은 남고 `/tmp`의 다른 파일은 사라질 수 있는 이유는 무엇인가?
 
-**증상:** PVC를 삭제했는데 `Terminating` 상태에서 영원히 사라지지 않는다.
+같은 Pod의 `emptyDir`에 둔 파일은 컨테이너 인스턴스의 수명과 분리되어 있다. 반면 writable layer에만 쓴 파일의 보존은 기대할 수 없다. 경로 문자열보다 그 경로에 연결된 Volume 종류와 수명이 중요하다.
 
-```bash
-kubectl get pvc
-# NAME       STATUS        VOLUME     CAPACITY   ACCESS MODES
-# my-pvc     Terminating   pvc-xxx    10Gi       RWO
-```
+### 2. PVC가 Pending인 환경에서 driver를 다시 설치하기 전에 무엇을 확인해야 하는가?
 
-**원인:** Kubernetes의 **Finalizer** 메커니즘 때문이다. PVC에는 기본적으로 `kubernetes.io/pvc-protection` Finalizer가 걸려 있어서, 해당 PVC를 사용하는 Pod가 있으면 삭제되지 않는다.
+class의 binding mode와 소비 Pod의 존재·배치 조건이다. `WaitForFirstConsumer`라면 consumer 없는 Pending은 정상일 수 있다. consumer가 있는데도 진행되지 않으면 PVC/Pod Events와 topology·자원·권한을 이어서 확인한다.
 
-```mermaid
-flowchart LR
-    Delete["kubectl delete pvc"]
-    Check{"Pod가 사용 중?"}
-    Block["❌ Terminating<br>(삭제 차단)"]
-    Success["✅ 삭제 완료"]
+### 3. snapshot에서 만든 PVC가 Bound이면 주문 데이터 복구가 끝난 것인가?
 
-    Delete --> Check
-    Check -->|"Yes"| Block
-    Check -->|"No"| Success
+저장소 선택만 확인한 것이다. mount, DB recovery, 데이터 일관성, 앱의 실제 조회·쓰기까지 검증해야 한다. snapshot이 재해 때 접근 가능한 위치에 보관되었는지도 별도 조건이다.
 
-    style Block stroke:#f44336,stroke-width:2px
-    style Success stroke:#4CAF50,stroke-width:2px
-```
+## 다음 장으로
 
-**해결 순서:**
-
-```bash
-# 1. 해당 PVC를 사용하는 Pod 확인
-kubectl get pods --all-namespaces -o json | jq -r \
-  '.items[] | select(.spec.volumes[]?.persistentVolumeClaim.claimName == "my-pvc") | .metadata.name'
-
-# 2. Pod가 있다면 먼저 삭제
-kubectl delete pod <pod-name>
-
-# 3. 그래도 안 지워지면 Finalizer 강제 제거 (주의!)
-kubectl patch pvc my-pvc -p '{"metadata":{"finalizers":null}}'
-```
-
-> **주의:** Finalizer를 강제 제거하면 데이터 정리 없이 PVC가 삭제된다. 반드시 Pod가 없는 상태에서만 사용하라.
-
-### 11.2 PV가 Released 상태에서 재사용 안 되는 현상
-
-**증상:** PVC를 삭제했는데 PV가 `Released` 상태로 남아서 새 PVC에 바인딩되지 않는다.
-
-```bash
-kubectl get pv
-# NAME      CAPACITY   STATUS     CLAIM
-# pv-data   10Gi       Released   default/old-pvc
-```
-
-**원인:** PV에 이전 PVC의 `claimRef`가 남아 있어서 새 PVC와 바인딩되지 않는다.
-
-**해결:**
-
-```bash
-# claimRef 제거
-kubectl patch pv pv-data -p '{"spec":{"claimRef": null}}'
-
-# 상태 확인 - Available로 변경됨
-kubectl get pv pv-data
-# NAME      CAPACITY   STATUS      CLAIM
-# pv-data   10Gi       Available   <none>
-```
-
-### 11.3 PVC가 Pending 상태에서 멈추는 현상
-
-**증상:** PVC를 생성했는데 `Pending` 상태에서 바인딩되지 않는다.
-
-**원인과 해결:**
-
-| 원인 | 확인 방법 | 해결 |
-|------|-----------|------|
-| StorageClass 없음 | `kubectl get sc` | StorageClass 생성 또는 이름 확인 |
-| CSI Driver 미설치 | `kubectl get pods -n kube-system \| grep csi` | EKS: EBS CSI Driver 애드온 설치 |
-| 용량/모드 불일치 | `kubectl describe pvc` | 요청 조건 수정 |
-| AZ 불일치 | `kubectl get events` | `WaitForFirstConsumer` 사용 |
-
-```bash
-# 원인 파악
-kubectl describe pvc my-pvc
-
-# Events 확인 (핵심!)
-kubectl get events --field-selector involvedObject.name=my-pvc
-```
-
-### 11.4 Pod가 PVC 마운트 실패로 시작 안 되는 현상
-
-**증상:** Pod가 `ContainerCreating` 상태에서 멈추고 시작되지 않는다.
-
-```bash
-kubectl describe pod my-pod
-# Warning  FailedAttachVolume  Unable to attach or mount volumes
-```
-
-**주요 원인:**
-
-| 원인 | 해결 |
-|------|------|
-| 다른 노드에서 RWO 볼륨 사용 중 | 기존 Pod 삭제 또는 노드 확인 |
-| 노드가 다른 AZ에 있음 | `WaitForFirstConsumer` 사용 |
-| CSI Driver 문제 | CSI Pod 로그 확인 |
-
-```bash
-# 볼륨이 어느 노드에 붙어있는지 확인
-kubectl get volumeattachments
-
-# CSI 드라이버 로그 확인
-kubectl logs -n kube-system -l app.kubernetes.io/name=aws-ebs-csi-driver -c ebs-plugin
-```
-
----
-
-## 정리
-
-| 개념 | 역할 | 실무 포인트 |
-|------|------|-------------|
-| **Volume** | Pod 내 스토리지 | emptyDir(캐시), hostPath(피하라) |
-| **PV** | 클러스터 스토리지 리소스 | 정적 프로비저닝은 레거시 |
-| **PVC** | 스토리지 요청서 | 개발자가 관리 |
-| **StorageClass** | 동적 프로비저닝 템플릿 | **gp3, WaitForFirstConsumer** |
-| **CSI Driver** | 스토리지 확장 표준 | EKS는 수동 설치 필요! |
-| **VolumeSnapshot** | 백업/복원 | 정기 백업 정책 필수 |
-
-**실무에서 꼭 알아야 할 것:**
-
-1. **동적 프로비저닝** 이 기본이다. 정적 프로비저닝은 특수 케이스
-2. **volumeBindingMode: WaitForFirstConsumer** - 멀티 AZ에서 필수
-3. **EKS는 EBS CSI Driver 수동 설치** 가 필요하다 (가장 흔한 실수)
-4. **gp3 > gp2** - 더 저렴하고 성능도 좋다
-5. **VolumeSnapshot** 으로 백업 자동화 - kubectl만으로 백업/복원 가능
-6. **allowVolumeExpansion: true** - 운영 중 용량 부족 대응 필수
-
----
+저장소를 Pod보다 오래 유지할 수 있게 되었다. 이제 복제본 세 개 각각이 자기 디스크를 다시 찾아야 한다면, 어느 Pod가 어느 PVC를 쓸지 구별해야 한다. [StatefulSet](Kubernetes-StatefulSet.md)은 이 인스턴스의 정체성을 관리하는 방법을 설명한다.
 
 ## 출처
 
-- [Kubernetes Volumes](https://kubernetes.io/docs/concepts/storage/volumes/) - 공식 문서
-- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) - 공식 문서
-- [Storage Classes](https://kubernetes.io/docs/concepts/storage/storage-classes/) - 공식 문서
-- [Container Storage Interface (CSI)](https://kubernetes.io/docs/concepts/storage/volumes/#csi) - 공식 문서
-- [Volume Snapshots](https://kubernetes.io/docs/concepts/storage/volume-snapshots/) - 공식 문서
-- [AWS EBS CSI Driver](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) - AWS 공식 문서
+- [Kubernetes Volumes](https://kubernetes.io/docs/concepts/storage/volumes/) — 컨테이너 재시작과 Volume 수명, emptyDir와 hostPath
+- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — binding, 접근 모드, reclaim, 보호와 확장
+- [Kubernetes Storage Classes](https://kubernetes.io/docs/concepts/storage/storage-classes/) — provisioner, topology와 binding mode
+- [Kubernetes Volume Snapshots](https://kubernetes.io/docs/concepts/storage/volume-snapshots/) — snapshot 구성 요소와 복원
+- [AWS EKS EBS CSI](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) — standard와 Auto Mode, IAM 전제
+- [GKE Persistent Disk CSI driver](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/gce-pd-csi-driver) — class와 disk 유형
+- [GKE Regional Persistent Disk](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/regional-pd) — 지역 복제 조건
+- [AKS Azure Disk CSI](https://learn.microsoft.com/en-us/azure/aks/azure-csi-disk-storage-provision) — Azure Disk class와 provisioning

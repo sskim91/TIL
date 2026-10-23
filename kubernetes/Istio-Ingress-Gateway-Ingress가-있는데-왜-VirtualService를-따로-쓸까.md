@@ -1,10 +1,12 @@
 # Istio Ingress Gateway — Ingress가 있는데 왜 VirtualService를 따로 쓸까
 
+> **개발자를 위한 쉬운 쿠버네티스 · 확장 읽기** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서)
+
 Ingress는 쿠버네티스 기능일까? Istio도 Ingress를 읽을 줄 아는데 왜 굳이 Gateway와 VirtualService를 따로 만들었고, 이름까지 같은 Gateway API의 Gateway는 또 무엇일까?
 
 ## 결론부터 말하면
 
-**Istio도 표준 `Ingress`를 읽을 수는 있지만, 그건 호환용 출입구일 뿐이다.** Istio가 실제로 쓰는 명세는 `Gateway`(어느 문으로 받을지)와 `VirtualService`(받은 요청을 어디로 보낼지) 두 장이다. 이 두 장에는 `Ingress` 한 장으로는 표현할 수 없는 가중치 분배, 재시도, 서비스 간 라우팅까지 담긴다. 이 주제가 헷갈리는 근본 원인은 **명세(설정 문서)** 와 **구현체(그 문서를 읽고 트래픽을 실제로 처리하는 프로그램)** 를 한 덩어리로 보기 때문이다.
+**Istio도 표준 `Ingress`를 읽을 수는 있지만, 그건 호환용 출입구일 뿐이다.** Istio 자체 API의 명세는 `Gateway`(어느 문으로 받을지)와 `VirtualService`(받은 요청을 어디로 보낼지) 두 장이다. 이 두 장에는 `Ingress` 한 장으로는 표현할 수 없는 가중치 분배, 재시도, 서비스 간 라우팅까지 담긴다. 이 주제가 헷갈리는 근본 원인은 **명세(설정 문서)** 와 **구현체(그 문서를 읽고 트래픽을 실제로 처리하는 프로그램)** 를 한 덩어리로 보기 때문이다.
 
 ```mermaid
 flowchart LR
@@ -65,9 +67,9 @@ Java 개발자에게는 이 구조가 이미 익숙하다. JDBC가 정확히 같
 | JDBC 인터페이스(`java.sql.Connection` 등). JDK에 포함 | Ingress API. kube-apiserver에 내장 |
 | MySQL Connector/J, PostgreSQL JDBC Driver. 따로 추가 | Traefik, AWS Load Balancer Controller 등. 따로 설치 |
 | JDBC URL의 `jdbc:mysql:`로 드라이버 선택 | `ingressClassName`으로 컨트롤러 선택 |
-| 드라이버가 없으면 `No suitable driver found` 예외 | 컨트롤러가 없으면 **아무 일도 일어나지 않음** (에러도 없음) |
+| 드라이버가 없으면 `No suitable driver found` 예외 | 컨트롤러가 없어도 요청은 저장될 수 있지만 실제 경로는 구성되지 않음 |
 
-마지막 줄이 실무에서 자주 걸리는 함정이다. JDBC는 드라이버가 없으면 시끄럽게 실패하지만, Ingress는 조용히 무시된다. `kubectl get ingress`의 `ADDRESS` 칸이 비어 있다면 가장 먼저 의심할 곳이 여기다.
+마지막 줄의 차이는 API 접수와 실제 구현을 구분해야 한다는 뜻이다. Ingress 요청 자체가 admission에서 거절될 수도 있고, 저장 후에는 controller 부재·class 불일치·LB provisioning 실패 등이 실제 경로 구성을 막을 수 있다. ADDRESS 공백은 단서이지 원인 확정이 아니다. status·Events·controller 로그와 실제 요청을 함께 확인한다.
 
 여기까지는 깔끔하다. 그렇다면 Istio는 이 드라이버 목록 중 하나일까?
 
@@ -102,7 +104,7 @@ Istio 문서는 Gateway가 포트와 프로토콜을 설정하지만 "does not i
 flowchart LR
     C(["외부 클라이언트"]) --> LB["LoadBalancer<br>Service"]
     LB --> GW["istio-ingressgateway<br>(Envoy Pod)"]
-    GW --> SVC["api-svc<br>(Service)"]
+    GW --> SVC["order-api<br>(Service)"]
     SVC --> POD["Pod"]
 
     G["Gateway<br>포트·host·TLS"] --> ISTIOD["istiod"]
@@ -151,15 +153,15 @@ Gateway API도 "문"과 "라우팅"을 나눈다. 문은 `Gateway`, 라우팅은
 
 ### 3.3 Istio가 가는 방향
 
-Istio 문서는 "Istio supports the Kubernetes Gateway API and intends to make it the default API for traffic management in the future."라고 밝힌다. Hibernate 비유로 돌아가면, Hibernate를 쓰면서도 자체 API 대신 JPA 표준 API로 코딩하는 쪽으로 무게가 옮겨 가는 것과 같다. Istio 위에서 VirtualService 대신 HTTPRoute를 써도 되고, 그렇게 쓰면 나중에 구현체를 바꿔도 라우팅 정의가 살아남는다. 메시 내부(east-west)까지 Gateway API로 다루는 GAMMA와 ambient mode의 waypoint는 [Kubernetes Service Mesh 6절](Kubernetes-Service-Mesh.md#6-gateway-api와-gamma--표준으로의-수렴)에서 다뤘다.
+Istio 문서는 "Istio supports the Kubernetes Gateway API and intends to make it the default API for traffic management in the future."라고 밝힌다. Hibernate 비유로 돌아가면, Hibernate를 쓰면서도 자체 API 대신 JPA 표준 API로 코딩하는 쪽으로 무게가 옮겨 가는 것과 같다. Istio 위에서 HTTPRoute를 쓰면 표준 부분을 재사용하기 유리하다. 다만 구현체별 지원 기능·conformance·정책 확장이 다르므로 전환 시 동일 동작을 확인해야 한다. 메시 내부(east-west)까지 Gateway API로 다루는 GAMMA와 ambient mode의 waypoint는 [Kubernetes Service Mesh 6절](Kubernetes-Service-Mesh.md#6-gateway-api와-gamma--표준으로의-수렴)에서 다뤘다.
 
 ---
 
 ## 4. 실제 사례 — 같은 라우팅, 세 가지 문법
 
-### 4.1 `shop.example.com/api`를 `api-svc:8080`으로 보내기
+### 4.1 `shop.example.com/api`를 `order-api:80`으로 보내기
 
-아래 세 YAML은 같은 라우팅을 표현한다. 차이는 첫 줄의 `apiVersion`, 문서를 몇 장으로 나누느냐, 그리고 prefix를 해석하는 방식이다.
+아래 세 YAML은 `bookstore` namespace의 가상 주문 앱 Service `order-api:80`으로 보내는 같은 라우팅을 표현한다. 앱 컨테이너 port는 8080이며, 여기의 80은 Service port다. Service와 준비된 endpoint, 각 CRD·controller·gateway 설치는 별도 전제다. 세 계열을 비교하는 설명용 manifest이므로 함께 적용하는 설치 절차가 아니다. 차이는 첫 줄의 `apiVersion`, 문서를 몇 장으로 나누느냐, 그리고 prefix를 해석하는 방식이다.
 
 **구 표준 Ingress** — 한 장에 모두 담는다.
 
@@ -168,6 +170,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: shop
+  namespace: bookstore
 spec:
   ingressClassName: istio          # 어느 구현체가 처리할지 (Istio도 가능)
   rules:
@@ -178,9 +181,9 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: api-svc
+            name: order-api
             port:
-              number: 8080
+              number: 80
 ```
 
 **Istio 자체 API** — 문(Gateway)과 라우팅(VirtualService)을 나눈다.
@@ -190,6 +193,7 @@ apiVersion: networking.istio.io/v1
 kind: Gateway                       # 문: 어느 포트·host로 받을지
 metadata:
   name: shop-gw
+  namespace: bookstore
 spec:
   selector:
     istio: ingressgateway           # 이미 떠 있는 Envoy Pod를 라벨로 지정
@@ -205,6 +209,7 @@ apiVersion: networking.istio.io/v1
 kind: VirtualService                # 라우팅: 받은 요청을 어디로 보낼지
 metadata:
   name: shop
+  namespace: bookstore
 spec:
   hosts:
   - shop.example.com
@@ -218,9 +223,9 @@ spec:
         prefix: /api/               # prefix: /api 하나만 쓰면 /apix까지 매칭된다
     route:
     - destination:
-        host: api-svc
+        host: order-api
         port:
-          number: 8080
+          number: 80
 ```
 
 **새 표준 Gateway API** — 역시 둘로 나누지만, Gateway가 프록시까지 띄운다.
@@ -230,6 +235,7 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway                       # 이름은 같지만 Istio Gateway와 다른 리소스
 metadata:
   name: shop-gw
+  namespace: bookstore
 spec:
   gatewayClassName: istio           # 구현체 선택 → (기본 자동 배포 모드) Istio가 Envoy Deployment를 새로 띄운다
   listeners:
@@ -242,6 +248,7 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
   name: shop
+  namespace: bookstore
 spec:
   parentRefs:
   - name: shop-gw                   # 어느 Gateway에 붙을지
@@ -253,8 +260,8 @@ spec:
         type: PathPrefix
         value: /api
     backendRefs:
-    - name: api-svc
-      port: 8080
+    - name: order-api
+      port: 80
 ```
 
 Istio YAML에서 `match`를 두 줄로 쓴 이유가 이 노트에서 가장 놓치기 쉬운 함정이다. Ingress의 `Prefix`와 Gateway API의 `PathPrefix`는 경로를 `/`로 나눈 **요소 단위** 로 비교한다. 그래서 `/api`는 `/api`와 `/api/users`를 잡지만 `/apix`는 잡지 않는다. 반면 VirtualService의 `uri.prefix`는 **단순 문자열 접두사** 라서 `prefix: /api`는 `/apix`까지 잡는다. 같은 범위를 만들려면 `exact: /api`와 `prefix: /api/`를 OR로 묶어야 한다. Ingress에서 VirtualService로 옮길 때 path를 그대로 복사하면 의도하지 않은 경로가 같은 Service로 흘러갈 수 있다.
@@ -287,10 +294,10 @@ kubectl get gtw,httproute -A
 
 1. **명세와 구현체를 나눠서 보라**
    - Ingress, Istio의 Gateway·VirtualService, Gateway API는 모두 설정 문서다. ingress-nginx나 Envoy는 그 문서를 읽고 트래픽을 처리하는 프로그램이다.
-   - Ingress API는 kube-apiserver에 내장돼 있지만 구현체는 따로 설치해야 한다. 없으면 에러 없이 아무 일도 일어나지 않는다(JDBC 인터페이스와 드라이버의 관계).
+   - Ingress API는 kube-apiserver에 내장돼 있지만 구현체는 따로 설치해야 한다. API 저장과 트래픽 처리 성공은 별개다. controller·class·status·Events를 확인한다.
 
 2. **Istio는 Ingress를 읽을 줄 알지만, 주로 자체 API를 쓴다**
-   - `ingressClassName: istio`로 호환은 되지만, Istio 공식 권장은 Gateway + VirtualService다(JPA를 구현하면서 자체 API도 가진 Hibernate와 같은 위치).
+   - `ingressClassName: istio`로 호환은 되지만, 풍부한 자체 API Gateway + VirtualService와 표준 Gateway API 두 경로를 지원한다. 현재 공식 문서는 향후 기본 API로 Gateway API를 지향한다.
 
 3. **Istio는 Ingress 한 장을 두 장으로 나눈다**
    - Gateway는 포트·host·TLS(L4~L6), VirtualService는 라우팅을 맡는다(HTTP라면 L7이고, `tcp`·`tls` 라우팅도 가능). 팀별로 나눠 관리하기 위해서다.
@@ -310,6 +317,13 @@ kubectl get gtw,httproute -A
 > - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](Kubernetes-Ingress-vs-Egress.md) — Ingress라는 단어의 두 가지 쓰임
 
 ---
+
+## 생각해 볼 질문
+
+1. **두 Gateway의 kind가 같은데 왜 서로 대신 쓸 수 없을까?** API group과 구현 계약이 다르다. Istio Gateway는 기존 프록시를 selector로 설정하고, Istio의 Gateway API 기본 모드는 프록시 배포까지 관리한다.
+2. **Ingress의 `/api` Prefix를 VirtualService로 그대로 옮기면 왜 `/apix`도 매칭될까?** 전자는 경로 요소, 후자는 문자열 접두사를 비교한다. `exact: /api`와 `prefix: /api/`를 OR로 묶어 같은 범위를 만든다.
+
+외부 진입 규칙과 서비스 간 통신을 함께 연결하려면 [Service Mesh](Kubernetes-Service-Mesh.md), 표준 리소스의 연결과 상태 판정은 [Gateway API](Kubernetes-Gateway-API.md)를 이어 읽는다.
 
 ## 출처
 

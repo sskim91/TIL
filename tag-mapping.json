@@ -714,5 +714,11 @@
   ],
   "Concurrency-동시성은-빠른-컨텍스트-스위칭이-아니다": [
     "cs/concurrency"
+  ],
+  "Kubernetes-Architecture": [
+    "kubernetes/architecture"
+  ],
+  "Kubernetes-Troubleshooting-From-Apply-to-Request": [
+    "kubernetes/troubleshooting"
   ]
 }

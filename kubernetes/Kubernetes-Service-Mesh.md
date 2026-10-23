@@ -1,33 +1,35 @@
 # Kubernetes Service Mesh
 
+> **개발자를 위한 쉬운 쿠버네티스 · 확장 읽기** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서)
+
 **Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까 — 서비스 메시가 대체하는 것들**
 
 `kubectl get ingress --all-namespaces`가 비어 있는데 브라우저로는 서비스가 열린다. 그러면 라우팅 규칙은 대체 어디에 적혀 있는 걸까?
 
 낯선 클러스터에 처음 붙었을 때 이런 상황을 만나면 잠깐 당황한다. 외부에서 접속이 되니 무언가가 트래픽을 받아 내부 서비스로 넘기고 있는 게 분명한데, 그 규칙을 담고 있어야 할 `Ingress` 리소스가 클러스터 전체에 하나도 없다. 그리고 `kubectl get pod`을 보면 두 번째 단서가 나온다 — 컨테이너를 하나만 정의했는데 모든 Pod가 `2/2`다. 내가 만들지 않은 컨테이너가 앱마다 하나씩 붙어 있다.
 
-이 두 가지는 별개의 미스터리가 아니라 **같은 이야기의 앞뒤** 다. 이 글은 그 이야기를 처음부터 끝까지 따라간다.
+이 두 단서는 서비스 메시를 의심하게 하지만 확정 증거는 아니다. 별도 reverse proxy·Gateway API·외부 LB도 Ingress 없이 진입 경로를 만들 수 있고, 두 번째 컨테이너는 로그 에이전트일 수도 있다. 이 글은 그 이야기를 처음부터 끝까지 따라간다.
 
 ---
 
 ## 결론부터 말하면
 
-**이 클러스터에는 서비스 메시(service mesh)가 깔려 있다.** 서비스 메시를 설치하면 두 가지가 동시에 일어난다.
+서비스 메시(service mesh)는 서비스 사이의 통신 정책을 프록시와 이를 설정하는 제어 계층으로 관리한다. 사이드카 방식의 메시와 ingress gateway를 함께 사용하는 구성이라면 도입부의 두 현상을 설명할 수 있다. [Gateway API](Kubernetes-Gateway-API.md)에서 배운 외부 진입 경로에 더해, [ServiceAccount](Kubernetes-ServiceAccount-RBAC.md) 기반 신원과 [admission](Kubernetes-Admission-Webhook.md)을 통신 관리에 연결하는 확장 읽기다.
 
 1. 메시가 제공하는 **게이트웨이** 가 Ingress Controller 역할을 대신한다. 그래서 클러스터 외부 트래픽은 정상적으로 들어오지만, 라우팅 규칙은 `Ingress` 리소스가 아니라 **메시 자신의 커스텀 리소스(CRD)** 에 적혀 있다. `kubectl get ingress`가 비어 있는 이유다.
-2. **주입이 활성화된 네임스페이스** 의 Pod에는 **사이드카 프록시** 가 자동으로 주입된다. 그래서 `2/2`가 된다. 클러스터의 모든 Pod가 아니라는 점이 중요하다 — 대상은 네임스페이스 라벨이나 Pod 어노테이션으로 선별되며, 그 선별이 왜 안전 장치인지는 4-1절에서 다룬다.
+2. **주입이 활성화된 네임스페이스** 의 Pod에는 **사이드카 프록시** 가 자동으로 주입된다. 전통적 regular sidecar 구성에서는 그래서 `2/2`처럼 보일 수 있다. native sidecar에서는 컨테이너 분류와 출력이 다를 수 있다. 클러스터의 모든 Pod가 아니라는 점이 중요하다 — 대상은 네임스페이스 라벨이나 Pod 어노테이션으로 선별되며, 그 선별이 왜 안전 장치인지는 4-1절에서 다룬다.
 
-그래서 `2/2`만으로 메시 여부를 판정하면 안 된다. 사이드카를 쓰지 않는 ambient 모드에서는 Pod가 `1/1`이어도 메시에 포함되기 때문이다. 확실한 판정은 아래 세 가지를 함께 보는 것이다 — 주입 웹훅 설정(`kubectl get mutatingwebhookconfigurations`), 네임스페이스의 주입 라벨, 그리고 메시가 등록한 라우팅 CRD의 존재.
+그래서 `2/2`만으로 메시 여부를 판정하면 안 된다. 사이드카를 쓰지 않는 ambient 모드에서는 Pod가 `1/1`이어도 메시에 포함되기 때문이다. 구성 후보를 좁힐 때는 아래 세 가지를 함께 본다 — 사이드카 모드라면 주입 웹훅 설정(`kubectl get mutatingwebhookconfigurations`), 네임스페이스의 주입 라벨, 그리고 메시가 등록한 라우팅 CRD의 존재. 설치 흔적만으로 현재 동작을 증명하지는 못하므로 실제 gateway·프록시와 적용된 설정, 요청 결과까지 확인한다.
 
 그러니 `kubectl get ingress`가 비었을 때 포기하지 말고 다음 명령으로 넘어가면 된다.
 
 ```bash
 # 표준 Ingress가 아니라, 메시가 정의한 리소스에 규칙이 있다
-kubectl get gateway,httproute --all-namespaces          # Gateway API 기반
+kubectl get gateways.gateway.networking.k8s.io,httproute --all-namespaces          # Gateway API 기반
 kubectl get gateway.networking.istio.io,virtualservice -A  # Istio 자체 API 기반
 
 # 그리고 Pod에 무엇이 더 붙었는지 확인
-kubectl get pod -o jsonpath='{.items[*].spec.containers[*].name}'
+kubectl get pod -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{"  initContainers: "}{.spec.initContainers[*].name}{"\n"}{"  containers: "}{.spec.containers[*].name}{"\n"}{end}'
 ```
 
 쿠버네티스가 자기 API에 없던 이런 리소스를 어떻게 가질 수 있는지는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)에서 다룬다. 여기서는 **왜** 그런 리소스를 따로 만들었고, 왜 앱마다 프록시를 붙이는가에 집중한다.
@@ -38,7 +40,7 @@ kubectl get pod -o jsonpath='{.items[*].spec.containers[*].name}'
 | 라우팅 규칙 표현 | 표준 스펙 + **컨트롤러별 annotation** | 메시 CRD의 **1급 필드** |
 | 재시도·타임아웃·서킷 브레이커 | 표준 스펙에 없음 (annotation) | 라우팅 리소스의 필드 |
 | 서비스 간 암호화 | 범위 밖 | mTLS 자동 (워크로드 인증서) |
-| 인가 기준 | 범위 밖 | **워크로드 신원**(L7) |
+| 인가 기준 | 범위 밖 | **워크로드 신원**(L4 및 L7 정책) |
 | 대가 | Controller Pod 몇 개 | Pod마다 프록시 + 컨트롤 플레인 운영 |
 
 ---
@@ -108,6 +110,8 @@ flowchart TB
     style cp fill:#6A1B9A,color:#fff
 ```
 
+분산 trace도 프록시만으로 완성되지는 않는다. 프록시는 span을 만들 수 있지만, 앱이 들어온 trace context를 다음 HTTP 호출에 전파해야 여러 서비스의 span이 같은 요청으로 연결된다. 재시도 또한 주문 생성 같은 비멱등 요청을 중복 실행할 수 있으므로, 비즈니스 로직의 멱등성·deadline·클라이언트 재시도와 함께 설계한다.
+
 ### 1-4. 데이터 플레인과 컨트롤 플레인
 
 프록시를 흩뿌려 놓기만 하면 두 번째 문제(정책 변경)는 그대로다. 스무 개 Pod의 프록시 설정을 손으로 고칠 수는 없다. 그래서 프록시들을 **한곳에서 설정해 주는 컴포넌트** 가 필요하다.
@@ -137,14 +141,14 @@ flowchart TB
 
 쿠버네티스의 `Ingress` 리소스는 **클러스터 밖에서 안으로 들어오는 HTTP 트래픽** 만 다룬다. 관례적으로 이를 **north-south** 트래픽이라 부른다. 반대로 클러스터 안의 서비스와 서비스 사이를 오가는 트래픽은 **east-west** 다.
 
-그리고 여기가 핵심이다. **east-west 라우팅 규칙을 표현하는 쿠버네티스 표준 리소스는 없다.** `Service`가 있지만 Service는 "이 라벨을 가진 Pod들의 안정적인 주소"를 제공하는 도구이고, "이 요청의 10%는 v2로 보내라"거나 "이 헤더가 있으면 다른 백엔드로 가라"를 표현하는 도구가 아니다. Service의 역할은 [Kubernetes Service](Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)에서 다룬다.
+그리고 여기가 핵심이다. **기본 설치된 Kubernetes core API에는 풍부한 east-west HTTP 라우팅 규칙을 표현하는 리소스가 없다. 후반의 Gateway API GAMMA는 CRD와 지원 메시 구현을 추가해 이 영역을 표준화한다.** `Service`가 있지만 Service는 "이 라벨을 가진 Pod들의 안정적인 주소"를 제공하는 도구이고, "이 요청의 10%는 v2로 보내라"거나 "이 헤더가 있으면 다른 백엔드로 가라"를 표현하는 도구가 아니다. Service의 역할은 [Kubernetes Service](Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)에서 다룬다.
 
 즉 표준 리소스의 지도는 이렇게 비어 있다.
 
 | 방향 | 무엇을 하고 싶은가 | 쿠버네티스 표준 리소스 |
 |------|--------------------|------------------------|
 | north-south | 외부 요청을 host/path로 분기, TLS 종료 | `Ingress` (있다) |
-| east-west | 서비스 간 요청을 가중치·헤더로 분기, 재시도·타임아웃 | **없다** |
+| east-west | 서비스 간 요청을 가중치·헤더로 분기, 재시도·타임아웃 | core API에는 없음. Gateway API GAMMA·메시 확장으로 제공 |
 
 서비스 메시는 이 빈칸을 채우면서, 동시에 north-south도 **같은 모델** 로 표현한다. 메시의 게이트웨이는 결국 "메시 경계에 서 있는 프록시"이고, 사이드카는 "Pod 경계에 서 있는 프록시"다. 둘 다 프록시이므로 같은 문법으로 설정할 수 있다. 그래서 메시를 도입하면 Ingress Controller와 별개로 게이트웨이를 하나 더 두는 대신, 게이트웨이가 Ingress Controller 역할까지 흡수하는 구성이 자연스러워진다. **"Ingress로는 부족한 이유"의 정확한 답은 "Ingress는 절반의 방향만 다룬다"** 다.
 
@@ -198,10 +202,11 @@ flowchart LR
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
-  name: my-app
+  name: order-api
+  namespace: bookstore
 spec:
   hosts:
-  - my-app                      # 클러스터 내부 이름 = east-west도 같은 문법으로
+  - order-api                      # 클러스터 내부 이름 = east-west도 같은 문법으로
   http:
   - match:
     - headers:
@@ -209,21 +214,42 @@ spec:
           exact: "true"
     route:
     - destination:
-        host: my-app
+        host: order-api
         subset: v2
   - route:                      # 그 외 트래픽은 가중치로 분배
     - destination:
-        host: my-app
+        host: order-api
         subset: v1
       weight: 90
     - destination:
-        host: my-app
+        host: order-api
         subset: v2
       weight: 10
     retries:
       attempts: 3
       perTryTimeout: 2s         # 재시도·타임아웃도 필드
     timeout: 5s
+```
+
+위 YAML은 Istio 설치와 동일 namespace의 `order-api` Service를 전제로 한 라우팅 설명 예시다. `subset: v1/v2`는 자동으로 생기지 않는다. 별도 `DestinationRule`에서 같은 host의 subsets를 정의하고 각각 `version: v1/v2` 같은 Pod label에 연결해야 한다. subset이 실제 endpoint와 연결되지 않으면 YAML이 저장되어도 요청은 원하는 곳으로 흐르지 않는다.
+
+필요한 DestinationRule의 구조는 다음과 같다. 이 설명용 예시는 실제 v1·v2 Deployment의 Pod에 해당 version label이 존재한다고 가정한다.
+
+```yaml
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: order-api
+  namespace: bookstore
+spec:
+  host: order-api
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+  - name: v2
+    labels:
+      version: v2
 ```
 
 오해하지 말아야 할 것이 하나 있다. **가중치 기반 Canary를 하려면 반드시 메시가 필요한 건 아니다.** NGINX Ingress처럼 annotation으로 정밀한 가중치 Canary를 지원하는 컨트롤러도 있다(자세한 비교는 [Kubernetes Deployment Strategy](Kubernetes-Deployment-Strategy.md)에 있다). 차이는 "가능/불가능"이 아니라 **"컨트롤러별 annotation이냐, 표준화된 스키마 필드냐"** 다. 그리고 메시에서는 이 규칙이 north-south에만 적용되지 않고 **서비스 간 호출에도 그대로 적용된다** — 외부에 노출되지 않은 내부 서비스의 Canary도 같은 문법으로 쓸 수 있다는 점이 실질적인 차이다.
@@ -248,7 +274,7 @@ apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:
   name: payment-allow-checkout
-  namespace: production
+  namespace: bookstore
 spec:
   selector:
     matchLabels:
@@ -272,47 +298,32 @@ spec:
 
 ### 3-3. 그러나 메시 정책은 NetworkPolicy를 대체하지 않는다
 
-여기서 가장 중요한 함정이 나온다. **메시의 인가 정책은 사이드카를 통과하는 트래픽만 통제한다.** 사이드카가 주입되지 않은 Pod, 혹은 리다이렉션 규칙을 걷어낸 컨테이너가 보내는 트래픽에는 메시 정책이 걸리지 않는다.
+출발지 앱이 **자기 Pod의 사이드카 capture를 우회하는 것** 과, 목적지 Pod의 수신 보안 경계를 우회하는 것은 다르다. 침해된 앱이 자기 리다이렉션을 바꾸거나 프록시를 종료할 수 있으므로, 모든 송신 트래픽이 반드시 자기 프록시를 지난다고 믿어서는 안 된다. 하지만 미주입 클라이언트나 capture를 우회한 클라이언트가 다른 정상 Pod의 수신 프록시까지 임의로 건너뛸 수 있다는 뜻은 아니다.
 
-이건 외부의 비판이 아니라 Istio 공식 문서가 직접 인정하는 사실이다. Istio 보안 운영 가이드는 애플리케이션이 "리다이렉션 규칙을 제거하고 사이드카 프록시를 제거·변경·종료·교체할 수 있다"고 적으면서, 결론을 이렇게 못 박는다.
-
-> "it is not secure to rely on all traffic being captured unconditionally by Istio" — 모든 트래픽이 무조건 Istio에 포착된다고 믿는 것은 안전하지 않다. 실제 보안 경계는 "클라이언트가 **다른** Pod의 사이드카를 우회할 수는 없다"는 것이다.
-
-그래서 같은 문서가 **"Defense in depth with NetworkPolicy"** 라는 제목으로 두 층을 함께 쓰라고 권고한다. NetworkPolicy는 커널에서 집행되므로 사이드카를 우회한 트래픽에도 그대로 걸린다. Pod가 침해되거나 취약점이 터졌을 때 공격자의 진행을 막거나 늦추는 층이 바로 이것이다.
+목적지의 정상 수신 프록시가 STRICT mTLS와 AuthorizationPolicy를 집행한다면, 출발지 프록시를 거치지 않았다는 이유로 그 검사가 사라지지 않는다. 평문은 STRICT에서 거절될 수 있고, mTLS가 있어도 허용된 principal·동작에 맞아야 한다. 반대로 목적지가 메시 밖이거나 정책이 허용하는 평문 경로라면 기대한 메시 통제가 적용되지 않을 수 있다. 보호할 목적지와 실제 집행 지점을 명시해야 한다. [Istio Security Best Practices](https://istio.io/latest/docs/ops/best-practices/security/#understand-traffic-capture-limitations)
 
 ```mermaid
-flowchart TB
-    req["Pod A가 Pod B로 요청"]
-    bypass["사이드카를 우회하는 트래픽<br>메시 미주입 Pod, 리다이렉션 제거"]
-
-    req --> np{"NetworkPolicy<br>CNI가 커널에서 집행<br>L3/L4"}
-    bypass --> np
-
-    np -->|"IP·포트가 허용 목록 밖"| d1["drop"]
-    np -->|"통과"| az{"메시 인가 정책<br>사이드카가 집행<br>L7 워크로드 신원"}
-
-    bypass -.->|"이 층은 건너뛴다"| az
-
-    az -->|"principal 불일치<br>또는 경로·메서드 불일치"| d2["deny"]
-    az -->|"통과"| ok["Pod B 애플리케이션 도달"]
-
-    style np fill:#2E7D32,color:#fff
-    style az fill:#1565C0,color:#fff
-    style d1 fill:#C62828,color:#fff
-    style d2 fill:#C62828,color:#fff
-    style ok fill:#455A64,color:#fff
-    style bypass fill:#E65100,color:#fff
+flowchart LR
+    A[출발지 앱<br>자기 프록시 capture 우회 가능] --> N{NetworkPolicy<br>지원 CNI와 정책 필요}
+    N -->|허용| B[목적지 수신 프록시<br>mTLS·인가 집행]
+    B -->|허용| C[목적지 앱]
+    N -->|거절| D[차단]
+    B -->|인증·인가 실패| D
+    style A fill:#455A64,color:#fff
+    style N fill:#1565C0,color:#fff
+    style B fill:#6A1B9A,color:#fff
+    style C fill:#2E7D32,color:#fff
+    style D fill:#C62828,color:#fff
 ```
 
-정리하면 이렇다.
-
 | 축 | NetworkPolicy | 메시 인가 정책 |
-|----|---------------|----------------|
-| 계층 | L3/L4 (IP·포트) | L7 (신원·경로·메서드·JWT 클레임) |
-| 집행 주체 | CNI 플러그인 (커널) | 사이드카 프록시 |
-| 사이드카 우회 트래픽 | **막는다** | 막지 못한다 |
-| 표현 단위 | IP/CIDR, Pod·Namespace 라벨 | 워크로드 신원(ServiceAccount 기반) |
-| 결론 | 둘 중 하나를 고르는 문제가 아니다 — **함께 쓴다** | |
+|---|---|---|
+| 판단 재료 | IP·포트, Pod·Namespace selector | 인증된 워크로드 신원, L7에서는 경로·메서드 등 |
+| 집행 위치 | 지원 CNI의 dataplane | 목적지 sidecar·ztunnel·waypoint 등 구성에 따른 프록시 |
+| 송신 capture 우회 시 | 실제 정책에 매칭되면 계속 통제 | 정상 목적지 수신 프록시의 정책은 계속 적용 가능 |
+| 주의점 | 정책 생성과 지원 CNI가 필요 | enrollment·mTLS 모드·정책 대상·우회 가능한 경로 확인 |
+
+두 도구는 서로 다른 질문에 답한다. NetworkPolicy는 통신할 수 있는 범위를 좁히고, mTLS·메시 인가는 그 경로에서 인증된 신원과 동작을 검사한다. 신원 기반 인가는 L7만의 기능도 아니다. ambient의 ztunnel은 L4에서도 워크로드 신원으로 인가할 수 있다. [Ambient L4 policy](https://istio.io/latest/docs/ambient/usage/l4-policy/)
 
 ---
 
@@ -334,12 +345,17 @@ flowchart TB
 
 ```bash
 # 앱 컨테이너가 아니라 프록시 컨테이너의 로그를 봐야 한다
-kubectl logs my-app-7d9f8b6c4-x2n8p -c istio-proxy --tail=100
+kubectl logs order-api-7d9f8b6c4-x2n8p -c istio-proxy --tail=100
 
-# 예: [...] "GET /api/users HTTP/1.1" 503 UF via_upstream ...
-#                                     ^^^ ^^
-#                          상태 코드  response flag
+# 설명용 발췌: status / response flag / response code details 순서라고 가정
+# 연결 실패로 프록시가 응답한 경우
+# [...] "GET /api/users HTTP/1.1" 503 UF upstream_reset_before_response_started{connection_failure} ...
+
+# 바로 앞 upstream이 503 응답을 반환한 경우
+# [...] "GET /api/users HTTP/1.1" 503 - via_upstream ...
 ```
+
+두 줄은 같은 503이어도 발생 위치가 다르다. `UF`는 upstream 연결 실패이고, `upstream_reset_before_response_started{...}`는 응답이 시작되기 전 연결이 끊긴 원인을 담는 details 계열이다. 반면 `via_upstream`은 바로 앞 upstream이 응답 코드를 정했다는 뜻이다. 그 upstream이 또 다른 프록시일 수도 있으므로, 최종 앱의 응답인지 확인하려면 upstream 주소와 해당 로그까지 이어 봐야 한다. 실제 로그 필드의 순서·포함 여부는 formatter 설정에 따라 다르며 details 문자열도 버전에 따라 달라질 수 있다. [Envoy formatter](https://www.envoyproxy.io/docs/envoy/latest/configuration/advanced/substitution_formatter), [Response Code Details](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/response_code_details)
 
 | flag | 의미 | 흔한 원인 |
 |------|------|-----------|
@@ -352,7 +368,7 @@ kubectl logs my-app-7d9f8b6c4-x2n8p -c istio-proxy --tail=100
 
 플래그 이름은 대문자를 따라 읽으면 그대로 코드가 된다 — `UF`는 Upstream Failure, `NR`은 No Route다.
 
-`-`(플래그 없음)이면 프록시가 특별히 개입하지 않았다는 뜻이니, 그 응답은 애플리케이션이 낸 것이다. 이 한 글자 두 글자를 읽을 수 있느냐가 메시 환경의 장애 대응 속도를 결정한다.
+`-`는 특별한 response flag가 없다는 뜻이다. 이것만으로 앱이 응답했다고 확정하지 않는다. response code details, upstream host, 요청 식별자와 양쪽 로그를 함께 확인한다. 이 한 글자 두 글자를 읽을 수 있느냐가 메시 환경의 장애 대응 속도를 결정한다.
 
 ### 4-3. 시작 순서 문제 — 그리고 native sidecar가 해결한 것
 
@@ -362,7 +378,9 @@ Istio는 이를 `holdApplicationUntilProxyStarts`로 우회해 왔다. 프록시
 
 그런데 쿠버네티스가 이 문제를 **표준 기능** 으로 해결했다. `initContainers`에 `restartPolicy: Always`를 주면 그 컨테이너는 사이드카로 취급되어, 앱보다 먼저 시작하고 앱이 완전히 멈춘 뒤에 종료된다. 공식 문서 기준 이 기능은 **v1.29부터 기본 활성화(beta)** 였고 **v1.33에서 Stable(GA)** 이 됐다. 문법과 동작 상세는 [Kubernetes Pod](Kubernetes-Pod.md)의 Sidecar Container 섹션이 다룬다.
 
-메시 쪽 소식이 중요하다. **Istio는 1.27.0에서 `ENABLE_NATIVE_SIDECARS` 환경변수의 기본값을 `true`로 승격했다.** 즉 최신 Istio를 쿠버네티스 1.29 이상에 올리면, 별도 설정 없이 프록시가 native sidecar로 주입된다. 필요하면 Pod 단위 annotation(`sidecar.istio.io/nativeSidecar`)으로 끌 수 있다. 예전 블로그에서 보이는 `holdApplicationUntilProxyStarts` 설정이나 "init container에서는 네트워크를 쓸 수 없다" 같은 제약은 이 조합에서는 대체로 과거의 이야기가 됐다.
+Istio 1.27은 **eligible Pod** 에 native sidecar를 기본으로 사용하는 방향으로 바뀌었다. 이것을 Kubernetes 1.29 이상이면 항상 자동 주입된다는 뜻으로 읽으면 안 된다. 1.27.0 injector의 auto-detect는 기본적으로 kubelet 1.33 이상을 확인하며, `nodeName`이 지정되어 해당 Node를 찾으면 그 Node의 버전을 확인한다. Node가 미배정이면 전체 Node의 버전을 조회하며 `nodeSelector`나 affinity로 후보를 좁히지 않는다. 명시적인 `sidecar.istio.io/nativeSidecar` opt-in과 자동 판단도 다르므로 설치 버전·compatibility 설정을 함께 확인한다. [1.27 Upgrade Notes](https://istio.io/latest/news/releases/1.27.x/announcing-1.27/upgrade-notes/), [1.27.0 injector 구현](https://github.com/istio/istio/blob/1.27.0/pkg/kube/inject/webhook.go#L1235-L1285)
+
+native sidecar의 시작 순서는 프록시의 실제 네트워크 readiness와 동일한 약속이 아니다. startup probe 등 시작 완료 판정과 앱의 재시도도 확인해야 한다. 또한 proxy가 `initContainers`로 이동하면 regular containers만 조회하는 진단 스크립트나 다른 mutator가 이를 놓칠 수 있다.
 
 같은 변화가 **Job/CronJob이 완료되지 않던 문제** 도 해소한다. 메인 컨테이너가 Exit 0으로 끝났는데 프록시가 계속 살아 있어 Pod가 `Completed`로 가지 못하던 그 증상이다. 이 문제와 대응책은 [Kubernetes DaemonSet Job CronJob](Kubernetes-DaemonSet-Job-CronJob.md)의 서비스 메시 섹션이 이미 다루므로 링크만 남긴다.
 
@@ -393,7 +411,9 @@ Istio는 ztunnel이 자원 예약 과다 문제를 없애 준다고 설명하며
 
 보안 측면의 이득도 명확하다. GA 발표는 ambient에서 "컨테이너가 사이드카를 우회하는 능력(악의적이든 아니든)이 제거된다"고 밝힌다. 프록시가 앱과 같은 Pod 안에 없으므로 앱이 손댈 수 없다. 그렇다고 §3-3의 결론이 뒤집히지는 않는다 — 층을 나눠 방어하는 원칙은 그대로 유효하다.
 
-**한계도 공식 문서에 명시돼 있다.** 메시 밖에서 오는 트래픽은 목적지에 waypoint가 설정돼 있어도 waypoint를 거치지 않고, 사이드카와 게이트웨이에서 오는 트래픽도 현재는 waypoint를 통과하지 않는다(향후 지원 예정). 그리고 사이드카 모드가 사라지는 것도 아니다. Istio 프로젝트는 사이드카가 여전히 1급 시민이며 사용자가 있는 한 지원을 종료할 계획이 없다고 반복해 밝히고 있고, 2025–2026 로드맵의 목표는 두 데이터 플레인의 기능 격차를 좁혀 사이드카 사용자에게 이행 경로를 제공하는 것이다. **"사이드카는 끝났다"가 아니라 "새 도입이라면 ambient를 먼저 검토할 만한 선택지가 됐다"** 가 현재 상태에 맞는 문장이다.
+waypoint가 존재한다고 모든 유입 트래픽이 자동으로 L7 정책을 거치는 것은 아니다. 기본적으로 메시 밖·사이드카 등 출발 경로에 따라 waypoint를 건너뛸 수 있다. 다만 ingress gateway의 waypoint 경유는 더 이상 지원 불가인 기능이 아니다. Istio 1.25부터 지원 경로가 있으며, 현재 문서는 서비스의 `istio.io/ingress-use-waypoint=true`와 `ENABLE_INGRESS_WAYPOINT_ROUTING` 같은 조건을 설명한다. 후자의 기본값은 false이므로 설치 구성을 확인한다. L7 검사를 반드시 통과시켜야 한다면 목적지 L4 인가에서 waypoint identity를 요구하는 구성까지 검토한다. [Waypoint 경유 조건과 강제](https://istio.io/latest/docs/ambient/usage/waypoint/)
+
+사이드카와 ambient는 둘 다 지원되는 데이터 플레인이다. 선택할 때는 비용뿐 아니라 필요한 L7 기능·트래픽 출발점·운영 도구와 보안 정책의 지원 범위를 비교한다. 2026-10-23 공식 문서 확인은 이 기능이 독자의 클러스터에서 활성화되었다는 의미가 아니다.
 
 ---
 
@@ -421,22 +441,24 @@ Istio는 ztunnel이 자원 예약 과다 문제를 없애 준다고 설명하며
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: my-app-internal
-  namespace: production
+  name: order-api-internal
+  namespace: bookstore
 spec:
   parentRefs:
   - group: ""
     kind: Service          # 메시 내부 서비스 간 라우팅
-    name: my-app
+    name: order-api
   rules:
   - backendRefs:
-    - name: my-app-v1
-      port: 8080
+    - name: order-api-v1
+      port: 80
       weight: 90           # 가중치가 표준 필드
-    - name: my-app-v2
-      port: 8080
+    - name: order-api-v2
+      port: 80
       weight: 10
 ```
+
+앞의 DestinationRule 예제는 하나의 `order-api` Service 아래에서 Pod label에 따른 subset을 나눴다. 여기서는 서로 다른 Pod 집합을 선택하는 `order-api-v1`·`order-api-v2` Service를 별도로 만들고 각각 port 80을 제공한다고 가정한다. HTTPRoute의 backendRefs는 그 Service들을 직접 참조하며, 앞의 Istio 전용 subset을 자동으로 변환하거나 생성하지 않는다.
 
 메시 구현들은 이 방향으로 수렴하고 있다. Istio는 ambient mode에서 waypoint의 L7 라우팅을 Gateway API로 설정하며, ingress 용도에서는 자체 API 대신 Gateway API를 우선하는 방향으로 움직여 왔다. 실무적 의미는 이렇다 — **새로 라우팅 규칙을 쓴다면 메시 고유 CRD보다 Gateway API 리소스를 먼저 검토하는 게 이식성 면에서 유리하다.** 메시를 교체해도 `HTTPRoute` 정의가 살아남을 가능성이 커진다.
 
@@ -456,7 +478,7 @@ spec:
 | 나가는 트래픽을 도메인·고정 IP로 통제 | CNI FQDN 정책 / Egress Gateway |
 | 서비스 간 통신 전면 암호화 + 신원 기반 인가 | **서비스 메시** (ambient의 L4 층만으로도 상당 부분) |
 | 서비스 간 재시도·타임아웃·서킷 브레이커를 코드 밖에서 | **서비스 메시** |
-| 서비스 간 요청 단위 관측·분산 트레이스 전파 | **서비스 메시** |
+| 서비스 간 요청 단위 관측·분산 트레이스 | **서비스 메시 + 앱의 context 전파** |
 
 판단 기준을 한 문장으로 줄이면 이렇다. **east-west 트래픽에 대한 요구가 여러 개 겹칠 때 메시가 이득이 된다.** 한두 개라면 그 하나를 직접 푸는 편이 싸다.
 
@@ -464,20 +486,20 @@ spec:
 
 ## 정리
 
-1. **`kubectl get ingress`가 비어 있어도 트래픽은 들어온다 — 규칙이 메시의 CRD에 있기 때문이다**
-   - 메시의 게이트웨이가 Ingress Controller 역할을 하고, 라우팅은 메시 CRD나 Gateway API 리소스로 표현된다. 다음에 볼 명령은 `kubectl get gateway,httproute -A`다. Pod가 `2/2`인 것은 같은 이야기의 다른 쪽 면이다.
+1. **Ingress 없이 들어오는 트래픽은 메시 게이트웨이로 설명될 수 있다**
+   - 메시 게이트웨이와 메시 CRD·Gateway API 라우팅은 가능한 구성 후보다. 별도 reverse proxy나 외부 LB도 진입 경로를 만들 수 있고, Pod의 `2/2`도 메시 설치의 확정 증거는 아니다. 실제 gateway·프록시·라우팅 설정과 요청 결과를 함께 확인해야 동작 경로를 판단할 수 있다.
 
 2. **사이드카 프록시의 존재 이유는 "이 기능들이 전부 네트워크 요청을 다루는 일"이라는 관찰이다**
    - 암호화·재시도·타임아웃·관측을 라이브러리로 구현하면 언어마다 하나씩 만들어야 하고 정책 변경이 전 서비스 재배포가 된다. 앱 밖의 프록시로 빼면 언어 중립이 되고, 컨트롤 플레인이 프록시들을 중앙에서 설정한다(데이터 플레인 / 컨트롤 플레인).
 
 3. **Ingress로 부족한 이유는 방향과 표현력, 두 가지다**
-   - Ingress는 north-south만 다루고 east-west 라우팅에는 표준 리소스가 없다. 게다가 표준 Ingress 스펙에는 가중치·헤더 라우팅·재시도·타임아웃 필드가 없어 컨트롤러별 annotation으로 확장됐다. 메시 CRD는 이를 1급 필드로 가진다.
+   - Ingress는 north-south만 다루고 core API에는 풍부한 east-west 라우팅 리소스가 없고 확장 표준은 GAMMA가 제공한다. 게다가 표준 Ingress 스펙에는 가중치·헤더 라우팅·재시도·타임아웃 필드가 없어 컨트롤러별 annotation으로 확장됐다. 메시 CRD는 이를 1급 필드로 가진다.
 
-4. **메시 인가는 신원(L7) 기준, NetworkPolicy는 IP·포트(L3/L4) 기준 — 그리고 서로를 대체하지 않는다**
+4. **메시 인가는 워크로드 신원(L4/L7) 기준, NetworkPolicy는 IP·포트(L3/L4) 기준 — 그리고 서로를 대체하지 않는다**
    - 메시는 ServiceAccount 기반 신원으로 워크로드마다 인증서를 발급해 상호 인증한다. 그러나 Istio 공식 문서 스스로 "모든 트래픽이 무조건 포착된다고 믿는 것은 안전하지 않다"고 못 박으며 NetworkPolicy와의 defense in depth를 권고한다. 두 층을 함께 쓴다.
 
 5. **비용은 구체적이다 — 그리고 그 일부는 native sidecar와 ambient가 실제로 걷어냈다**
-   - Pod 수에 비례하는 오버헤드, 프록시가 낸 오류를 읽는 새 지식(Envoy response flag), 업그레이드 = 전 Pod 재시작, 컨트롤 플레인이라는 새 장애 도메인. 시작 순서와 Job 완료 문제는 쿠버네티스 native sidecar(v1.33 Stable)와 Istio 1.27의 기본값 승격으로 대체로 해소됐고, 나머지 셋은 노드 단위 프록시를 쓰는 ambient mode(Istio 1.24 GA)가 겨냥한다.
+   - Pod마다 프록시를 두면 자원 오버헤드와 프록시 업그레이드에 따른 앱 Pod 교체가 생긴다. native sidecar는 지원 조건 아래에서 시작 순서와 Job 완료 문제를 개선한다. ambient는 Pod별 프록시 오버헤드, 업그레이드 시 앱 Pod 교체, 앱이 자기 sidecar를 우회할 수 있는 문제를 겨냥한다. ambient에서도 컨트롤 플레인 장애 도메인과 프록시 오류·로그를 해석하는 운영 부담은 남는다.
 
 6. **표준은 Gateway API로 수렴 중이다**
    - SMI는 2023년 10월 CNCF에서 아카이브되며 GAMMA로 통합됐다. GAMMA의 메시 지원은 Gateway API Standard Channel에 v1.1.0부터 포함되어 GA이며, `HTTPRoute`의 `parentRef`를 Gateway 대신 Service로 두면 east-west 라우팅이 된다. 새 라우팅 규칙은 메시 고유 CRD보다 Gateway API를 먼저 검토할 만하다.
@@ -491,6 +513,12 @@ spec:
 
 ---
 
+## 생각해 볼 질문
+
+1. **출발지 앱이 자기 sidecar를 우회하면 목적지의 STRICT mTLS도 없어질까?** 송신 capture와 목적지 수신 경계는 다르다. 정상 목적지 프록시는 자신의 인증·인가를 계속 집행할 수 있다.
+2. **waypoint를 만들었는데 ingress 요청이 L7 정책을 안 거친다. 왜일까?** enrollment만으로 모든 출발 경로를 보장하지 않는다. ingress 경유 label·control plane 설정과 목적지 L4 인가의 강제 조건을 확인한다.
+3. **프록시가 trace span을 보내면 분산 trace가 자동으로 이어질까?** 앱이 들어온 context를 다음 호출에 전파해야 서비스 사이 인과관계가 이어진다.
+
 ## 출처
 
 - [Kubernetes 공식 — Sidecar Containers](https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/) — `restartPolicy: Always` 사이드카, v1.29 기본 활성화 / **v1.33 Stable**, 시작·종료 순서, Job 완료 동작
@@ -500,7 +528,7 @@ spec:
 - [Istio 공식 — Security Best Practices](https://istio.io/latest/docs/ops/best-practices/security/) — "it is not secure to rely on all traffic being captured unconditionally by Istio", **Defense in depth with NetworkPolicy**
 - [Istio 공식 — Security (concepts)](https://istio.io/latest/docs/concepts/security/) — ServiceAccount 기반 워크로드 신원, CSR·SDS 기반 인증서 발급과 회전, PeerAuthentication STRICT/PERMISSIVE, AuthorizationPolicy principals
 - [Istio 공식 — Authorization Policy 레퍼런스](https://istio.io/latest/docs/reference/config/security/authorization-policy/) — CUSTOM/DENY/ALLOW 평가 순서
-- [Istio 공식 — Ambient Data Plane Architecture](https://istio.io/latest/docs/ambient/architecture/data-plane/) — ztunnel(노드 단위 L4)과 waypoint(L7)의 역할 분담, HBONE, 메시 밖·사이드카·게이트웨이 트래픽이 waypoint를 거치지 않는 한계
+- [Istio 공식 — Ambient Data Plane Architecture](https://istio.io/latest/docs/ambient/architecture/data-plane/) — ztunnel(노드 단위 L4)과 waypoint(L7)의 역할 분담, HBONE, 출발 경로별 기본 우회와 waypoint 경유 조건
 - [Istio 공식 — Ambient Mode Overview](https://istio.io/latest/docs/ambient/overview/) — sidecar-less 구조 개요
 - [Istio Blog — Ambient Mode Reaches General Availability in v1.24 (2024-11)](https://istio.io/latest/blog/2024/ambient-reaches-ga/) — **ambient GA 시점**, L4/L7 점진 도입, "사이드카 우회 능력 제거", 사이드카 계속 지원 방침
 - [Istio 1.27.0 Change Notes](https://istio.io/latest/news/releases/1.27.x/announcing-1.27/change-notes/) — **`ENABLE_NATIVE_SIDECARS` 기본값 `true`로 승격**
@@ -510,3 +538,7 @@ spec:
 - [Istio Blog — Istio Roadmap for 2025-2026](https://istio.io/latest/blog/2025/roadmap/) — 사이드카·ambient 기능 격차 축소와 사이드카 지속 지원 방침
 - [CNCF — CNCF Archives the Service Mesh Interface (SMI) Project (2023-10-03)](https://www.cncf.io/blog/2023/10/03/cncf-archives-the-service-mesh-interface-smi-project/) — **SMI 아카이브와 GAMMA로의 통합**
 - [Google Cloud — Cloud Service Mesh security best practices](https://docs.cloud.google.com/service-mesh/docs/istio-apis/security/best-practices) — 인가 정책과 Kubernetes NetworkPolicy(L3/L4)의 병행 사용 권고
+
+- [Istio tracing context propagation](https://istio.io/latest/docs/tasks/observability/distributed-tracing/overview/#building-applications-to-support-trace-context-propagation) — 앱이 이어 주어야 하는 trace context
+- [Envoy Access Log](https://www.envoyproxy.io/docs/envoy/latest/configuration/observability/access_log/usage) — flag·response details·upstream 정보
+- [Waypoint](https://istio.io/latest/docs/ambient/usage/waypoint/) — ingress 경유 조건과 강제, 2026-10-23 확인
