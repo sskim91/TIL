@@ -17,7 +17,7 @@ def extract_title(file_path: Path) -> str:
                 line = line.strip()
                 if line.startswith("# "):
                     return line[2:].strip()
-    except (FileNotFoundError, IOError) as e:
+    except (OSError, FileNotFoundError) as e:
         print(f"Error reading {file_path}: {e}")
 
     # 제목이 없으면 파일명을 제목으로 사용
@@ -79,13 +79,26 @@ def generate_readme() -> None:
     # README.md 생성
     readme_content = []
     readme_content.append("# TIL (Today I Learned)\n")
-    readme_content.append("> 🤖 Learning with AI\n")
-    readme_content.append(">\n")
-    readme_content.append("> ✍️ Claude Code 작성 | 🔍 Gemini 리뷰\n")
+    readme_content.append("> 🤖 Learning with AI — 글을 쓴 AI는 자기 글을 리뷰하지 않고, 나머지 두 AI가 교차 리뷰한다\n")
+    readme_content.append(
+        "```mermaid\n"
+        "flowchart LR\n"
+        '    CC["✍️ Claude Code 작성"] --> R1["🔍 Codex + Gemini 리뷰"]\n'
+        '    CX["✍️ Codex 작성"] --> R2["🔍 Claude + Gemini 리뷰"]\n'
+        '    R1 --> OK["✅ 모두 PASS → 커밋"]\n'
+        "    R2 --> OK\n"
+        "\n"
+        "    style CC fill:#1565C0,color:#fff\n"
+        "    style CX fill:#1565C0,color:#fff\n"
+        "    style R1 fill:#E65100,color:#fff\n"
+        "    style R2 fill:#E65100,color:#fff\n"
+        "    style OK fill:#2E7D32,color:#fff\n"
+        "```\n"
+    )
 
     # 통계
     total_count = len(md_files)
-    readme_content.append(f"\n## 📊 통계\n")
+    readme_content.append("\n## 📊 통계\n")
     readme_content.append(f"- 총 TIL 개수: **{total_count}개**\n")
     readme_content.append(f"- 카테고리 수: **{len(categories)}개**\n")
 
@@ -117,7 +130,7 @@ def generate_readme() -> None:
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write("\n".join(readme_content))
 
-    print(f"✅ README.md 생성 완료!")
+    print("✅ README.md 생성 완료!")
     print(f"   - 총 {total_count}개의 TIL")
     print(f"   - {len(categories)}개의 카테고리")
 

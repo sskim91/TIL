@@ -7,6 +7,7 @@ on:
     paths:
       - '**.md'
       - '!README.md'
+      - 'scripts/generate_readme.py'
 
 permissions:
   contents: write
