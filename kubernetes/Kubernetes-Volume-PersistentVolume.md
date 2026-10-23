@@ -1,6 +1,6 @@
 # Kubernetes Volume과 Persistent Storage
 
-> **개발자를 위한 쉬운 쿠버네티스 · 14장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Ingress-vs-Egress.md) · [다음 장](./Kubernetes-StatefulSet.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 18장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Ingress-vs-Egress.md) · [다음 장](./Kubernetes-StatefulSet.md)
 
 주문 API가 업로드 파일을 `/data`에 저장했다고 하자. 응답까지 성공했는데 새 버전으로 Pod를 교체하자 파일이 보이지 않는다. 프로세스를 다시 띄우는 일과 데이터를 다시 연결하는 일은 서로 다른 문제다. 앞에서 배운 [Pod](Kubernetes-Pod.md)와 [Deployment](Kubernetes-ReplicaSet-Deployment.md)는 실행을 복구하지만, 어떤 저장소를 다시 사용할지는 별도로 선언해야 한다.
 

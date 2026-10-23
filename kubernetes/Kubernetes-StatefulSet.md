@@ -1,6 +1,6 @@
 # Kubernetes StatefulSet
 
-> **개발자를 위한 쉬운 쿠버네티스 · 15장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Volume-PersistentVolume.md) · [다음 장](./Kubernetes-DaemonSet-Job-CronJob.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 19장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Volume-PersistentVolume.md) · [다음 장](./Kubernetes-DaemonSet-Job-CronJob.md)
 
 주문 API Pod는 교체되어도 같은 Service 뒤에서 같은 요청을 처리하면 된다. 하지만 DB의 두 번째 인스턴스를 교체할 때는 첫 번째 인스턴스의 디스크를 붙여서는 안 된다. 이전 장에서 배운 [PV와 PVC](Kubernetes-Volume-PersistentVolume.md)는 저장소의 수명을 분리했고, 이번 장은 여러 인스턴스와 저장소의 대응을 유지하는 문제를 다룬다.
 

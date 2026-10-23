@@ -720,5 +720,35 @@
   ],
   "Kubernetes-Troubleshooting-From-Apply-to-Request": [
     "kubernetes/troubleshooting"
+  ],
+  "Kubernetes-Resource-Management": [
+    "kubernetes/resources"
+  ],
+  "Kubernetes-Image-Build-Ship-Run": [
+    "kubernetes/images"
+  ],
+  "Kubernetes-Secret-Delivery-Integrations": [
+    "kubernetes/config"
+  ],
+  "Kubernetes-Workload-Security": [
+    "kubernetes/security"
+  ],
+  "Kubernetes-Cluster-Operations": [
+    "kubernetes/operations"
+  ],
+  "Kubernetes-Container-Fundamentals": [
+    "kubernetes/fundamentals"
+  ],
+  "Kubernetes-First-Deployment": [
+    "kubernetes/deployment"
+  ],
+  "Kubernetes-Logging-and-Events": [
+    "kubernetes/observability"
+  ],
+  "Kubernetes-Why-Orchestration": [
+    "kubernetes/fundamentals"
+  ],
+  "Kubernetes-Scheduling": [
+    "kubernetes/scheduling"
   ]
 }

@@ -1,6 +1,6 @@
 # Kubernetes ConfigMap & Secret
 
-> **개발자를 위한 쉬운 쿠버네티스 · 6장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Image-Tag-Digest.md) · [다음 장](./Kubernetes-Service-Object.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 10장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Image-Tag-Digest.md) · [다음 장](./Kubernetes-Service-Object.md)
 
 설정을 바꿨는데 왜 실행 중인 앱은 그대로일까?
 
@@ -136,7 +136,7 @@ stringData:
   DB_PASSWORD: "EXAMPLE-ONLY-NOT-A-REAL-PASSWORD"
 ```
 
-Base64의 모양을 보고 안전하다고 판단하지 않는다. 실제 값은 승인된 비밀 전달 경로에서 만들고, API 응답·shell history·CI 로그·터미널 녹화에 남지 않도록 다룬다. `kubectl -n bookstore create secret --from-file`도 입력 파일의 보관·권한·삭제 정책을 대신 해결하지 않는다.
+Base64의 모양을 보고 안전하다고 판단하지 않는다. 실제 값은 승인된 비밀 전달 경로에서 만들고, API 응답·shell history·CI 로그·터미널 녹화에 남지 않도록 다룬다. `kubectl create secret generic`의 `--from-file` 옵션으로 값을 읽더라도 입력 파일의 보관·권한·삭제 정책을 대신 해결하지 않는다.
 
 ### 3.3 Secret 타입
 
@@ -254,7 +254,7 @@ RBAC이 “기본적으로 누구나 Secret을 읽게 한다”는 설명도 틀
 
 API server의 EncryptionConfiguration·KMS provider는 저장 시 암호화를 구성하는 클러스터 관리자 영역이다. 설정 파일을 작성했다고 기존 Secret과 백업이 모두 암호화된 것으로 판단하지 않는다. provider 순서·key 관리·기존 데이터 재기록·복구 검증까지 별도 운영 절차가 필요하다. 부분 설정을 그대로 적용하는 예제 대신 [공식 저장 암호화 절차](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/)를 기준으로 검증한다.
 
-외부 저장소는 감사·회전·권한 분리를 제공할 수 있지만, 외부에서 Kubernetes Secret으로 복제했다면 클러스터 안 Secret의 보안 책임은 남는다. 반대로 파일로 직접 전달하면 Kubernetes Secret 저장을 피할 수 있어도 provider·node plugin과 앱의 파일 접근 보안은 필요하다. 다음 심화 절에서 두 경로를 비교한다.
+외부 저장소는 감사·회전·권한 분리를 제공할 수 있지만, 외부에서 Kubernetes Secret으로 복제했다면 클러스터 안 Secret의 보안 책임은 남는다. 반대로 파일로 직접 전달하면 Kubernetes Secret 저장을 피할 수 있어도 provider·node plugin과 앱의 파일 접근 보안은 필요하다. [Secret Delivery Integrations](Kubernetes-Secret-Delivery-Integrations.md)에서 두 경로와 복구 조건을 비교한다.
 
 ### 6.3 RBAC으로 접근 제한
 
@@ -277,513 +277,61 @@ rules:
 
 ---
 
+## 심화 읽기의 위치
+
+외부 저장소의 identity·provider 비교, CSI 파일 전달, GitOps 암호화와 rotation 관찰은 [Secret Delivery Integrations](Kubernetes-Secret-Delivery-Integrations.md)로 이어진다. ESO의 reconcile·갱신·소유 정책은 기존 [External Secrets Operator](Kubernetes-External-Secrets-Operator.md)에서 자세히 다룬다. 아래 제목은 기존 깊은 링크의 도착점을 유지하기 위한 이동 안내다.
+
 ## 7. 클라우드 Secret 관리
 
-여기부터는 기본 ConfigMap·Secret을 이해한 뒤 읽는 선택 심화다. 외부 저장소, 인증 주체, Kubernetes Secret 또는 파일, 앱 적용으로 이어지는 책임을 비교한다. 아래 cloud CLI와 YAML은 연동 필드의 설명용 발췌이며 전체 설치·권한·네트워크 절차가 아니다. 예제만 복사해 적용할 수 있는 검증된 실행 가이드로 읽지 않는다.
-
-외부 서비스의 회전 기능은 종류마다 다르다. 새 값을 만드는 주체, 외부 저장소의 버전, ESO 또는 CSI의 동기화, 앱의 재로딩이 차례로 맞아야 실제 접속 자격 증명이 바뀐다. 저장소에 회전 일정을 등록했다는 사실만으로 DB 비밀번호와 모든 앱 연결이 자동 교체되지는 않는다.
+이 절은 [Secret Delivery Integrations의 1. 클라우드 Secret 관리](Kubernetes-Secret-Delivery-Integrations.md#1-클라우드-secret-관리)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 7.1 External Secrets Operator (ESO)
 
-**External Secrets Operator** 는 외부 Secret 관리 서비스의 값을 자동으로 Kubernetes Secret으로 동기화한다.
-
-```mermaid
-flowchart LR
-    subgraph "클라우드"
-        AWS[AWS Secrets Manager]
-        AKV[Azure Key Vault]
-        GSM[GCP Secret Manager]
-    end
-
-    ESO[External Secrets<br>Operator]
-
-    subgraph "Kubernetes"
-        ES[ExternalSecret]
-        SEC[Secret]
-        POD[Pod]
-    end
-
-    AWS --> ESO
-    AKV --> ESO
-    GSM --> ESO
-    ESO --> |"동기화"| SEC
-    ES --> |"정의"| ESO
-    SEC --> POD
-
-    style ESO fill:#BF360C,color:#fff
-    style SEC fill:#C62828,color:#fff
-```
-
-**ESO 설치:**
-
-```bash
-# Helm으로 설치
-helm repo add external-secrets https://charts.external-secrets.io
-helm install external-secrets external-secrets/external-secrets \
-  -n external-secrets --create-namespace
-```
-
-> 2026-10-23에 확인한 ESO 공식 예제는 `external-secrets.io/v1`을 사용한다. 실제 설치한 controller·CRD 버전에서 이 API와 provider 필드가 지원되는지는 별도로 확인한다. 최신 버전 번호를 추정해 설치 기준으로 사용하지 않는다.
+이 절은 [Secret Delivery Integrations의 1.1 External Secrets Operator (ESO)](Kubernetes-Secret-Delivery-Integrations.md#11-external-secrets-operator-eso)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 7.2 AWS EKS + Secrets Manager
 
-AWS에서는 **IRSA(IAM Roles for Service Accounts)** 또는 **Pod Identity** 로 인증한다.
-
-**Step 1: IAM 정책 생성**
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret"
-      ],
-      "Resource": "arn:aws:secretsmanager:ap-northeast-2:*:secret:order-api/*"
-    }
-  ]
-}
-```
-
-**Step 2: IRSA 설정**
-
-```bash
-# Service Account에 IAM Role 연결
-# SecretStore(namespaced)의 serviceAccountRef는 SecretStore와 같은 네임스페이스의 SA를 가리킨다
-eksctl create iamserviceaccount \
-  --name external-secrets-sa \
-  --namespace bookstore \
-  --cluster my-cluster \
-  --attach-policy-arn arn:aws:iam::123456789:policy/SecretsManagerReadOnly \
-  --approve
-```
-
-**Step 3: SecretStore 생성**
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: SecretStore
-metadata:
-  name: aws-secrets-manager
-  namespace: bookstore
-spec:
-  provider:
-    aws:
-      service: SecretsManager
-      region: ap-northeast-2
-      auth:
-        jwt:
-          serviceAccountRef:
-            name: external-secrets-sa    # IRSA Service Account
-```
-
-**Step 4: ExternalSecret 생성**
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: order-api-secret
-  namespace: bookstore
-spec:
-  refreshInterval: 1h                    # 동기화 주기
-  secretStoreRef:
-    name: aws-secrets-manager
-    kind: SecretStore
-  target:
-    name: order-api-secret                  # 생성될 K8s Secret 이름
-    creationPolicy: Owner
-  data:
-  - secretKey: DB_PASSWORD               # K8s Secret의 키
-    remoteRef:
-      key: order-api/database               # AWS Secret 이름
-      property: password                 # JSON 내 필드
-```
-
-> **IRSA vs Pod Identity:** 두 방식 모두 ServiceAccount 토큰을 사용하지만 임시 AWS 자격 증명을 얻는 경로가 다르다. IRSA는 SDK가 web identity token으로 STS `AssumeRoleWithWebIdentity`를 호출한다. EKS Pod Identity는 cluster·namespace·ServiceAccount에 IAM Role을 연결하며, `pods.eks.amazonaws.com` audience의 토큰과 노드의 Pod Identity Agent를 사용한다. Agent가 EKS Auth API의 `AssumeRoleForPodIdentity`로 자격 증명을 받고 앱 SDK는 container credential provider를 통해 이를 읽는다. trust 설정·SDK 지원 조건을 확인해 선택한다. ([AWS 공식 동작 설명](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html))
->
-> **ESO에서 Pod Identity를 쓸 때 주의 (2026-10-23 공식 문서 확인):** 위 예시의 `auth.jwt.serviceAccountRef`는 IRSA 전용이다. Pod Identity는 ESO **컨트롤러** Service Account(예: `external-secrets` 네임스페이스의 `external-secrets`)에 `aws eks create-pod-identity-association`으로 Role을 연결하고, SecretStore에는 `auth` 섹션을 **아예 쓰지 않는다**. ESO는 Pod Identity로 Role이 묶인 SA를 가장(impersonate)할 수 없어서 `serviceAccountRef`와 함께 쓰면 `an IAM role must be associated with service account` 오류가 난다. ([ESO — AWS Access](https://external-secrets.io/latest/provider/aws-access/))
+이 절은 [Secret Delivery Integrations의 1.2 AWS EKS + Secrets Manager](Kubernetes-Secret-Delivery-Integrations.md#12-aws-eks--secrets-manager)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 7.3 Azure AKS + Key Vault
 
-Azure에서는 **Workload Identity** 로 인증한다.
-
-**Step 1: Workload Identity 설정**
-
-다음은 활성화 명령의 발췌다. Azure 예제에는 별도로 Kubernetes ServiceAccount와 annotation, OIDC issuer·subject·audience가 맞는 federated identity credential, Key Vault 인가가 필요하다. 아래 명령만으로 신뢰 연결이 완성되지 않는다.
-
-```bash
-# AKS 클러스터에 Workload Identity 활성화
-az aks update \
-  --resource-group myResourceGroup \
-  --name myAKSCluster \
-  --enable-oidc-issuer \
-  --enable-workload-identity
-
-# Managed Identity 생성
-az identity create \
-  --name external-secrets-identity \
-  --resource-group myResourceGroup
-```
-
-**Step 2: Key Vault 접근 권한 부여**
-
-아래 `set-policy`는 access policy 권한 모델에서의 발췌다. Azure RBAC 권한 모델의 vault에는 알맞은 data plane role assignment가 필요하므로 둘을 혼용하지 않는다.
-
-```bash
-# Key Vault에 접근 권한 부여
-az keyvault set-policy \
-  --name myKeyVault \
-  --object-id <identity-principal-id> \
-  --secret-permissions get list
-```
-
-**Step 3: SecretStore 생성**
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: SecretStore
-metadata:
-  name: azure-keyvault
-  namespace: bookstore
-spec:
-  provider:
-    azurekv:
-      tenantId: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-      vaultUrl: "https://mykeyvault.vault.azure.net"
-      authType: WorkloadIdentity
-      serviceAccountRef:
-        name: external-secrets-sa
-```
-
-**Step 4: ExternalSecret 생성**
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: order-api-secret
-  namespace: bookstore
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    name: azure-keyvault
-    kind: SecretStore
-  target:
-    name: order-api-secret
-  data:
-  - secretKey: DB_PASSWORD
-    remoteRef:
-      key: database-password             # Key Vault Secret 이름
-```
+이 절은 [Secret Delivery Integrations의 1.3 Azure AKS + Key Vault](Kubernetes-Secret-Delivery-Integrations.md#13-azure-aks--key-vault)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 7.4 GCP GKE + Secret Manager
 
-GKE에서는 **Workload Identity Federation for GKE** 로 인증하며, 아래 ESO 예제의 필드는 `auth.workloadIdentity`다. ESO의 `auth.workloadIdentityFederation`은 GKE 밖의 클러스터 등에서 외부 identity pool을 연결하는 별도 경로이므로 이름만 보고 바꾸지 않는다.
-
-**Step 1: Workload Identity 설정**
-
-```bash
-# GKE 클러스터 생성 시 Workload Identity 활성화
-gcloud container clusters create my-cluster \
-  --workload-pool=my-project.svc.id.goog \
-  --zone=asia-northeast3-a
-
-# GCP Service Account 생성
-gcloud iam service-accounts create external-secrets-sa
-
-# Secret Manager 접근 권한 부여
-gcloud projects add-iam-policy-binding my-project \
-  --member="serviceAccount:external-secrets-sa@my-project.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
-```
-
-**Step 2: Kubernetes SA와 GCP SA 연결**
-
-```bash
-# Workload Identity 바인딩
-gcloud iam service-accounts add-iam-policy-binding \
-  external-secrets-sa@my-project.iam.gserviceaccount.com \
-  --role="roles/iam.workloadIdentityUser" \
-  --member="serviceAccount:my-project.svc.id.goog[bookstore/external-secrets-sa]"
-
-# KSA(SecretStore와 같은 네임스페이스)에 GSA 연결 annotation
-kubectl -n bookstore annotate serviceaccount external-secrets-sa -n bookstore \
-  iam.gke.io/gcp-service-account=external-secrets-sa@my-project.iam.gserviceaccount.com
-```
-
-**Step 3: SecretStore 생성**
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: SecretStore
-metadata:
-  name: gcp-secret-manager
-  namespace: bookstore
-spec:
-  provider:
-    gcpsm:
-      projectID: my-project
-      auth:
-        workloadIdentity:
-          clusterLocation: asia-northeast3-a
-          clusterName: my-cluster
-          serviceAccountRef:
-            name: external-secrets-sa
-```
-
-**Step 4: ExternalSecret 생성**
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: order-api-secret
-  namespace: bookstore
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    name: gcp-secret-manager
-    kind: SecretStore
-  target:
-    name: order-api-secret
-  data:
-  - secretKey: DB_PASSWORD
-    remoteRef:
-      key: database-password             # Secret 이름만 (projectID는 SecretStore에서)
-      version: latest
-```
-
-> ESO는 `projects/{projectID}/secrets/{key}/versions/{version}` 경로를 직접 조립하므로 `key`에 전체 리소스 경로를 넣으면 경로가 중복돼 조회에 실패한다. ([ESO GCP provider 소스](https://github.com/external-secrets/external-secrets/blob/main/providers/v1/gcp/secretmanager/client.go), [ESO — Google Secret Manager](https://external-secrets.io/latest/provider/google-secrets-manager/))
+이 절은 [Secret Delivery Integrations의 1.4 GCP GKE + Secret Manager](Kubernetes-Secret-Delivery-Integrations.md#14-gcp-gke--secret-manager)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 7.5 클라우드 비교
 
-| 항목 | AWS EKS | Azure AKS | GCP GKE |
-|---|---|---|---|
-| 저장소 예 | Secrets Manager | Key Vault | Secret Manager |
-| identity 연결 예 | IRSA·EKS Pod Identity | Workload Identity | Workload Identity Federation |
-| ESO provider key | `aws` | `azurekv` | `gcpsm` |
-
-같은 “Workload Identity”라는 표현이 있어도 토큰의 신뢰 대상과 provider 구성은 서로 다르다. 가격·회전 지원·감사 정책은 서비스와 옵션별로 확인한다. 프로젝트 전체 read 권한을 부여하는 발췌는 개념을 보여 주기 쉽지만 실제 환경에서는 필요한 Secret에만 접근하도록 범위를 좁힌다.
-
----
+이 절은 [Secret Delivery Integrations의 1.5 클라우드 비교](Kubernetes-Secret-Delivery-Integrations.md#15-클라우드-비교)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ## 8. Secrets Store CSI Driver
 
-**Secrets Store CSI Driver** 는 외부 Secret을 **Pod 볼륨으로 직접 마운트**하는 방식이다. ESO와 달리 Kubernetes Secret을 거치지 않을 수 있다.
-
-```mermaid
-flowchart LR
-    subgraph "클라우드"
-        SM[Secret Manager]
-    end
-
-    subgraph "Kubernetes"
-        CSI[CSI Driver]
-        SPC[SecretProviderClass]
-        POD[Pod]
-        VOL["/mnt/secrets"]
-    end
-
-    SM --> CSI
-    SPC --> CSI
-    CSI --> VOL
-    VOL --> POD
-
-    style CSI fill:#1565C0,color:#fff
-```
+이 절은 [Secret Delivery Integrations의 2. Secrets Store CSI Driver](Kubernetes-Secret-Delivery-Integrations.md#2-secrets-store-csi-driver)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 8.1 ESO vs CSI Driver
 
-| 비교 | External Secrets Operator | Secrets Store CSI Driver |
-|------|---------------------------|-------------------------|
-| **동작 방식** | K8s Secret으로 동기화 | 볼륨으로 직접 마운트 |
-| **Secret 저장 경로** | Kubernetes Secret이 저장소에도 남음 | Secret 동기화를 켜지 않으면 Kubernetes Secret 객체를 만들지 않을 수 있음 |
-| **환경변수 사용** | ✅ 가능 | ⚠️ secretObjects로 동기화 후 가능 |
-| **실행 주체** | controller가 외부 값을 조회·동기화 | Node CSI plugin·provider가 mount를 준비 |
-| **실행 환경 제약** | controller 실행 위치·권한·통신 확인 | Node plugin 설치를 허용하는 환경인지 확인 |
-
-> 환경변수가 필요한지, Kubernetes Secret 저장을 허용하는지, Node plugin을 설치할 수 있는지, 외부 저장소 장애 시 새 Pod가 시작 가능한지를 기준으로 선택한다. CSI auto rotation은 별도 활성화·provider 지원이 필요하며, 파일 갱신 뒤 앱 재로딩과 Secret 기반 환경변수의 Pod 교체도 여전히 필요하다.
+이 절은 [Secret Delivery Integrations의 2.1 ESO vs CSI Driver](Kubernetes-Secret-Delivery-Integrations.md#21-eso-vs-csi-driver)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 8.2 Azure AKS 예시 (CSI Driver)
 
-AKS는 CSI Driver를 **애드온**으로 쉽게 활성화할 수 있다.
-
-```bash
-# CSI Driver 애드온 활성화
-az aks enable-addons \
-  --addons azure-keyvault-secrets-provider \
-  --name myAKSCluster \
-  --resource-group myResourceGroup
-```
-
-**SecretProviderClass 생성:**
-
-```yaml
-apiVersion: secrets-store.csi.x-k8s.io/v1
-kind: SecretProviderClass
-metadata:
-  name: azure-keyvault-secrets
-spec:
-  provider: azure
-  parameters:
-    usePodIdentity: "false"
-    useVMManagedIdentity: "true"         # Managed Identity 사용
-    userAssignedIdentityID: "<client-id>"
-    keyvaultName: "myKeyVault"
-    tenantId: "<tenant-id>"
-    objects: |
-      array:
-        - |
-          objectName: database-password
-          objectType: secret
-  secretObjects:                          # K8s Secret으로도 동기화 (선택)
-  - secretName: order-api-secret
-    type: Opaque
-    data:
-    - objectName: database-password
-      key: DB_PASSWORD
-```
-
-**Pod에서 사용:**
-
-```yaml
-spec:
-  containers:
-  - name: order-api
-    image: registry.example.com/book/order-api:1.0.0
-    volumeMounts:
-    - name: secrets-store
-      mountPath: "/mnt/secrets"
-      readOnly: true
-  volumes:
-  - name: secrets-store
-    csi:
-      driver: secrets-store.csi.k8s.io
-      readOnly: true
-      volumeAttributes:
-        secretProviderClass: "azure-keyvault-secrets"
-```
-
----
+이 절은 [Secret Delivery Integrations의 2.2 Azure AKS 예시 (CSI Driver)](Kubernetes-Secret-Delivery-Integrations.md#22-azure-aks-예시-csi-driver)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ## 9. GitOps에서 Secret 관리
 
-GitOps 환경에서는 Secret을 Git에 평문으로 저장할 수 없다. 두 가지 접근법이 있다:
-
-| 접근법 | 설명 | 도구 |
-|--------|------|------|
-| **암호화 저장** | Git에 암호화된 Secret 저장 | Sealed Secrets, SOPS |
-| **참조 저장** | Secret 참조만 Git에 저장 | External Secrets Operator |
+이 절은 [Secret Delivery Integrations의 3. GitOps에서 Secret 관리](Kubernetes-Secret-Delivery-Integrations.md#3-gitops에서-secret-관리)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 9.1 Sealed Secrets
 
-**Sealed Secrets** 는 controller가 가진 private key에 대응하는 공개 certificate로 Secret을 암호화해 Git에 저장할 수 있게 한다. 암호문을 만들었다고 key 백업·복구·권한 관리 책임이 사라지지는 않는다.
-
-```mermaid
-flowchart LR
-    DEV[개발자] -->|"kubeseal"| SEALED[SealedSecret<br>암호화됨]
-    SEALED -->|"Git Push"| GIT[Git 저장소]
-    GIT -->|"GitOps Sync"| CTRL[SealedSecrets<br>Controller]
-    CTRL -->|"복호화"| SEC[Kubernetes<br>Secret]
-
-    style SEALED fill:#2E7D32,color:#fff
-    style SEC fill:#C62828,color:#fff
-```
-
-**암호화 흐름의 설명용 발췌:**
-
-```bash
-# controller 설치 manifest는 릴리스 버전·권한·대상 namespace를 별도로 검토한다.
-# 공개 certificate를 확보한 뒤 offline sealing하는 형식은 아래와 같다.
-
-# kubeseal CLI 설치 (Mac)
-brew install kubeseal
-
-# Secret 암호화
-kubectl -n bookstore create secret generic my-secret \
-  --from-literal=password=mysecret \
-  --dry-run=client -o yaml | \
-  kubeseal --cert controller-public-cert.pem --format yaml > sealed-secret.yaml
-```
-
-**생성된 SealedSecret:**
-
-```yaml
-apiVersion: bitnami.com/v1alpha1
-kind: SealedSecret
-metadata:
-  name: my-secret
-  namespace: bookstore
-spec:
-  encryptedData:
-    password: AgBy3i4OJSWK+...  # 클러스터 공개키로 암호화됨
-```
-
-> **주의:** 복호화 가능 여부는 private key와 sealing scope에 달려 있다. 기본 strict scope에서는 namespace와 이름도 맞아야 한다. 여러 클러스터에 key를 공유하는 설계도 가능하지만 격리와 장애 영향이 달라진다. key 복구 계획 없이 원본 Secret과 controller key를 잃으면 암호문만으로 복구할 수 없다.
+이 절은 [Secret Delivery Integrations의 3.1 Sealed Secrets](Kubernetes-Secret-Delivery-Integrations.md#31-sealed-secrets)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 9.2 SOPS (Secrets OPerationS)
 
-**SOPS** 는 YAML·JSON 등의 민감 값을 암호화하며, cloud KMS 외에도 age·PGP 등 여러 key backend를 지원한다. 복호화할 GitOps 실행 주체에게 필요한 key 접근 권한을 주고 평문이 로그·캐시에 남는 경로를 확인한다.
-
-```bash
-# SOPS 설치 (Mac)
-brew install sops
-
-# AWS KMS로 암호화
-sops --encrypt --kms arn:aws:kms:ap-northeast-2:123:key/abc \
-  --encrypted-regex '^(data|stringData)$' \
-  secret.yaml > secret.enc.yaml
-```
-
-`--encrypted-regex`는 `data`·`stringData` 아래 값만 암호화하도록 범위를 정한다. 이 옵션이나 동등한 `.sops.yaml` 규칙이 없으면 기본적으로 다른 필드의 값도 암호화되므로 아래 결과와 달라진다. 다음은 암호문·metadata를 줄인 구조 발췌다.
-
-**암호화된 파일:**
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: my-secret
-stringData:
-  password: ENC[AES256_GCM,data:...,tag:...,type:str]
-sops:
-  kms:
-  - arn: arn:aws:kms:ap-northeast-2:123:key/abc
-```
-
-**Flux에서 AWS KMS 기반 SOPS 사용:**
-
-위와 같은 KMS key로 암호화했다면 복호화 주체인 `flux-system`의 `kustomize-controller` ServiceAccount에 해당 key를 사용할 IAM 권한과 identity 연결이 필요하다. 다음은 그 권한 구성이 이미 준비되었다고 가정한 Kustomization 발췌다. age private key를 담은 Secret 참조는 이 KMS 예제에 넣지 않는다.
-
-```yaml
-# Flux Kustomization에 SOPS 설정
-apiVersion: kustomize.toolkit.fluxcd.io/v1
-kind: Kustomization
-metadata:
-  name: order-api
-  namespace: flux-system
-spec:
-  decryption:
-    provider: sops
-```
+이 절은 [Secret Delivery Integrations의 3.2 SOPS (Secrets OPerationS)](Kubernetes-Secret-Delivery-Integrations.md#32-sops-secrets-operations)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ### 9.3 GitOps Secret 관리 비교
 
-| 항목 | Sealed Secrets | SOPS | External Secrets |
-|------|----------------|------|------------------|
-| **변환 경로** | kubeseal로 암호화·controller로 복호화 | 로컬/CI 암호화·인가된 주체가 복호화 | 외부 값을 controller가 조회 |
-| **Git에 저장** | 암호화된 값 | 암호화된 값 | 참조만 |
-| **멀티 클러스터** | key·scope 설계 필요 | 각 실행 주체에 key 접근 필요 | 각 클러스터에 외부 조회 identity 필요 |
-| **key·권한 관리** | controller private key·백업 | KMS·age 등 선택한 backend | 저장소 identity·IAM·접근 정책 |
-| **Flux 지원** | ✅ | ✅ 네이티브 | ✅ |
-| **ArgoCD 지원** | ✅ | Plugin 필요 | ✅ |
-
-복구 시 무엇에 접근할 수 있어야 하는지로 선택한다. ESO는 외부 저장소·identity 접근, SOPS는 복호화 key 접근, Sealed Secrets는 controller private key 복구가 필요하다. Git 저장소가 있다는 사실만으로 이 의존성이 해결되지는 않는다.
-
----
+이 절은 [Secret Delivery Integrations의 3.3 GitOps Secret 관리 비교](Kubernetes-Secret-Delivery-Integrations.md#33-gitops-secret-관리-비교)로 옮겼다. 기본 주입·갱신·보안은 이 장에서, provider·CSI·GitOps의 연동 조건은 확장 글에서 읽는다.
 
 ## 10. 제한사항과 주의점
 
@@ -905,9 +453,6 @@ kubectl -n bookstore exec my-pod -- cat /etc/config/app.yml
 # Pod 이벤트 확인 (마운트 실패 등)
 kubectl -n bookstore describe pod my-pod | grep -A 10 Events
 
-# External Secret 동기화 상태 확인
-kubectl -n bookstore get externalsecret
-kubectl -n bookstore describe externalsecret my-secret
 ```
 
 ### 11.3 흔한 문제와 해결
@@ -918,7 +463,7 @@ kubectl -n bookstore describe externalsecret my-secret
 | 환경변수 값이 안 바뀜 | 실행 중 환경은 자동 갱신 안 됨 | 통제된 rollout과 앱 반영 확인 |
 | 볼륨 파일 내용이 안 바뀜 | subPath·전파 지연·참조 오류 가능 | 마운트 방식·객체 버전·경로 확인 |
 | Secret 값을 앱이 사용하지 못함 | key·전달 경로·문자 인코딩·줄바꿈 문제 가능 | 값을 로그에 노출하지 않고 입력·계약 확인 |
-| ExternalSecret READY=False | SecretStore 인증 실패 | IAM 권한, SA 어노테이션 확인 |
+| 외부 Secret 전달이 실패 | 인증·권한·항목·연결 등 확인 필요 | [외부 연동 진단](Kubernetes-Secret-Delivery-Integrations.md#5-장애를-값-출력-없이-좁히기)으로 이동 |
 
 ---
 
@@ -958,32 +503,18 @@ Secret은 민감 값을 별도로 다룰 기반이다. Base64, 저장 암호화,
    해설: Deployment가 참조하는 이름과 Pod 템플릿이 그대로다. 내용 변경을 템플릿 checksum·새 이름·추가 controller 등으로 연결해야 rollout과 설정 변경이 이어진다.
 2. **컨테이너 안 파일은 새 값인데 앱 로그에는 이전 설정이 나온다. Kubernetes의 갱신 실패일까?**
    해설: 파일 투영과 앱의 메모리 설정은 별개다. 앱이 파일을 다시 읽는지, 기존 descriptor를 사용하는지, 다른 설정 경로의 우선순위가 더 높은지 확인한다.
-3. **ESO가 Ready=True이면 회전된 DB 비밀번호를 모든 replica가 쓰고 있을까?**
-   해설: 외부 값 조회와 Secret 동기화의 증거다. 환경변수 전달이라면 Pod 교체, 파일이라면 재로딩, DB 연결 풀이라면 기존 연결 교체가 더 필요할 수 있다.
+3. **Secret API get을 막으면 namespace의 모든 사용자로부터 값을 보호할까?**
+   해설: Pod를 만들어 Secret을 마운트할 수 있는 권한도 간접 접근 경로다. Secret 읽기뿐 아니라 workload 생성·수정 권한과 namespace의 신뢰 경계를 함께 확인한다.
 
 다음 [Service 장](Kubernetes-Service-Object.md)은 이렇게 실행·교체되는 Pod에 어떻게 안정적인 접속 지점을 제공하는지 설명한다. API 선언의 반영과 앱의 실제 동작을 나누어 보는 관점은 그대로 이어진다.
 
 ## 출처
 
-2026-10-23에 공식 개념·provider 예제를 확인했다. 구조 파싱·문서 대조를 수행했으며 cloud identity 설정이나 실제 Secret 갱신·앱 반영을 실행 검증한 것은 아니다.
+2026-10-23 기준 공식 개념·갱신·보안 제약을 확인했다. 정적 확인과 문서 대조 범위이며 실제 Secret 갱신·앱 반영을 실행 검증한 것은 아니다. provider·CSI·GitOps 근거는 [확장 글의 출처](Kubernetes-Secret-Delivery-Integrations.md#출처)에 모았다.
 
-- [Kubernetes Documentation - ConfigMaps](https://kubernetes.io/docs/concepts/configuration/configmap/) - 공식 문서
-- [Kubernetes Documentation - Secrets](https://kubernetes.io/docs/concepts/configuration/secret/) - 공식 문서
-- [Kubernetes Documentation - Mounted ConfigMaps are updated automatically](https://kubernetes.io/docs/concepts/configuration/configmap/#mounted-configmaps-are-updated-automatically) - subPath 제한사항
-- [Twelve-Factor App - Config](https://12factor.net/ko/config) - 설정 분리 원칙
-- [Kubernetes Documentation - Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/) - 공식 문서
-- [External Secrets Operator](https://external-secrets.io/) - ESO 공식 문서
-- [External Secrets - AWS Secrets Manager](https://external-secrets.io/latest/provider/aws-secrets-manager/) - AWS 연동
-- [External Secrets - Google Secret Manager](https://external-secrets.io/latest/provider/google-secrets-manager/) - GCP 연동
-- [Azure Key Vault Provider for Secrets Store CSI Driver](https://azure.github.io/secrets-store-csi-driver-provider-azure/docs/) - Azure CSI Driver
-- [Bitnami Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) - GitOps Secret 암호화
-- [Mozilla SOPS](https://github.com/getsops/sops) - Secret 파일 암호화
-- [Flux - Manage Kubernetes secrets with SOPS](https://fluxcd.io/flux/guides/mozilla-sops/) - Flux SOPS 연동
-
-- [Secrets Store CSI Driver Concepts](https://secrets-store-csi-driver.sigs.k8s.io/concepts)
-- [Secrets Store CSI Driver Auto Rotation](https://secrets-store-csi-driver.sigs.k8s.io/topics/secret-auto-rotation)
-- [External Secrets AWS Access](https://external-secrets.io/latest/provider/aws-access/)
-- [External Secrets Azure Key Vault](https://external-secrets.io/latest/provider/azure-key-vault/)
-
-- [AWS — Understand how EKS Pod Identity works](https://docs.aws.amazon.com/eks/latest/userguide/pod-id-how-it-works.html) — 토큰과 자격 증명 교환 경로
-- [ESO — SecretStore](https://external-secrets.io/latest/api/secretstore/) — namespaced store 참조 범위
+- [ConfigMaps](https://kubernetes.io/docs/concepts/configuration/configmap/) — 데이터·volume 갱신·subPath·immutable
+- [Secrets](https://kubernetes.io/docs/concepts/configuration/secret/) — 타입·stringData·전달·권한·크기
+- [Distribute Credentials Securely Using Secrets](https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/) — 환경변수·파일 권한
+- [Good practices for Kubernetes Secrets](https://kubernetes.io/docs/concepts/security/secrets-good-practices/) — 직접·간접 접근과 보호 경계
+- [Encrypting Secret Data at Rest](https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/) — 저장 암호화·기존 데이터·key 운영
+- [Twelve-Factor App — Config](https://12factor.net/ko/config) — 코드와 설정의 분리

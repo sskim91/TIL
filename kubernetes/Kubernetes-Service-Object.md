@@ -1,6 +1,6 @@
 # Kubernetes Service Object
 
-> **개발자를 위한 쉬운 쿠버네티스 · 7장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-ConfigMap-Secret.md) · [다음 장](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 11장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-ConfigMap-Secret.md) · [다음 장](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md)
 
 **Service를 지워도 Pod는 왜 그대로일까 — 실행을 유지하는 관계와 호출 대상을 고르는 관계**
 
@@ -163,7 +163,7 @@ kubectl -n bookstore get endpointslices \
 
 라벨이 일치했다고 곧바로 정상적인 트래픽 대상이 되지는 않는다. EndpointSlice에는 선택된 Pod의 주소와 함께 `ready`, `serving`, `terminating` 같은 조건이 들어간다. "주문 API의 일원인가?"와 "지금 새 연결을 받을 상태인가?"를 따로 기록하는 것이다.
 
-일반적인 자동 관리에서는 Pod가 Ready가 아니면 endpoint가 `ready: false`로 남을 수 있다. 목록에서 주소가 완전히 지워져야 제외되는 것은 아니다. Service 네트워크 구현은 이 조건과 트래픽 정책을 해석해 사용할 대상을 정한다. `publishNotReadyAddresses`처럼 준비 상태를 다르게 취급하도록 요청하는 예외도 있다. 상태 필드의 세부 의미는 [9장](./Kubernetes-Service-Internals.md), 앱의 준비 상태를 만드는 방법은 [10장 Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md)로 이어진다.
+일반적인 자동 관리에서는 Pod가 Ready가 아니면 endpoint가 `ready: false`로 남을 수 있다. 목록에서 주소가 완전히 지워져야 제외되는 것은 아니다. Service 네트워크 구현은 이 조건과 트래픽 정책을 해석해 사용할 대상을 정한다. `publishNotReadyAddresses`처럼 준비 상태를 다르게 취급하도록 요청하는 예외도 있다. 상태 필드의 세부 의미는 [13장](./Kubernetes-Service-Internals.md), 앱의 준비 상태를 만드는 방법은 [14장 Probe](./Kubernetes-Probe-Liveness-Readiness-Startup.md)로 이어진다.
 
 ## 4. EndpointSlice는 선택 결과를 공유하는 기록이다
 

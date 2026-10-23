@@ -1,6 +1,6 @@
 # Kubernetes Image Tag, Digest
 
-> **개발자를 위한 쉬운 쿠버네티스 · 5장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-ReplicaSet-Deployment.md) · [다음 장](./Kubernetes-ConfigMap-Secret.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 9장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-ReplicaSet-Deployment.md) · [다음 장](./Kubernetes-ConfigMap-Secret.md)
 
 **rollout restart를 했는데 왜 예전 코드가 그대로 돌까 — 이미지 태그와 다이제스트**
 

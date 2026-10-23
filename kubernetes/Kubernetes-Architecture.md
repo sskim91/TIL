@@ -1,10 +1,10 @@
 # Kubernetes Architecture
 
-> **개발자를 위한 쉬운 쿠버네티스 · 2장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Introduction.md) · [다음 장](./Kubernetes-Pod.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 6장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-First-Deployment.md) · [다음 장](./Kubernetes-Pod.md)
 
 클러스터의 동작 구조 — `kubectl apply`가 끝난 뒤에 시작되는 일
 
-[Introduction](./Kubernetes-Introduction.md)에서는 Kubernetes가 원하는 실행 상태를 계속 관리한다고 설명했다. 이제 그 문장의 주어를 구체적으로 나눌 차례다. 운영 화면에는 Deployment와 Pod가 보이지만, 이들은 스스로 실행되는 프로그램이 아니다. 어떤 프로그램이 그 기록을 읽고 실제 일을 해야 한다.
+[첫 배포](./Kubernetes-First-Deployment.md)에서는 직접 만든 이미지로 `created`, Pod의 `READY`, HTTP 1.0.0 응답과 2.0.0 업데이트를 따로 관찰했다. 선언을 받아들인 뒤 누가 Pod를 만들고 어디에서 실행했기에 그 응답을 읽을 수 있었을까? 이제 그 과정의 주어를 구체적으로 나눌 차례다. 운영 화면에는 Deployment와 Pod가 보이지만, 이들은 스스로 실행되는 프로그램이 아니다. 어떤 프로그램이 그 기록을 읽고 실제 일을 해야 한다.
 
 ## 결론부터 말하면
 
@@ -18,23 +18,9 @@
 
 Kubernetes에서 서버 역할을 하는 실행 자원을 **Node** 라고 부른다. 물리 서버일 수도 있고 가상 머신일 수도 있다. Node 위에서 컨테이너가 실행된다. 이 실행 자원을 관리하기 위한 API와 제어 구성 요소를 묶어 **control plane** 이라고 한다. 그림에서는 control plane과 worker Node를 나누지만, 실제 배치 방식과 서버 수는 환경에 따라 달라진다. 구성 요소 하나가 반드시 물리 서버 하나라는 뜻도 아니다.
 
-```mermaid
-flowchart TB
-    U["개발자 / 자동화 도구"] -->|"리소스 읽기·쓰기"| API["API server"]
-    subgraph CP["Control plane의 역할"]
-        API <-->|"API 상태 저장·조회"| DB["etcd"]
-        CT["Controller"] <-->|"리소스 관찰·변경"| API
-        SC["Scheduler"] <-->|"미배치 Pod 관찰·배치 기록"| API
-    end
-    subgraph W["한 Worker Node의 역할"]
-        K["kubelet"] -->|"실행·상태 확인 요청"| R["Container runtime"]
-        R -->|"실행"| P["Pod의 컨테이너"]
-    end
-    K <-->|"담당 Pod 관찰·상태 보고"| API
-    style API fill:#1565C0,color:#fff
-    style K fill:#2E7D32,color:#fff
-    style DB fill:#455A64,color:#fff
-```
+![kubectl과 API server, etcd, controller, scheduler, worker의 kubelet과 runtime이 API를 중심으로 협력하는 클러스터 구성도](./assets/book/cluster-map.svg)
+
+그림 6-1. control plane과 worker는 역할의 구분이다. 각 구성 요소가 API를 관찰하고 갱신하며, 직접 이어 호출하는 하나의 실행 스크립트가 아니다.
 
 화살표는 관리 관계를 보여 준다. API server가 사용자 요청을 앱으로 전달하는 그림이 아니다. 또한 controller에서 scheduler로 직접 이어지는 화살표가 없다는 점을 눈여겨보자. 각 구성 요소가 공통 API를 중심으로 서로의 결과를 관찰한다.
 
@@ -170,19 +156,23 @@ sequenceDiagram
 
 현재 단계에서 지켜야 할 구분은 단순하다. Deployment 같은 리소스는 실행 상태를 관리하는 선언이고, 실제 사용자 요청은 실행 중인 네트워크 구성과 앱을 통해 처리된다. 리소스를 조회하는 명령의 성공이 앱 요청의 성공을 증명하지 않는다. 반대로 특정 앱의 500 응답만으로 control plane 장애를 결론지을 수도 없다.
 
+![배포 의도를 API에 기록하고 실행하는 관리 경로와 외부 진입점·Service 경로를 통해 앱에 도착하는 사용자 요청 경로](./assets/book/control-and-request-paths.svg)
+
+그림 6-2. 위쪽 화살표는 논리적 진행 단계다. controller가 kubelet에 직접 RPC를 보내는 뜻이 아니며, 실제 구성 요소는 그림 6-1처럼 API를 통해 상태를 관찰·갱신한다. 아래쪽은 일반적인 트래픽 경로의 단순화이며 구현에 따라 Pod로 직접 전달할 수 있다. 첫 실습의 port-forward는 이 일반 Service 데이터 경로와 다르다.
+
 ## 7. 관찰할 때는 “마지막으로 성공한 단계”를 찾는다
 
-다음 명령은 기존 리소스의 상태를 읽는 예시다. 실제 자신의 실습 환경을 확인한 뒤 사용하며, 설명용 namespace와 이름은 환경에 맞춰야 한다. 이 책을 작성하면서 얻은 실측 출력은 아니다.
+다음 명령은 첫 배포에서 만든 전용 cluster의 리소스 상태를 읽는다. 그 장의 `LAB_KUBECONFIG`와 `LAB_CONTEXT`를 같은 터미널에 설정해야 한다. 새 터미널이라면 기록해 둔 실제 값으로 다시 설정한다. 아래에는 실측 출력을 싣지 않고, 각 조회가 무엇을 확인하는지에 초점을 둔다.
 
 ```bash
-kubectl config current-context
-kubectl get deployment order-api -n bookstore
-kubectl get replicasets -n bookstore -l app=order-api
-kubectl get pods -n bookstore -l app=order-api -o wide
-kubectl get events -n bookstore --sort-by=.metadata.creationTimestamp
+kubectl --kubeconfig "$LAB_KUBECONFIG" config get-contexts "$LAB_CONTEXT"
+kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" get deployment order-api -n bookstore
+kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" get replicasets -n bookstore -l app=order-api
+kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" get pods -n bookstore -l app=order-api -o wide
+kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_CONTEXT" get events -n bookstore --sort-by=.metadata.creationTimestamp
 ```
 
-첫 줄은 지금 어느 연결 설정을 사용하는지 확인한다. 그다음은 사용자 의도에서 구체적인 실행 단위로 내려간다. Deployment가 있는지, 관련 ReplicaSet과 Pod가 있는지, Pod가 어느 Node에 배치됐는지를 보는 것이다. `app` label 조회는 탐색의 시작이며 실제 소유 관계는 `ownerReferences`도 확인해야 한다.
+첫 줄은 전용 kubeconfig에서 `LAB_CONTEXT`라는 이름의 context와 연결된 cluster·신원을 확인한다. `CURRENT` 표시는 파일에 저장된 기본 context를 뜻하며, 뒤 명령들은 그 표시와 관계없이 `--context "$LAB_CONTEXT"`를 명시해 접속한다. context 목록을 읽은 것만으로 API 연결 성공을 증명하지는 않는다. 그다음은 사용자 의도에서 구체적인 실행 단위로 내려간다. Deployment가 있는지, 관련 ReplicaSet과 Pod가 있는지, Pod가 어느 Node에 배치됐는지를 보는 것이다. `app` label 조회는 탐색의 시작이며 실제 소유 관계는 `ownerReferences`도 확인해야 한다.
 
 Events는 작업 중 발생한 사건과 이유를 살펴보는 데 도움이 된다. 영구적인 감사 기록이나 모든 내부 동작의 완전한 이력은 아니다. 로그와 metrics 역시 각각 다른 질문에 답한다. 증거의 의미를 좁혀서 읽는 습관이 중요하며, 마지막 [종합 사례](./Kubernetes-Troubleshooting-From-Apply-to-Request.md)에서 다시 연결한다.
 

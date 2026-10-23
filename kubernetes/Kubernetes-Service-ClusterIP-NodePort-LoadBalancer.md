@@ -1,6 +1,6 @@
 # Kubernetes Service: ClusterIP, NodePort, LoadBalancer
 
-> **개발자를 위한 쉬운 쿠버네티스 · 8장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Service-Object.md) · [다음 장](./Kubernetes-Service-Internals.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 12장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Service-Object.md) · [다음 장](./Kubernetes-Service-Internals.md)
 
 **같은 주문 API를 어디에서 호출할 것인가 — 내부 주소, 노드 진입점, 외부 로드밸런서**
 
@@ -331,7 +331,7 @@ Service마다 LB를 만들면 주소·비용·운영 대상이 늘 수 있지만
 | Service 이름으로 응답 | DNS와 해당 Service 경로 | 노드·LB 진입점은 되는가? |
 | 외부 주소로 응답 | 관찰한 외부 경로 | 다른 노드·호출자·장기 연결도 같은가? |
 
-각 행은 특정 출발지와 시점에 대한 결과다. 네트워크 정책이나 라우팅이 다르면 한 Pod의 성공을 모든 호출자의 성공으로 확대할 수 없다. DNS와 실제 주소 변환은 [9장](./Kubernetes-Service-Internals.md)의 주제다.
+각 행은 특정 출발지와 시점에 대한 결과다. 네트워크 정책이나 라우팅이 다르면 한 Pod의 성공을 모든 호출자의 성공으로 확대할 수 없다. DNS와 실제 주소 변환은 [13장](./Kubernetes-Service-Internals.md)의 주제다.
 
 ### 8.2 관찰 명령과 예상되는 해석
 

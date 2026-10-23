@@ -1,6 +1,6 @@
 # Kubernetes Pod
 
-> **개발자를 위한 쉬운 쿠버네티스 · 3장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Architecture.md) · [다음 장](./Kubernetes-ReplicaSet-Deployment.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 7장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Architecture.md) · [다음 장](./Kubernetes-ReplicaSet-Deployment.md)
 
 컨테이너가 종료된 것과 Pod가 교체된 것은 어떻게 다를까?
 
@@ -114,7 +114,9 @@ volumes:
 
 ### 2.2 재시작 정책과 반복 실패
 
-`Always`는 성공 종료까지 포함해 다시 실행하고, `OnFailure`는 실패 종료를 재시도하며, `Never`는 재시작하지 않는다. Deployment의 일반 애플리케이션 Pod는 `Always`를 사용하고, 끝나는 작업은 Job에서 별도 모델로 다룬다. 재시작은 버그를 고치지 않는다. 틀린 설정이 그대로라면 같은 실패를 반복한다.
+이 절의 기본 예제는 개별 컨테이너 override가 없는 Pod의 `restartPolicy`를 기준으로 한다. `Always`는 성공 종료까지 포함해 다시 실행하고, `OnFailure`는 실패 종료를 재시도하며, `Never`는 재시작하지 않는다. Deployment의 일반 애플리케이션 Pod는 `Always`를 사용하고, 끝나는 작업은 Job에서 별도 모델로 다룬다. 재시작은 버그를 고치지 않는다. 틀린 설정이 그대로라면 같은 실패를 반복한다.
+
+`ContainerRestartRules`를 지원·활성화한 환경에서는 app container와 일반 init container에 개별 재시작 정책·규칙을 지정할 수 있다. 2026-10-23에 확인한 [공식 Pod lifecycle 문서](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#individual-container-restart-policy-and-rules)는 이를 Kubernetes v1.35 Beta·기본 활성화로 설명한다. 사용 중인 버전과 feature gate를 확인한다.
 
 이 반복을 무제한 빠르게 수행하지 않도록 kubelet은 대기 시간을 늘린다. 일반적인 기본 백오프는 10초부터 2배씩 증가해 최대 300초이며 일정 시간 정상 실행되면 초기화된다. 다만 최근 Kubernetes에는 백오프를 조정하는 기능과 kubelet 설정이 있으므로 모든 버전·노드에서 정확히 같은 간격이라고 가정하지 않는다. `CrashLoopBackOff`는 이 재시도 대기를 설명하는 container waiting reason이지 독립적인 Pod phase가 아니다.
 
@@ -180,11 +182,16 @@ CPU 사용률이 낮다는 사실만으로 새 Pod가 배치될 수 있는 것�
 
 limit은 실행 중 제약이다. 일반적인 Linux 환경에서 CPU limit은 실행 시간을 제한해 throttling을 만들 수 있다. 메모리 limit은 커널의 메모리 제약과 연결되어 한도 압박에서 OOM 종료로 이어질 수 있다. CPU를 더 쓰려는 앱과 메모리를 더 할당하려는 앱이 같은 방식으로 실패하지 않는 이유다. Pod가 생기지 않는 배치 실패와 실행 후 앱이 느려지거나 종료되는 문제를 구분해야 한다.
 
-노드 자체의 메모리·디스크 압박 때문에 kubelet이 Pod를 퇴거시키는 일도 있다. 이때는 컨테이너 하나의 restartCount만 보지 않고 Pod phase·reason과 노드 Events를 함께 본다. 값 선택과 QoS의 세부 판단은 후반 Resource Management 절에서 확장한다.
+노드 자체의 메모리·디스크 압박 때문에 kubelet이 Pod를 퇴거시키는 일도 있다. 이때는 컨테이너 하나의 restartCount만 보지 않고 Pod phase·reason과 노드 Events를 함께 본다. 값 선택·QoS·퇴거와 namespace 정책은 [자원 관리 장](Kubernetes-Resource-Management.md)에서 확장한다.
 
 ## 심화 읽기의 위치
 
-여기까지의 핵심은 실행 단위, 재시작과 교체, 관찰할 상태다. 이제 공유 수명이라는 성질을 init·sidecar로 확장하고, 자원과 노드 선택이 실행 가능성에 어떤 제약을 주는지 더 살펴본다. 여러 앱을 같은 Pod에 묶는 기술을 배우기 위한 필수 절차가 아니라, 필요한 경우 선택할 설계 수단이다.
+여기까지의 핵심은 실행 단위, 재시작과 교체, 관찰할 상태다. 이제 공유 수명이라는 성질을 init·sidecar로 확장한다. 자원과 노드 선택의 상세 학습은 별도 장으로 나누었다.
+
+- [Resource Management](Kubernetes-Resource-Management.md): requests·limits·QoS·퇴거·LimitRange·ResourceQuota
+- [Scheduling](Kubernetes-Scheduling.md): filter·score·affinity·taint·topology·Pending 판단
+
+여러 앱을 같은 Pod에 묶는 기술을 배우기 위한 필수 절차가 아니라, 필요한 경우 선택할 설계 수단이다.
 
 ## 4. Init Container 심화
 
@@ -216,7 +223,7 @@ sequenceDiagram
 **Init Container의 특징:**
 - **순차 실행**: 일반 init container는 앞선 init이 성공해야 다음 init으로 진행
 - **성공 필수**: 하나라도 실패하면 Pod 시작 안 됨
-- **재시작 정책**: 실패 시 Pod의 `restartPolicy`에 따라 재시도
+- **재시작 정책**: 별도 컨테이너 정책을 지정하지 않은 일반 init은 실패 시 Pod의 `restartPolicy`에 따라 재시도
 - **완료 후 종료**: 작업이 끝나면 컨테이너 종료
 
 ### 4.2 실무 사용 사례
@@ -488,342 +495,47 @@ sequenceDiagram
 
 ## 6. Resource Management
 
+이 절의 상세 설명은 [자원 관리](Kubernetes-Resource-Management.md)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
+
 ### 6.1 Requests vs Limits
 
-**실무에서 가장 중요한 설정 중 하나**다. 이걸 제대로 설정하지 않으면 노드가 죽거나, 스케줄링이 안 되거나, 성능이 안 나온다.
-
-```yaml
-spec:
-  containers:
-  - name: order-api
-    image: registry.example.com/book/order-api:1.0.0
-    resources:
-      requests:
-        memory: "256Mi"
-        cpu: "250m"
-      limits:
-        memory: "512Mi"
-        cpu: "500m"
-```
-
-| 개념 | 역할 | 비유 |
-|------|------|------|
-| **requests** | 스케줄러가 노드 선택 시 사용 | "최소한 이만큼은 필요해요" |
-| **limits** | 컨테이너가 사용할 수 있는 최대치 | "이 이상은 못 써요" |
-
-```mermaid
-flowchart TB
-    subgraph Node["Node (4 CPU, 8Gi Memory)"]
-        subgraph Used["사용 중"]
-            P1["Pod 1<br>requests: 1 CPU, 2Gi"]
-            P2["Pod 2<br>requests: 1 CPU, 2Gi"]
-        end
-        subgraph Available["남은 용량"]
-            A["2 CPU, 4Gi<br>(새 Pod 스케줄링 가능)"]
-        end
-    end
-
-    NewPod["새 Pod<br>requests: 3 CPU"] -.->|스케줄링 실패!| Node
-```
-
-**CPU 단위:**
-
-| 표기 | 의미 |
-|------|------|
-| `1` | 1 CPU core (1000m) |
-| `500m` | 0.5 CPU core |
-| `100m` | 0.1 CPU core |
-
-**Memory 단위:**
-
-| 표기 | 의미 |
-|------|------|
-| `128Mi` | 128 MiB (Mebibyte, 2^20) |
-| `1Gi` | 1 GiB |
-| `128M` | 128 MB (Megabyte, 10^6) |
-
-> **주의:** `Mi`와 `M`은 다르다! Mi는 2진수(1024), M은 10진수(1000) 기반.
+이 절의 상세 설명은 [자원 관리](Kubernetes-Resource-Management.md#2-requests와-limits를-읽는-법)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ### 6.2 CPU Throttling vs OOMKilled
 
-**CPU와 Memory는 limit 초과 시 동작이 다르다:**
-
-| 리소스 | Limit 초과 시 | 영향 |
-|--------|--------------|------|
-| **CPU** | Throttling (속도 제한) | 느려지지만 죽지 않음 |
-| **Memory** | 커널이 메모리 한도 압박에서 프로세스를 OOM 종료할 수 있음 | 종료 원인과 restart policy에 따라 재시작 |
-
-```mermaid
-flowchart LR
-    subgraph "CPU Limit 초과"
-        C1[앱이 CPU 많이 사용] --> C2[커널이 속도 제한]
-        C2 --> C3[느려지지만 계속 실행]
-    end
-
-    subgraph "Memory Limit 초과"
-        M1[앱이 메모리 많이 사용] --> M2[OOM Killer 발동]
-        M2 --> M3[컨테이너 강제 종료]
-        M3 --> M4[재시작]
-    end
-
-    style M3 stroke:#F44336,stroke-width:2px,fill:#455A64,color:#fff
-```
-
-**OOMKilled 확인:**
-
-```bash
-kubectl -n bookstore describe pod order-api-pod
-
-# 출력에서 확인
-Last State:     Terminated
-  Reason:       OOMKilled
-  Exit Code:    137
-```
-
-Exit Code 137은 일반적으로 `128 + 9(SIGKILL)`에 대응한다. SIGKILL의 원인이 항상 OOM인 것은 아니므로 `reason: OOMKilled`, Events와 메모리 지표를 함께 확인한다.
+이 절의 상세 설명은 [자원 관리](Kubernetes-Resource-Management.md#3-실행-중에는-cpu와-메모리가-다르게-실패한다)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ### 6.3 Requests = Limits로 설정해야 할까?
 
-requests는 배치와 자원 배분의 기준이고 limits는 실행 시 제약이다. 둘을 같게 하면 선언이 단순해지지만, 모든 앱에 같은 값이 최선이라는 뜻은 아니다. 주문 API가 평소에는 CPU 250m를 쓰고 기동 시에만 더 많은 CPU를 요구한다면 CPU limit을 높이거나 생략하는 선택으로 기동 지연을 줄일 수 있다. 반대로 공유 노드에서 폭주를 제한해야 한다면 limit이 유용하다. 실제 부하, 지연 목표, 노드 여유, 조직의 격리 정책을 함께 보고 결정한다.
-
-메모리도 무조건 requests와 limits를 같게 해야 하는 것은 아니다. request를 정상 사용량보다 지나치게 낮게 잡으면 노드에 실제 사용량이 과도하게 모일 수 있고, limit을 너무 낮게 잡으면 앱이 OOM으로 종료된다. 정상 상태·기동·최대 부하의 working set을 측정하고 여유를 더하는 것이 먼저다. Java라면 heap 외에도 metaspace, thread stack, direct buffer, native memory를 포함한다. 메모리 limit은 JVM heap 크기와 같은 숫자가 아니다.
-
-다음 두 구조 설명용 발췌는 어느 하나가 보편적인 권장값이라는 의미가 아니다. 첫 구성은 CPU와 메모리를 모두 같게 지정하고, 둘째는 CPU에 burst 여지를 둔다.
-
-```yaml
-resources:
-  requests:
-    memory: "512Mi"
-    cpu: "500m"
-  limits:
-    memory: "512Mi"
-    cpu: "500m"
-```
-
-```yaml
-resources:
-  requests:
-    memory: "512Mi"
-    cpu: "250m"
-  limits:
-    memory: "768Mi"
-    cpu: "1000m"
-```
+이 절의 상세 설명은 [자원 관리](Kubernetes-Resource-Management.md#33-requests--limits가-언제나-정답일까)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ### 6.4 QoS Class: 리소스 부족 시 누가 먼저 죽나?
 
-Kubernetes는 requests와 limits 구성을 바탕으로 Pod에 Quality of Service(QoS) class를 부여한다. 여기서는 컨테이너별 CPU·메모리 설정을 사용하는 일반적인 경우를 비교한다.
-
-| QoS Class | 조건 |
-|---|---|
-| Guaranteed | 모든 컨테이너가 CPU·메모리 request와 limit을 모두 갖고, 자원별 request와 limit이 같음 |
-| Burstable | Guaranteed가 아니면서 하나 이상의 CPU·메모리 request 또는 limit이 있음 |
-| BestEffort | CPU·메모리 request와 limit이 없음 |
-
-QoS를 생존을 보장하는 등급으로 읽으면 안 된다. 메모리 압박에 따른 kubelet의 퇴거 판단은 사용량이 request를 넘는지, Pod Priority가 무엇인지, request 대비 얼마나 사용하는지 등을 고려한다. 그래서 BestEffort → Burstable → Guaranteed라는 하나의 순서만으로 모든 퇴거를 예측할 수 없다. 디스크 압박 등 원인에 따라 판단 기준도 달라진다. Guaranteed Pod도 노드 장애나 극심한 압박에서 안전을 보장받지 않는다.
-
-컨테이너의 메모리 limit 때문에 발생하는 OOM과 노드 전체의 압박 때문에 kubelet이 Pod를 퇴거시키는 일도 구분해야 한다. 전자는 같은 Pod 안의 컨테이너 재시작으로 이어질 수 있고, 후자는 Pod가 종료되어 상위 controller가 새 Pod를 만드는 경로로 이어진다. [Node-pressure Eviction 공식 문서](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/)는 QoS만으로 순위를 결정하지 않는 이유를 설명한다.
+이 절의 상세 설명은 [자원 관리](Kubernetes-Resource-Management.md#4-qos와-노드-압박을-함께-읽기)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ### 6.5 In-place Pod Resize: 재생성 없이 requests/limits 바꾸기
 
-실행 중인 Pod의 CPU·메모리를 `resize` 서브리소스로 수정하는 기능도 있다. 2026-10-23에 확인한 공식 문서는 In-place Pod Resize를 v1.35부터 stable로 설명한다. 지원 버전, runtime, 노드 여유, resize 정책의 제약을 먼저 확인해야 하므로 기본 학습 경로에서는 Deployment 템플릿을 바꾸어 교체하는 모델을 기준으로 삼는다.
-
-다음은 구조와 명령 형식을 설명하는 예시다. 실행 기록이 아니며, `order-api-pod`가 해당 기능을 지원하는 실습 클러스터에 존재한다는 전제가 필요하다.
-
-```bash
-kubectl -n bookstore patch pod order-api-pod --subresource resize --patch \
-  '{"spec":{"containers":[{"name":"order-api","resources":{"requests":{"cpu":"800m"},"limits":{"cpu":"800m"}}}]}}'
-```
-
-컨테이너별 `resizePolicy`로 자원 변경에 재시작이 필요한지 표현할 수 있고, `PodResizePending`·`PodResizeInProgress` condition으로 진행 상태를 본다. Pod를 직접 resize해도 Deployment 템플릿이 바뀌지 않는다는 점이 중요하다. 교체될 다음 Pod에도 유지할 값이라면 템플릿과 배포 정본에 반영해야 한다.
-
-출처: [Resize CPU and Memory Resources assigned to Containers](https://kubernetes.io/docs/tasks/configure-pod-container/resize-container-resources/)
-
----
+이 절의 상세 설명은 [자원 관리](Kubernetes-Resource-Management.md#61-in-place-pod-resize-재생성-없이-requestslimits-바꾸기)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ## 7. Pod Scheduling
 
+이 절의 상세 설명은 [스케줄링](Kubernetes-Scheduling.md)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
+
 ### 7.1 nodeSelector: 가장 간단한 방법
 
-특정 라벨이 있는 노드에만 Pod를 배치한다.
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gpu-pod
-spec:
-  nodeSelector:
-    accelerator: nvidia-tesla-v100  # 이 라벨이 있는 노드에만
-  containers:
-  - name: cuda-app
-    image: nvidia/cuda:12.0-base
-```
-
-```bash
-# 노드에 라벨 추가
-kubectl label nodes node-1 accelerator=nvidia-tesla-v100
-```
+이 절의 상세 설명은 [스케줄링](Kubernetes-Scheduling.md#21-nodeselector-라벨이-정확히-맞는-노드)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ### 7.2 Node Affinity: 더 유연한 제어
 
-`nodeSelector`보다 표현력이 풍부하다.
-
-```yaml
-spec:
-  affinity:
-    nodeAffinity:
-      # 필수 조건 (이 조건 만족하는 노드만)
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-        - matchExpressions:
-          - key: topology.kubernetes.io/zone
-            operator: In
-            values:
-            - ap-northeast-2a
-            - ap-northeast-2b
-
-      # 선호 조건 (가능하면 이 노드에)
-      preferredDuringSchedulingIgnoredDuringExecution:
-      - weight: 100
-        preference:
-          matchExpressions:
-          - key: node-type
-            operator: In
-            values:
-            - high-memory
-```
-
-| 필드 | 의미 |
-|------|------|
-| `requiredDuringScheduling...` | **필수** - 만족 안 하면 스케줄링 안 됨 |
-| `preferredDuringScheduling...` | **선호** - 가능하면, 안 되면 다른 곳에 |
-| `...IgnoredDuringExecution` | 이미 실행 중인 Pod는 영향 없음 |
-
-**Operator 종류:**
-
-| Operator | 의미 |
-|----------|------|
-| `In` | 값 목록 중 하나 |
-| `NotIn` | 값 목록에 없음 |
-| `Exists` | 키가 존재 |
-| `DoesNotExist` | 키가 없음 |
-| `Gt` | 값보다 큼 (숫자) |
-| `Lt` | 값보다 작음 (숫자) |
+이 절의 상세 설명은 [스케줄링](Kubernetes-Scheduling.md#22-node-affinity-필수와-선호를-나누기)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ### 7.3 Pod Affinity/Anti-Affinity
 
-**다른 Pod와의 관계**를 기반으로 스케줄링한다.
-
-**Pod Affinity: 같이 배치**
-
-```yaml
-# Redis와 같은 노드에 배치하고 싶을 때
-spec:
-  affinity:
-    podAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app: redis
-        topologyKey: kubernetes.io/hostname  # 같은 노드
-```
-
-**topologyKey: 어피니티가 적용될 "경계"**
-
-| topologyKey | 의미 | 사용 시점 |
-|-------------|------|----------|
-| `kubernetes.io/hostname` | 같은 **노드** | 로컬 통신 최적화 |
-| `topology.kubernetes.io/zone` | 같은 **가용 영역** | 존 내 분산/집중 |
-| `topology.kubernetes.io/region` | 같은 **리전** | 리전 내 분산 |
-
-예를 들어, Anti-Affinity에 `topology.kubernetes.io/zone`을 사용하면 Pod들이 **다른 가용 영역에 분산**되어 존 장애에 대비할 수 있다.
-
-**Pod Anti-Affinity: 떨어뜨려 배치**
-
-```yaml
-# 같은 앱의 Pod들을 다른 노드에 분산
-spec:
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-      - labelSelector:
-          matchLabels:
-            app: order-api
-        topologyKey: kubernetes.io/hostname
-```
-
-```mermaid
-flowchart TB
-    subgraph "Pod Anti-Affinity 적용"
-        subgraph Node1[Node 1]
-            P1[order-api-pod-1]
-        end
-        subgraph Node2[Node 2]
-            P2[order-api-pod-2]
-        end
-        subgraph Node3[Node 3]
-            P3[order-api-pod-3]
-        end
-    end
-
-    DiagramNote["같은 app: order-api 라벨의 Pod가<br>다른 노드에 분산됨"]
-```
+이 절의 상세 설명은 [스케줄링](Kubernetes-Scheduling.md#3-다른-pod와의-관계로-위치-정하기)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ### 7.4 Taints and Tolerations
 
-노드의 taint는 일치하는 toleration이 없는 Pod의 배치·유지를 제한한다. Toleration은 그 제한을 허용할 뿐 그 노드로 반드시 보내는 지시가 아니다. 전용 노드에만 배치하려면 node selector 또는 affinity도 함께 설계한다.
-
-```mermaid
-flowchart LR
-    subgraph "Taint가 있는 노드"
-        N[Node<br>taint: gpu=true:NoSchedule]
-    end
-
-    P1[일반 Pod] -.->|거부됨| N
-    P2[Toleration 있는 Pod] -->|허용됨| N
-
-    style P1 stroke:#F44336,stroke-width:2px,fill:#455A64,color:#fff
-    style P2 stroke:#4CAF50,stroke-width:2px,fill:#455A64,color:#fff
-```
-
-**노드에 Taint 추가:**
-
-```bash
-# GPU 노드에 일반 Pod 배치 방지
-kubectl taint nodes gpu-node-1 gpu=true:NoSchedule
-```
-
-**Pod에 Toleration 추가:**
-
-```yaml
-spec:
-  tolerations:
-  - key: "gpu"
-    operator: "Equal"
-    value: "true"
-    effect: "NoSchedule"
-```
-
-**Taint Effect:**
-
-| Effect | 의미 |
-|--------|------|
-| `NoSchedule` | 새 Pod 스케줄링 안 됨 |
-| `PreferNoSchedule` | 가능하면 스케줄링 안 함 (soft) |
-| `NoExecute` | 새 Pod도 안 되고, 기존 Pod도 퇴거 |
-
-**실무 활용 사례:**
-
-아래 GPU·Spot taint는 조직이 직접 붙인다고 가정한 예시다. 클라우드 제공자나 device plugin이 자동으로 같은 key·value를 설정한다는 뜻은 아니며, 실제 노드의 taint와 운영 정책을 확인한다.
-
-| 시나리오 | Taint | Toleration 대상 |
-|----------|-------|----------------|
-| GPU 노드 전용 | `example.com/dedicated-gpu=true:NoSchedule` | GPU 워크로드만 |
-| 스팟 인스턴스 | `example.com/spot=true:NoSchedule` | 비용 최적화 워크로드 |
-| control plane 노드 보호 | `node-role.kubernetes.io/control-plane:NoSchedule` | 시스템 Pod만 |
-
----
+이 절의 상세 설명은 [스케줄링](Kubernetes-Scheduling.md#4-taint와-toleration은-노드의-제한을-다룬다)로 옮겼다. 원리·설정 조건·관찰 방법을 해당 장에서 이어 읽는다.
 
 ## 심화: Graceful Shutdown — 종료도 실행의 일부다
 

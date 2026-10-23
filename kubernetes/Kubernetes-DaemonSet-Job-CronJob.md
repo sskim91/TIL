@@ -1,6 +1,6 @@
 # Kubernetes DaemonSet, Job, CronJob: 특수 목적 워크로드
 
-> **개발자를 위한 쉬운 쿠버네티스 · 16장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-StatefulSet.md) · [다음 장](./Kubernetes-Deployment-Strategy.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 20장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-StatefulSet.md) · [다음 장](./Kubernetes-Resource-Management.md)
 
 주문 API는 요청을 기다리며 계속 실행되어야 하지만, 주문 집계 프로그램은 하루 데이터를 처리한 뒤 끝나야 한다. 한편 Node의 로그 수집기는 API replica 수가 아니라 Node 구성에 맞춰 배치되어야 한다. 같은 컨테이너 이미지 실행이라도 무엇을 정상 상태로 삼는지가 다르다.
 
@@ -316,7 +316,7 @@ Deployment는 총개수를 유지하고 DaemonSet은 대상 Node별 배치를 �
 
 ## 다음 장으로
 
-계속 실행할 서버와 끝나는 작업을 구분했다. 다음 [배포 전략](Kubernetes-Deployment-Strategy.md)에서는 이미 요청을 처리 중인 서버를 새 버전으로 교체할 때, Pod 상태와 사용자 트래픽이 어떻게 따로 변하는지 살펴본다. 이 장의 재실행·중복 효과는 배포 중 두 버전의 consumer와 migration이 공존할 때 다시 등장한다.
+계속 실행할 서버와 끝나는 작업을 구분했다. 다음 [자원 관리](Kubernetes-Resource-Management.md)에서는 이런 실행들이 같은 Node의 CPU·메모리를 나눌 때 배치 판단과 실행 중 제한이 어떻게 다른지 살펴본다. 이어 스케줄링에서 실행 위치를 정하고, 배포 전략에서는 이미 요청을 처리 중인 서버의 버전 교체를 연결한다. 이 장의 재실행·중복 효과도 그때 다시 등장한다.
 
 ## 출처
 

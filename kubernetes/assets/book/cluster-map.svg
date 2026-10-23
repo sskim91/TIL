@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc"><title id="title">클러스터를 구성하는 두 영역</title><desc id="desc">kubectl이 API server에 요청한다. API server는 etcd와 통신하고 controller와 scheduler는 API를 관찰하고 갱신한다. worker의 kubelet이 API를 관찰하고 runtime에 컨테이너 실행을 요청한다.</desc><defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#52647b"/></marker></defs><rect width="1400" height="820" fill="#f7f9fc"/><g font-family="Arial, Apple SD Gothic Neo, Noto Sans KR, sans-serif">
+<text x="60" y="64" text-anchor="start" font-size="34" font-weight="700" fill="#192c43">클러스터를 구성하는 두 영역</text>
+<text x="60" y="106" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">Control plane은 상태를 관리하고, worker의 구성 요소는 담당 Pod를 실행한다.</text>
+<rect x="50" y="180" width="240" height="85" rx="12" fill="#2457a7"/>
+<text x="170.0" y="214" text-anchor="middle" font-size="23" font-weight="700" fill="white">kubectl</text>
+<text x="170.0" y="247" text-anchor="middle" font-size="18" font-weight="400" fill="white">API 클라이언트</text>
+<rect x="350" y="150" width="570" height="530" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="374" y="190" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">Control plane</text>
+<rect x="970" y="150" width="380" height="530" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="994" y="190" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">Worker Node</text>
+<rect x="540" y="245" width="320" height="90" rx="12" fill="#2457a7"/>
+<text x="700.0" y="279" text-anchor="middle" font-size="23" font-weight="700" fill="white">API server</text>
+<text x="700.0" y="312" text-anchor="middle" font-size="18" font-weight="400" fill="white">클러스터 API의 접점</text>
+<path d="M290,225 L535,285" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="420.5" y="243.0" text-anchor="middle" font-size="17" font-weight="400" fill="#52647b">요청/응답</text>
+<rect x="390" y="440" width="230" height="90" rx="12" fill="#21745b"/>
+<text x="505.0" y="474" text-anchor="middle" font-size="23" font-weight="700" fill="white">Controllers</text>
+<text x="505.0" y="507" text-anchor="middle" font-size="18" font-weight="400" fill="white">상태 조정</text>
+<rect x="650" y="440" width="230" height="90" rx="12" fill="#21745b"/>
+<text x="765.0" y="474" text-anchor="middle" font-size="23" font-weight="700" fill="white">Scheduler</text>
+<text x="765.0" y="507" text-anchor="middle" font-size="18" font-weight="400" fill="white">실행할 Node 선택</text>
+<path d="M510,440 L625,340" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="575.5" y="378.0" text-anchor="middle" font-size="17" font-weight="400" fill="#52647b">관찰/갱신</text>
+<path d="M765,440 L765,340" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="773.0" y="378.0" text-anchor="middle" font-size="17" font-weight="400" fill="#52647b">관찰/갱신</text>
+<rect x="540" y="570" width="320" height="70" rx="12" fill="#a65b18"/>
+<text x="700.0" y="604" text-anchor="middle" font-size="23" font-weight="700" fill="white">etcd: API 상태 저장</text>
+<path d="M860,315 L900,315 L900,605 L865,605" fill="none" stroke="#52647b" stroke-width="3" marker-start="url(#a)" marker-end="url(#a)"/>
+<rect x="1010" y="245" width="300" height="90" rx="12" fill="#2457a7"/>
+<text x="1160.0" y="279" text-anchor="middle" font-size="23" font-weight="700" fill="white">kubelet</text>
+<text x="1160.0" y="312" text-anchor="middle" font-size="18" font-weight="400" fill="white">담당 Pod의 실행 관리</text>
+<path d="M1010,285 L865,285" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="945.5" y="273.0" text-anchor="middle" font-size="17" font-weight="400" fill="#52647b">API</text>
+<rect x="1010" y="410" width="300" height="85" rx="12" fill="#21745b"/>
+<text x="1160.0" y="444" text-anchor="middle" font-size="23" font-weight="700" fill="white">Container runtime</text>
+<text x="1160.0" y="477" text-anchor="middle" font-size="18" font-weight="400" fill="white">컨테이너 실행</text>
+<path d="M1160,335 L1160,405" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<rect x="1010" y="565" width="300" height="70" rx="12" fill="#21745b"/>
+<text x="1160.0" y="599" text-anchor="middle" font-size="23" font-weight="700" fill="white">Pod의 컨테이너</text>
+<path d="M1160,495 L1160,560" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<text x="60" y="762" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">CNI·DNS·CSI 등 추가 구성 요소도 필요하다. 역할 구분이 물리 서버의 개수를 뜻하지는 않는다.</text>
+</g></svg>

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc"><title id="title">여러 서버의 상태를 누가 계속 맞출까?</title><desc id="desc">왼쪽은 사람이 관찰하고 변경하는 운영이다. 오른쪽은 원하는 상태와 관찰 상태를 controller가 비교하여 API에 변경을 요청하고 다른 구성 요소가 실행한다.</desc><defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#52647b"/></marker></defs><rect width="1400" height="820" fill="#f7f9fc"/><g font-family="Arial, Apple SD Gothic Neo, Noto Sans KR, sans-serif">
+<text x="60" y="64" text-anchor="start" font-size="34" font-weight="700" fill="#192c43">여러 서버의 상태를 누가 계속 맞출까?</text>
+<text x="60" y="106" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">한 번 실행한 명령 뒤에도 장애와 변경은 계속 발생한다.</text>
+<rect x="50" y="165" width="570" height="510" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="74" y="205" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">사람과 스크립트가 상태를 이어 맞추기</text>
+<rect x="680" y="165" width="670" height="510" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="704" y="205" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">원하는 상태를 기록하고 반복 조정하기</text>
+<rect x="90" y="245" width="490" height="90" rx="12" fill="#2457a7"/>
+<text x="335.0" y="279" text-anchor="middle" font-size="23" font-weight="700" fill="white">배포 담당자 · 스크립트</text>
+<text x="335.0" y="312" text-anchor="middle" font-size="18" font-weight="400" fill="white">실행 · 접속 대상 변경 · 실패 확인</text>
+<rect x="90" y="435" width="220" height="110" rx="12" fill="#a65b18"/>
+<text x="200.0" y="469" text-anchor="middle" font-size="23" font-weight="700" fill="white">서버 A</text>
+<text x="200.0" y="502" text-anchor="middle" font-size="18" font-weight="400" fill="white">앱 종료</text>
+<rect x="360" y="435" width="220" height="110" rx="12" fill="#21745b"/>
+<text x="470.0" y="469" text-anchor="middle" font-size="23" font-weight="700" fill="white">서버 B</text>
+<text x="470.0" y="502" text-anchor="middle" font-size="18" font-weight="400" fill="white">앱 실행 중</text>
+<path d="M220,335 L200,430" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="218.0" y="370.5" text-anchor="middle" font-size="17" font-weight="400" fill="#52647b">관찰/변경</text>
+<path d="M470,335 L470,430" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)" marker-start="url(#a)"/>
+<text x="478.0" y="370.5" text-anchor="middle" font-size="17" font-weight="400" fill="#52647b">관찰/변경</text>
+<rect x="720" y="245" width="260" height="95" rx="12" fill="#2457a7"/>
+<text x="850.0" y="279" text-anchor="middle" font-size="23" font-weight="700" fill="white">원하는 상태</text>
+<text x="850.0" y="312" text-anchor="middle" font-size="18" font-weight="400" fill="white">복제본 3개</text>
+<rect x="1030" y="245" width="280" height="95" rx="12" fill="#a65b18"/>
+<text x="1170.0" y="279" text-anchor="middle" font-size="23" font-weight="700" fill="white">관찰한 상태</text>
+<text x="1170.0" y="312" text-anchor="middle" font-size="18" font-weight="400" fill="white">관리 중인 복제본 2개</text>
+<path d="M850,340 L910,405" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<path d="M1170,340 L1120,405" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<rect x="840" y="410" width="370" height="90" rx="12" fill="#21745b"/>
+<text x="1025.0" y="444" text-anchor="middle" font-size="23" font-weight="700" fill="white">Controller의 비교</text>
+<text x="1025.0" y="477" text-anchor="middle" font-size="18" font-weight="400" fill="white">API에 변경 요청</text>
+<path d="M1025,500 L1025,555" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<text x="1025" y="593" text-anchor="middle" font-size="21" font-weight="700" fill="#192c43">API 상태 → 배치 → 노드의 실행</text>
+<text x="1025" y="628" text-anchor="middle" font-size="19" font-weight="400" fill="#52647b">결과를 다시 관찰하며 반복</text>
+<text x="60" y="762" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">용량·이미지·권한·네트워크 조건이 충족되지 않으면 원하는 상태에 도달하지 못할 수 있다.</text>
+</g></svg>

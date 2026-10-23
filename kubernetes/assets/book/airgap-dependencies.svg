@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc"><title id="title">인터넷이 없을 때는 공급 경로를 내부에서 완성한다</title><desc id="desc">외부 이미지와 패키지를 조직의 검증 반입 절차로 내부에 제공한다. 내부 registry와 chart package 저장소가 클러스터에 공급하고 내부 DNS, CA, 시간과 저장소가 실행 조건을 제공한다.</desc><defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#52647b"/></marker></defs><rect width="1400" height="820" fill="#f7f9fc"/><g font-family="Arial, Apple SD Gothic Neo, Noto Sans KR, sans-serif">
+<text x="60" y="64" text-anchor="start" font-size="34" font-weight="700" fill="#192c43">인터넷이 없을 때는 공급 경로를 내부에서 완성한다</text>
+<text x="60" y="106" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">Kubernetes의 동작 모델은 같고, 필요한 파일과 서비스를 제공하는 경로가 달라진다.</text>
+<rect x="50" y="170" width="310" height="470" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="74" y="210" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">외부 공급원</text>
+<rect x="420" y="170" width="320" height="470" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="444" y="210" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">조직의 반입 절차</text>
+<rect x="800" y="170" width="550" height="470" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="824" y="210" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">내부 실행 환경</text>
+<rect x="75" y="270" width="260" height="140" rx="12" fill="#2457a7"/>
+<text x="205.0" y="304" text-anchor="middle" font-size="23" font-weight="700" fill="white">이미지 · Chart</text>
+<text x="205.0" y="337" text-anchor="middle" font-size="18" font-weight="400" fill="white">패키지 · 의존성</text>
+<text x="205.0" y="364" text-anchor="middle" font-size="18" font-weight="400" fill="white">OS/CPU 대상 확인</text>
+<rect x="450" y="270" width="260" height="140" rx="12" fill="#a65b18"/>
+<text x="580.0" y="304" text-anchor="middle" font-size="23" font-weight="700" fill="white">수집 · 검증 · 반입</text>
+<text x="580.0" y="337" text-anchor="middle" font-size="18" font-weight="400" fill="white">출처 · 버전 · Digest</text>
+<text x="580.0" y="364" text-anchor="middle" font-size="18" font-weight="400" fill="white">허용된 전달 수단</text>
+<path d="M335,335 L445,335" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<rect x="830" y="245" width="490" height="100" rx="12" fill="#21745b"/>
+<text x="1075.0" y="279" text-anchor="middle" font-size="23" font-weight="700" fill="white">내부 이미지·패키지 저장소</text>
+<text x="1075.0" y="312" text-anchor="middle" font-size="18" font-weight="400" fill="white">Registry · Chart · 설치 파일</text>
+<path d="M710,335 L825,295" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<rect x="830" y="425" width="490" height="110" rx="12" fill="#21745b"/>
+<text x="1075.0" y="459" text-anchor="middle" font-size="23" font-weight="700" fill="white">클러스터와 애플리케이션</text>
+<text x="1075.0" y="492" text-anchor="middle" font-size="18" font-weight="400" fill="white">이미지 확보 · 설정 · 실행</text>
+<path d="M1075,345 L1075,420" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<text x="1075" y="585" text-anchor="middle" font-size="22" font-weight="700" fill="#192c43">내부 DNS · CA 신뢰 · 시간 · 저장소</text>
+<text x="60" y="762" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">반입은 조직 정책에 따라 수행한다. 캐시에 있는 이미지만으로 재설치·복구 가능성을 판단하지 않는다.</text>
+</g></svg>

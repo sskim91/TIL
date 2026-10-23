@@ -1,6 +1,6 @@
 # Kubernetes Deployment Strategy
 
-> **개발자를 위한 쉬운 쿠버네티스 · 17장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-DaemonSet-Job-CronJob.md) · [다음 장](./Kubernetes-Metrics-Server-Prometheus.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 23장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Scheduling.md) · [다음 장](./Kubernetes-Metrics-Server-Prometheus.md)
 
 주문 API v2의 Pod가 모두 Running인데 배포 직후 일부 주문 요청이 실패했다고 하자. Pod를 만드는 일은 끝났지만, 준비되지 않은 앱으로 연결했거나 종료 중인 v1의 연결을 끊었을 수 있다. [Deployment](Kubernetes-ReplicaSet-Deployment.md)의 복제본 유지와 [Service](Kubernetes-Service-Object.md)의 대상 선택, [Readiness](Kubernetes-Probe-Liveness-Readiness-Startup.md)를 함께 보아야 배포 중의 요청을 설명할 수 있다.
 

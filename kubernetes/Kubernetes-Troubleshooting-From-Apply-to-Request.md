@@ -1,6 +1,6 @@
 # Kubernetes Troubleshooting From Apply to Request
 
-> **개발자를 위한 쉬운 쿠버네티스 · 22장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Admission-Webhook.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 31장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Cluster-Operations.md)
 
 배포부터 접속까지 — 하나의 장애를 끝까지 설명하는 법
 

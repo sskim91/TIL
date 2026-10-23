@@ -1,6 +1,6 @@
 # Kubernetes Ingress
 
-> **개발자를 위한 쉬운 쿠버네티스 · 11장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Probe-Liveness-Readiness-Startup.md) · [다음 장](./Kubernetes-Gateway-API.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 15장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Probe-Liveness-Readiness-Startup.md) · [다음 장](./Kubernetes-Gateway-API.md)
 
 Service와 Readiness까지 연결했는데, `https://orders.example.com/api/orders`는 누가 받아 주는가?
 

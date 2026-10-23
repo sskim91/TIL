@@ -1,6 +1,6 @@
 # Kubernetes Admission Webhook
 
-> **개발자를 위한 쉬운 쿠버네티스 · 21장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-CRD-Controller-Operator.md) · [다음 장](./Kubernetes-Troubleshooting-From-Apply-to-Request.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 29장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-CRD-Controller-Operator.md) · [다음 장](./Kubernetes-Cluster-Operations.md)
 
 **내가 만들지 않은 컨테이너가 왜 Pod에 들어와 있을까 — Admission Webhook**
 
@@ -533,13 +533,15 @@ Deployment 저장은 성공했는데 Pod가 하나도 없다면 ReplicaSet의 Ev
 
 ---
 
+저장 전 정책 적용을 보았으니 다음 [클러스터 운영](Kubernetes-Cluster-Operations.md)에서는 이 제어 경로와 앱을 지탱하는 Node·runtime·네트워크·저장소를 어떻게 유지하는지 살펴본다. 이후 종합 장애 사례에서 배포와 요청 경로의 관찰을 하나로 연결한다.
+
 ## 생각해 볼 질문
 
 1. **Deployment apply가 성공했는데 ReplicaSet에 FailedCreate가 있다. admission과 무관할까?** Deployment와 Pod 생성은 별도 API 요청이다. Pod CREATE에만 매칭되는 웹훅이 후속 요청을 거절할 수 있으므로 ReplicaSet Events와 웹훅 이름·오류를 확인한다.
 2. **Deployment의 서버 dry-run에 프록시가 없으면 주입이 꺼진 것일까?** 그 요청은 Pod CREATE가 아니다. namespace·라벨 등 실제 조건을 맞춘 Pod dry-run이나 실제 생성 Pod를 확인해야 한다.
 3. **mutator를 Ignore, validator를 Fail로 두면 배포 가용성과 필수 주입이 모두 보장될까?** 필수 주입이 빠지면 validator가 요청을 거절한다. 최종 상태 강제와 무조건 배포 성공은 같은 약속이 아니다.
 
-이제 [종합 장애 추적](Kubernetes-Troubleshooting-From-Apply-to-Request.md)에서 요청 거절, 후속 Pod 생성, 실행, 실제 사용자 트래픽을 서로 다른 증거로 이어 볼 수 있다.
+클러스터 운영까지 읽은 뒤 마지막 [종합 장애 추적](Kubernetes-Troubleshooting-From-Apply-to-Request.md)에서 요청 거절, 후속 Pod 생성, 실행, 실제 사용자 트래픽을 서로 다른 증거로 이어 볼 수 있다.
 
 ## 출처
 

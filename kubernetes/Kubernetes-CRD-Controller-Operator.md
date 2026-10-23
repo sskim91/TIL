@@ -1,10 +1,10 @@
 # Kubernetes CRD, Controller, Operator
 
-> **개발자를 위한 쉬운 쿠버네티스 · 20장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-ServiceAccount-RBAC.md) · [다음 장](./Kubernetes-Admission-Webhook.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 28장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Workload-Security.md) · [다음 장](./Kubernetes-Admission-Webhook.md)
 
 **쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러, 그리고 Operator**
 
-[앞 장](Kubernetes-ServiceAccount-RBAC.md)에서 API를 호출하는 프로그램의 신원과 권한을 배웠다. 이제 그 프로그램이 Pod뿐 아니라 새로운 종류의 요청을 처리한다고 생각해 보자. 주문 앱에 필요한 데이터베이스를 `Database`라는 리소스로 선언하고 싶다면, API의 종류를 늘리는 일과 DB를 만드는 일을 각각 누가 맡아야 할까?
+[ServiceAccount와 RBAC 장](Kubernetes-ServiceAccount-RBAC.md)에서 API를 호출하는 프로그램의 신원과 권한을 배웠다. 이제 그 프로그램이 Pod뿐 아니라 새로운 종류의 요청을 처리한다고 생각해 보자. 주문 앱에 필요한 데이터베이스를 `Database`라는 리소스로 선언하고 싶다면, API의 종류를 늘리는 일과 DB를 만드는 일을 각각 누가 맡아야 할까?
 
 운영 중인 클러스터에서 `kubectl api-resources`를 실행하면, 쿠버네티스 공식 문서 어디에도 없는 `kind`가 수십 개 쏟아진다. 그런데 그것들도 `kubectl apply -f`로 만들어지고 `kubectl get`으로 조회된다. Deployment와 완전히 같은 방식으로 다뤄지는데, 쿠버네티스 코어에는 없는 타입이다. API는 어떻게 이렇게 늘어났고, 왜 그게 Deployment와 구별되지 않는가?
 

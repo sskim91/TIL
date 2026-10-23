@@ -1,6 +1,6 @@
 # Kubernetes Gateway API
 
-> **개발자를 위한 쉬운 쿠버네티스 · 12장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Ingress.md) · [다음 장](./Kubernetes-Ingress-vs-Egress.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 16장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Ingress.md) · [다음 장](./Kubernetes-Ingress-vs-Egress.md)
 
 **왜 Kubernetes Gateway API는 Ingress를 역할별로 쪼갰을까**
 

@@ -1,6 +1,6 @@
 # Kubernetes Probe: Liveness, Readiness, Startup
 
-> **개발자를 위한 쉬운 쿠버네티스 · 10장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Service-Internals.md) · [다음 장](./Kubernetes-Ingress.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 14장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Service-Internals.md) · [다음 장](./Kubernetes-Ingress.md)
 
 **프로세스가 실행 중인 것과 주문을 받을 준비가 된 것은 왜 다를까**
 

@@ -1,6 +1,6 @@
 # Kubernetes Ingress vs Egress
 
-> **개발자를 위한 쉬운 쿠버네티스 · 13장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Gateway-API.md) · [다음 장](./Kubernetes-Volume-PersistentVolume.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 17장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Gateway-API.md) · [다음 장](./Kubernetes-Volume-PersistentVolume.md)
 
 Ingress와 Gateway로 외부 요청은 받게 되었다. 그런데 주문 API가 결제 API를 호출하는 권한과 출발지 IP는 어디에서 정할까?
 

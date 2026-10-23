@@ -1,6 +1,6 @@
 # Kubernetes ReplicaSet & Deployment
 
-> **개발자를 위한 쉬운 쿠버네티스 · 4장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Pod.md) · [다음 장](./Kubernetes-Image-Tag-Digest.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 8장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Pod.md) · [다음 장](./Kubernetes-Image-Tag-Digest.md)
 
 Pod를 세 개 만드는 것과 앞으로도 세 개를 유지하는 것은 무엇이 다를까?
 

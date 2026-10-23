@@ -1,6 +1,6 @@
 # Kubernetes ServiceAccount, RBAC
 
-> **개발자를 위한 쉬운 쿠버네티스 · 19장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Metrics-Server-Prometheus.md) · [다음 장](./Kubernetes-CRD-Controller-Operator.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 26장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Logging-and-Events.md) · [다음 장](./Kubernetes-Workload-Security.md)
 
 **Pod는 어떻게 쿠버네티스 API에 자기를 증명할까 — ServiceAccount와 RBAC**
 
@@ -614,7 +614,7 @@ Secret 읽기는 단순한 메타데이터 조회가 아니다. 앱 비밀번호
 2. **ClusterRole을 만들었는데 Pod 목록 조회가 403인 이유는 무엇일까?** 규칙 정의만으로 권한이 생기지 않는다. 요청 namespace의 Binding과 SA·그룹 참조를 확인한다.
 3. **공유 관리자 SA를 남겨 두면 새 SA의 권한 누락을 보완할까?** SA끼리 Binding을 상속하지 않는다. 권한 준비, 일부 전환, 정상·복구 경로 관찰, 기존 template으로의 롤백 순서가 필요하다.
 
-다음 [CRD·Controller·Operator](Kubernetes-CRD-Controller-Operator.md)에서는 이 신원과 권한을 가진 프로그램이 새 리소스의 의미를 어떻게 실행하는지 살펴본다.
+다음 [워크로드 보안](Kubernetes-Workload-Security.md)에서는 API를 호출하는 신원과 구별하여, 실행 중인 프로세스의 권한과 파일·커널 접근을 제한한다. 그 뒤 CRD·Controller·Operator에서 API 권한을 가진 프로그램이 새 리소스의 의미를 실행하는 과정을 연결한다.
 
 ## 출처
 

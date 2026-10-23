@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc"><title id="title">배포를 바꾸는 요청과 앱을 사용하는 요청</title><desc id="desc">관리 요청은 Kubernetes API와 제어 구성 요소를 거친다. 일반적인 앱 요청은 외부 진입점과 데이터 경로를 거쳐 앱에 도달하며 API server를 HTTP 프록시로 사용하지 않는다.</desc><defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#52647b"/></marker></defs><rect width="1400" height="820" fill="#f7f9fc"/><g font-family="Arial, Apple SD Gothic Neo, Noto Sans KR, sans-serif">
+<text x="60" y="64" text-anchor="start" font-size="34" font-weight="700" fill="#192c43">배포를 바꾸는 요청과 앱을 사용하는 요청</text>
+<text x="60" y="106" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">서로 연결되지만, 같은 경로를 통과하지는 않는다.</text>
+<rect x="50" y="170" width="1300" height="230" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="74" y="210" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">관리 경로: 실행 의도를 기록하고 조정</text>
+<rect x="50" y="440" width="1300" height="230" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>
+<text x="74" y="480" text-anchor="start" font-size="25" font-weight="700" fill="#192c43">사용자 요청 경로: 준비된 애플리케이션에 접속</text>
+<rect x="85" y="260" width="270" height="95" rx="12" fill="#2457a7"/>
+<text x="220.0" y="294" text-anchor="middle" font-size="23" font-weight="700" fill="white">kubectl</text>
+<text x="220.0" y="327" text-anchor="middle" font-size="18" font-weight="400" fill="white">선언 제출</text>
+<rect x="405" y="260" width="270" height="95" rx="12" fill="#2457a7"/>
+<text x="540.0" y="294" text-anchor="middle" font-size="23" font-weight="700" fill="white">API server</text>
+<text x="540.0" y="327" text-anchor="middle" font-size="18" font-weight="400" fill="white">상태 저장</text>
+<rect x="725" y="260" width="270" height="95" rx="12" fill="#2457a7"/>
+<text x="860.0" y="294" text-anchor="middle" font-size="23" font-weight="700" fill="white">제어 구성 요소</text>
+<text x="860.0" y="327" text-anchor="middle" font-size="18" font-weight="400" fill="white">생성·배치</text>
+<rect x="1045" y="260" width="270" height="95" rx="12" fill="#2457a7"/>
+<text x="1180.0" y="294" text-anchor="middle" font-size="23" font-weight="700" fill="white">kubelet/runtime</text>
+<text x="1180.0" y="327" text-anchor="middle" font-size="18" font-weight="400" fill="white">노드에서 실행</text>
+<path d="M355,305 L400,305" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<path d="M675,305 L720,305" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<path d="M995,305 L1040,305" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<rect x="85" y="530" width="270" height="95" rx="12" fill="#21745b"/>
+<text x="220.0" y="564" text-anchor="middle" font-size="23" font-weight="700" fill="white">사용자</text>
+<text x="220.0" y="597" text-anchor="middle" font-size="18" font-weight="400" fill="white">HTTP 요청</text>
+<rect x="405" y="530" width="270" height="95" rx="12" fill="#21745b"/>
+<text x="540.0" y="564" text-anchor="middle" font-size="23" font-weight="700" fill="white">외부 진입점</text>
+<text x="540.0" y="597" text-anchor="middle" font-size="18" font-weight="400" fill="white">LB / HTTP proxy</text>
+<rect x="725" y="530" width="270" height="95" rx="12" fill="#21745b"/>
+<text x="860.0" y="564" text-anchor="middle" font-size="23" font-weight="700" fill="white">전달 규칙</text>
+<text x="860.0" y="597" text-anchor="middle" font-size="18" font-weight="400" fill="white">Service 주소의 라우팅</text>
+<rect x="1045" y="530" width="270" height="95" rx="12" fill="#21745b"/>
+<text x="1180.0" y="564" text-anchor="middle" font-size="23" font-weight="700" fill="white">앱 Pod</text>
+<text x="1180.0" y="597" text-anchor="middle" font-size="18" font-weight="400" fill="white">HTTP 응답</text>
+<path d="M355,575 L400,575" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<path d="M675,575 L720,575" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<path d="M995,575 L1040,575" fill="none" stroke="#52647b" stroke-width="3" marker-end="url(#a)"/>
+<text x="60" y="762" text-anchor="start" font-size="20" font-weight="400" fill="#52647b">일반적인 경로의 단순화다. 구현에 따라 Pod로 직접 전달하며, port-forward는 별도 경로다.</text>
+</g></svg>

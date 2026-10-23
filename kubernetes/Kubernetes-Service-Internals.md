@@ -1,6 +1,6 @@
 # Kubernetes Service Internals
 
-> **개발자를 위한 쉬운 쿠버네티스 · 9장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) · [다음 장](./Kubernetes-Probe-Liveness-Readiness-Startup.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 13장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Service-ClusterIP-NodePort-LoadBalancer.md) · [다음 장](./Kubernetes-Probe-Liveness-Readiness-Startup.md)
 
 **Service 이름을 호출했는데, 실제로는 누가 어떤 Pod에 연결하는가**
 

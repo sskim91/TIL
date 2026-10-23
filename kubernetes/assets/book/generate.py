@@ -1,0 +1,65 @@
+from pathlib import Path
+from html import escape
+OUT=Path(__file__).parent
+BLUE='#2457a7';GREEN='#21745b';ORANGE='#a65b18';INK='#192c43';MUTED='#52647b'
+class Figure:
+ def __init__(self,name,title,subtitle,desc):
+  self.name=name;self.s=[f'''<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820" role="img" aria-labelledby="title desc"><title id="title">{escape(title)}</title><desc id="desc">{escape(desc)}</desc><defs><marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="{MUTED}"/></marker></defs><rect width="1400" height="820" fill="#f7f9fc"/><g font-family="Arial, Apple SD Gothic Neo, Noto Sans KR, sans-serif">''']
+  self.text(60,64,title,34,INK,'start',True);self.text(60,106,subtitle,20,MUTED)
+ def text(self,x,y,t,size=23,color=INK,anchor='start',bold=False):
+  for i,line in enumerate(t.split('\n')):self.s.append(f'<text x="{x}" y="{y+i*(size+9)}" text-anchor="{anchor}" font-size="{size}" font-weight="{700 if bold else 400}" fill="{color}">{escape(line)}</text>')
+ def panel(self,x,y,w,h,title):
+  self.s.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="20" fill="white" stroke="#d6dfea" stroke-width="2"/>');self.text(x+24,y+40,title,25,INK,bold=True)
+ def box(self,x,y,w,h,title,body='',color=BLUE):
+  self.s.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="12" fill="{color}"/>');self.text(x+w/2,y+34,title,23,'white','middle',True)
+  if body:self.text(x+w/2,y+67,body,18,'white','middle')
+ def line(self,x1,y1,x2,y2,label='',dash=False,both=False):
+  self.s.append(f'<path d="M{x1},{y1} L{x2},{y2}" fill="none" stroke="{MUTED}" stroke-width="3" marker-end="url(#a)"'+(' marker-start="url(#a)"' if both else '')+(' stroke-dasharray="7 6"' if dash else '')+'/>')
+  if label:self.text((x1+x2)/2+8,(y1+y2)/2-12,label,17,MUTED,'middle')
+ def footer(self,t):self.text(60,762,t,20,MUTED)
+ def save(self):self.s.append('</g></svg>');(OUT/(self.name+'.svg')).write_text('\n'.join(self.s))
+f=Figure('execution-boundaries','프로그램은 어디에서 실행되고 무엇을 공유할까?','일반적인 Linux 실행 모델의 비교 · VM과 컨테이너는 함께 사용할 수 있다.','직접 실행은 OS 환경을 공유한다. VM마다 guest kernel이 있으며 일반 Linux 컨테이너는 실행 호스트의 kernel을 공유한다.')
+for x,title in [(50,'서버에 직접 실행'),(505,'가상 머신으로 분리'),(960,'컨테이너로 분리')]:f.panel(x,150,390,540,title)
+f.box(75,250,340,110,'앱 A · 앱 B','서버에 설치한 실행 환경');f.box(75,410,340,100,'하나의 OS와 kernel','프로세스마다 자원 사용');f.box(75,565,340,70,'물리 또는 가상 서버','',MUTED)
+for x,t in [(525,'VM A'),(710,'VM B')]:
+ f.box(x,235,165,75,t+'의 앱','',BLUE);f.box(x,330,165,100,'Guest OS','각자의 kernel',GREEN)
+f.box(530,470,340,70,'Hypervisor','',ORANGE);f.box(530,565,340,70,'물리 서버','',MUTED)
+for x,t in [(980,'컨테이너 A'),(1165,'컨테이너 B')]:f.box(x,235,165,130,t,'앱 프로세스\n실행 파일 환경',BLUE)
+f.box(985,410,340,100,'공유 Linux kernel','격리·자원 제약 적용',GREEN);f.box(985,565,340,70,'물리 서버 또는 VM','',MUTED)
+f.footer('Docker Desktop에서 Linux 컨테이너를 실행하면 Linux VM 안의 kernel을 사용한다.');f.save()
+f=Figure('image-supply-path','이미지를 만드는 일과 컨테이너를 실행하는 일','소스와 의존성을 패키징하고, 실행할 머신까지 전달한다.','빌드 머신이 이미지를 만들고 레지스트리에 push한다. 실행 머신이 pull하고 runtime이 컨테이너 프로세스를 실행한다.')
+f.panel(50,170,360,490,'빌드 머신');f.panel(470,170,360,490,'이미지 레지스트리');f.panel(890,170,460,490,'실행 머신')
+f.box(80,250,300,100,'소스 · 의존성','Dockerfile과 빌드 입력');f.line(230,350,230,430,'build');f.box(80,435,300,110,'이미지','실행할 파일 + 실행 설정',GREEN)
+f.box(500,365,300,150,'이미지 보관','태그 · Digest\n프로세스를 실행하지 않음',ORANGE)
+f.line(380,490,500,490,'push');f.s.append(f'<path d="M800,430 L870,430 L870,295 L915,295" fill="none" stroke="{MUTED}" stroke-width="3" marker-end="url(#a)"/>');f.text(850,395,'pull',17,MUTED,'middle')
+f.box(920,245,400,100,'이미지 + 실행 시 설정','환경변수 · mount · 네트워크');f.line(1120,345,1120,420,'runtime');f.box(920,430,400,130,'실행 중인 컨테이너','프로세스 + 쓰기 가능한 상태',GREEN)
+f.footer('같은 이미지여도 실행 시 설정·외부 서비스·호스트 조건까지 같다는 뜻은 아니다.');f.save()
+f=Figure('desired-state-operations','여러 서버의 상태를 누가 계속 맞출까?','한 번 실행한 명령 뒤에도 장애와 변경은 계속 발생한다.','왼쪽은 사람이 관찰하고 변경하는 운영이다. 오른쪽은 원하는 상태와 관찰 상태를 controller가 비교하여 API에 변경을 요청하고 다른 구성 요소가 실행한다.')
+f.panel(50,165,570,510,'사람과 스크립트가 상태를 이어 맞추기');f.panel(680,165,670,510,'원하는 상태를 기록하고 반복 조정하기')
+f.box(90,245,490,90,'배포 담당자 · 스크립트','실행 · 접속 대상 변경 · 실패 확인');f.box(90,435,220,110,'서버 A','앱 종료',ORANGE);f.box(360,435,220,110,'서버 B','앱 실행 중',GREEN);f.line(220,335,200,430,'관찰/변경',both=True);f.line(470,335,470,430,'관찰/변경',both=True)
+f.box(720,245,260,95,'원하는 상태','복제본 3개',BLUE);f.box(1030,245,280,95,'관찰한 상태','관리 중인 복제본 2개',ORANGE);f.line(850,340,910,405);f.line(1170,340,1120,405)
+f.box(840,410,370,90,'Controller의 비교','API에 변경 요청',GREEN);f.line(1025,500,1025,555);f.text(1025,593,'API 상태 → 배치 → 노드의 실행',21,INK,'middle',True);f.text(1025,628,'결과를 다시 관찰하며 반복',19,MUTED,'middle')
+f.footer('용량·이미지·권한·네트워크 조건이 충족되지 않으면 원하는 상태에 도달하지 못할 수 있다.');f.save()
+f=Figure('cluster-map','클러스터를 구성하는 두 영역','Control plane은 상태를 관리하고, worker의 구성 요소는 담당 Pod를 실행한다.','kubectl이 API server에 요청한다. API server는 etcd와 통신하고 controller와 scheduler는 API를 관찰하고 갱신한다. worker의 kubelet이 API를 관찰하고 runtime에 컨테이너 실행을 요청한다.')
+f.box(50,180,240,85,'kubectl','API 클라이언트');f.panel(350,150,570,530,'Control plane');f.panel(970,150,380,530,'Worker Node')
+f.box(540,245,320,90,'API server','클러스터 API의 접점');f.line(290,225,535,285,'요청/응답',both=True)
+f.box(390,440,230,90,'Controllers','상태 조정',GREEN);f.box(650,440,230,90,'Scheduler','실행할 Node 선택',GREEN);f.line(510,440,625,340,'관찰/갱신',both=True);f.line(765,440,765,340,'관찰/갱신',both=True)
+f.box(540,570,320,70,'etcd: API 상태 저장','',ORANGE);f.s.append(f'<path d="M860,315 L900,315 L900,605 L865,605" fill="none" stroke="{MUTED}" stroke-width="3" marker-start="url(#a)" marker-end="url(#a)"/>')
+f.box(1010,245,300,90,'kubelet','담당 Pod의 실행 관리');f.line(1010,285,865,285,'API',both=True)
+f.box(1010,410,300,85,'Container runtime','컨테이너 실행',GREEN);f.line(1160,335,1160,405);f.box(1010,565,300,70,'Pod의 컨테이너','',GREEN);f.line(1160,495,1160,560)
+f.footer('CNI·DNS·CSI 등 추가 구성 요소도 필요하다. 역할 구분이 물리 서버의 개수를 뜻하지는 않는다.');f.save()
+f=Figure('control-and-request-paths','배포를 바꾸는 요청과 앱을 사용하는 요청','서로 연결되지만, 같은 경로를 통과하지는 않는다.','관리 요청은 Kubernetes API와 제어 구성 요소를 거친다. 일반적인 앱 요청은 외부 진입점과 데이터 경로를 거쳐 앱에 도달하며 API server를 HTTP 프록시로 사용하지 않는다.')
+f.panel(50,170,1300,230,'관리 경로: 실행 의도를 기록하고 조정');f.panel(50,440,1300,230,'사용자 요청 경로: 준비된 애플리케이션에 접속')
+for x,title,body in [(85,'kubectl','선언 제출'),(405,'API server','상태 저장'),(725,'제어 구성 요소','생성·배치'),(1045,'kubelet/runtime','노드에서 실행')]:f.box(x,260,270,95,title,body)
+for x in [355,675,995]:f.line(x,305,x+45,305)
+for x,title,body in [(85,'사용자','HTTP 요청'),(405,'외부 진입점','LB / HTTP proxy'),(725,'전달 규칙','Service 주소의 라우팅'),(1045,'앱 Pod','HTTP 응답')]:f.box(x,530,270,95,title,body,GREEN)
+for x in [355,675,995]:f.line(x,575,x+45,575)
+f.footer('일반적인 경로의 단순화다. 구현에 따라 Pod로 직접 전달하며, port-forward는 별도 경로다.');f.save()
+f=Figure('airgap-dependencies','인터넷이 없을 때는 공급 경로를 내부에서 완성한다','Kubernetes의 동작 모델은 같고, 필요한 파일과 서비스를 제공하는 경로가 달라진다.','외부 이미지와 패키지를 조직의 검증 반입 절차로 내부에 제공한다. 내부 registry와 chart package 저장소가 클러스터에 공급하고 내부 DNS, CA, 시간과 저장소가 실행 조건을 제공한다.')
+f.panel(50,170,310,470,'외부 공급원');f.panel(420,170,320,470,'조직의 반입 절차');f.panel(800,170,550,470,'내부 실행 환경')
+f.box(75,270,260,140,'이미지 · Chart','패키지 · 의존성\nOS/CPU 대상 확인');f.box(450,270,260,140,'수집 · 검증 · 반입','출처 · 버전 · Digest\n허용된 전달 수단',ORANGE);f.line(335,335,445,335)
+f.box(830,245,490,100,'내부 이미지·패키지 저장소','Registry · Chart · 설치 파일',GREEN);f.line(710,335,825,295)
+f.box(830,425,490,110,'클러스터와 애플리케이션','이미지 확보 · 설정 · 실행',GREEN);f.line(1075,345,1075,420)
+f.text(1075,585,'내부 DNS · CA 신뢰 · 시간 · 저장소',22,INK,'middle',True)
+f.footer('반입은 조직 정책에 따라 수행한다. 캐시에 있는 이미지만으로 재설치·복구 가능성을 판단하지 않는다.');f.save()
+print('Generated',len(list(OUT.glob('*.svg'))),'SVG diagrams')

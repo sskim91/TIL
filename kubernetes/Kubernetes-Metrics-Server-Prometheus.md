@@ -1,6 +1,6 @@
 # Kubernetes Metrics Server, Prometheus
 
-> **개발자를 위한 쉬운 쿠버네티스 · 18장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Deployment-Strategy.md) · [다음 장](./Kubernetes-ServiceAccount-RBAC.md)
+> **개발자를 위한 쉬운 쿠버네티스 · 24장** | [전체 목차](./Kubernetes-Introduction.md#이-시리즈의-읽는-순서) · [이전 장](./Kubernetes-Deployment-Strategy.md) · [다음 장](./Kubernetes-Logging-and-Events.md)
 
 주문 API의 Grafana CPU 그래프는 보이는데 `kubectl top pod`은 실패한다. 반대로 top에는 사용량이 나오는데 어제 배포 직후의 폭주를 보여 줄 그래프는 없다. 화면의 숫자가 비슷하다고 같은 경로로 수집·보관되는 것은 아니다. [배포 전략](Kubernetes-Deployment-Strategy.md)에서 필요했던 관찰 근거를 이번에는 출처와 소비자까지 따라가 보자.
 
@@ -25,6 +25,8 @@ Events는 scheduling 실패나 image pull 같은 Kubernetes 구성 요소의 사
 이 자료들은 서로 대체하지 못한다. CPU가 높다는 그래프는 비효율적인 쿼리를 지목하지 못하고, 앱 오류 로그 한 줄은 전체 요청 중 얼마나 많은 사용자가 영향을 받았는지 알려주지 않는다. Events도 보존 기간이 있으므로 장애 감사 기록의 영구 저장소로 생각하면 안 된다.
 
 따라서 `order-api`가 느릴 때 먼저 Pod가 존재하고 Ready인지, 준비된 endpoint에 요청이 도달하는지, 앱 안에서 무엇을 기다리는지 구분한다. 그다음 CPU·메모리·DB latency·queue 길이 등을 가설에 맞춰 읽는다. 도구를 설치했다는 사실보다 어떤 질문에 답하는 증거를 확보했는지가 중요하다.
+
+이 장은 그중 자원 사용량과 시계열의 경로를 다룬다. [Logging and Events](Kubernetes-Logging-and-Events.md)에서는 앱의 stdout/stderr가 Node와 수집기를 거쳐 보관되는 과정, `kubectl logs --previous`의 범위, Events의 수명, 요청 ID·trace ID로 기록을 연결하는 방법을 이어서 설명한다. metrics에서 발견한 시간대와 실행 대상을 로그에 넘겨야 숫자의 변화가 어떤 실패와 연결되는지 조사할 수 있다.
 
 ## 2. kubelet의 사용량을 Metrics API로 모은다
 
@@ -241,7 +243,7 @@ Deployment의 생성 상태, Pod Pending의 scheduling Events, Node capacity와 
 
 ## 다음 장으로
 
-사용량 API를 조회하고, controller가 replicas를 바꾸고, 수집기가 object 상태를 읽는 모든 과정에는 권한이 있다. 다음 [ServiceAccount와 RBAC](Kubernetes-ServiceAccount-RBAC.md)에서 누가 어떤 API 요청을 할 수 있는지 연결한다. 이후 [종합 장애 분석](Kubernetes-Troubleshooting-From-Apply-to-Request.md)에서는 이 장의 상태·Events·로그·지표를 하나의 가설 검증 흐름으로 묶는다.
+지표로 사용량과 피해 범위를 살펴봤다면 다음 [로그와 Events](Kubernetes-Logging-and-Events.md)에서는 개별 실패의 이유와 실행의 흔적을 읽는다. 이후 ServiceAccount와 RBAC에서 이 조회와 변경에 필요한 API 권한을 연결하고, 마지막 [종합 장애 분석](Kubernetes-Troubleshooting-From-Apply-to-Request.md)에서는 상태·Events·로그·지표를 하나의 가설 검증 흐름으로 묶는다.
 
 ## 출처
 
