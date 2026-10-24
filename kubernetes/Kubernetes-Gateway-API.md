@@ -43,7 +43,7 @@ flowchart TB
 | `ReferenceGrant` | 네임스페이스 | 참조 **당하는** 쪽 소유자 | 다른 네임스페이스의 참조 허용 | v1.5에서 `v1` |
 | `ListenerSet` | 네임스페이스 | 팀 / 운영자 | 공유 Gateway에 listener를 따로 붙이기 | v1.5 |
 
-> 이 장은 2026-10-23에 확인한 Gateway API v1.5·v1.6 공식 자료를 기준으로 쓴다. 이 버전들은 Kubernetes 자체 버전과 별개이며 최신 patch 번호를 뜻하지 않는다. ingress-nginx 은퇴와 이전 경로는 [Kubernetes Ingress 12절](./Kubernetes-Ingress.md#12-2026년-현재--ingress-nginx-은퇴와-gateway-api), 메시 내부(east-west)에서 쓰는 GAMMA는 [서비스 메시 노트 6절](./Kubernetes-Service-Mesh.md), 가중치로 하는 카나리 배포는 [Deployment Strategy의 HTTPRoute 절](./Kubernetes-Deployment-Strategy.md#httproute로-의도를-표현한다)에서 다뤘다. 여기서는 리소스 모델과 "붙는 규칙"에 집중한다.
+> 이 장은 2026-10-23에 확인한 Gateway API v1.5·v1.6 공식 자료를 기준으로 쓴다. 이 버전들은 Kubernetes 자체 버전과 별개이며 최신 patch 번호를 뜻하지 않는다. ingress-nginx 은퇴와 이전 경로는 [Kubernetes Ingress 8절](./Kubernetes-Ingress.md#8-2026년-현재--ingress-nginx-은퇴와-gateway-api), 메시 내부(east-west)에서 쓰는 GAMMA는 [서비스 메시 노트 6절](./Kubernetes-Service-Mesh.md), 가중치로 하는 카나리 배포는 [Deployment Strategy의 HTTPRoute 절](./Kubernetes-Deployment-Strategy.md#httproute로-의도를-표현한다)에서 다뤘다. 여기서는 리소스 모델과 "붙는 규칙"에 집중한다.
 
 ---
 
@@ -235,26 +235,22 @@ v1.5에서 Standard가 된 **ListenerSet** 이 이 빈틈을 메운다. 팀이 �
 
 이 위임은 운영자의 Gateway 편집 부담을 줄이는 대신 팀이 listener의 hostname·인증서를 선택하게 한다. 아래 YAML의 `a.example.com`은 A팀의 사용 의도를 보여 줄 뿐 그 hostname의 소유권을 자동으로 등록하지 않는다. 허용할 팀·hostname 범위의 admission 정책과 namespace label 관리 권한은 이 예제 밖에서 준비해야 한다.
 
+운영자는 2.2절의 `infra/shared-gw`에 `allowedListeners`만 더한다. 다음은 그 Gateway의 `spec`에 합치는 발췌이며, 기존 `https` listener와 `allowedRoutes`는 그대로 둔다.
+
 ```yaml
-# 운영자: listener 위임을 허용
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: shared-gw
-  namespace: infra
+# 운영자: 2.2절 shared-gw의 spec에 추가하는 필드 (발췌)
 spec:
-  gatewayClassName: envoy
   allowedListeners:
     namespaces:
       from: Selector
       selector:
         matchLabels:
           gateway-access: "true"
-  listeners:
-  - name: http
-    port: 80
-    protocol: HTTP
----
+```
+
+team-a는 자기 namespace에 완전한 ListenerSet을 만든다.
+
+```yaml
 # team-a: 자기 호스트와 인증서로 listener 추가
 apiVersion: gateway.networking.k8s.io/v1
 kind: ListenerSet
@@ -498,7 +494,7 @@ v1.3부터 **새로 추가되는** 실험 리소스에는 `X` 접두사와 별�
    - HTTP·gRPC·TLS·TCP·UDP Route와 ReferenceGrant, ListenerSet이 모두 Standard다. CRD는 따로 설치하고 설치 주체는 하나로 정한다. 기능 지원 여부는 conformance 보고서로 확인한다.
 
 > 📖 관련 문서:
-> - [Kubernetes Ingress](./Kubernetes-Ingress.md) — Ingress 기본과 12절 ingress-nginx 은퇴
+> - [Kubernetes Ingress](./Kubernetes-Ingress.md) — Ingress 기본과 8절 ingress-nginx 은퇴
 > - [Ingress 리소스가 하나도 없는데 트래픽은 어떻게 들어올까](./Kubernetes-Service-Mesh.md) — 6절 GAMMA, `parentRef`가 Service를 가리키는 메시 라우팅
 > - [Kubernetes Deployment Strategy의 HTTPRoute 절](./Kubernetes-Deployment-Strategy.md#httproute로-의도를-표현한다) — HTTPRoute `weight`로 하는 카나리
 > - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](./Kubernetes-Ingress-vs-Egress.md) — Ingress 동결과 Gateway API 전망

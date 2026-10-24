@@ -219,7 +219,7 @@ kubectl get pods -n bookstore -o json | jq -r \
 
 PVC Events/conditions와 실제 mount 경로의 용량을 함께 보아야 한다. `FileSystemResizePending`이면 파일시스템 단계가 남았다는 단서다. 문구 하나만 보고 중요한 DB Pod를 즉시 지우기보다 해당 driver의 지원 절차와 앱의 안전한 재시작 조건을 확인한다. 일반적으로 PVC 축소는 지원하지 않으므로 잘못 늘린 값을 단순히 되돌리는 방식도 피한다.
 
-StatefulSet의 `volumeClaimTemplates`와 이미 생성된 각 PVC는 별개의 오브젝트다. 템플릿 수정만으로 모든 기존 디스크가 커진다고 생각하면 안 된다. 각 claim의 확장 상태와 이후 생성될 claim의 설정을 구분해 관리한다.
+StatefulSet의 `volumeClaimTemplates`는 생성 뒤 API가 수정을 거부하는 필드이고, 이미 생성된 각 PVC와는 별개의 오브젝트다. 기존 디스크는 PVC마다 확장을 요청해 키운다. 앞으로 만들 claim의 크기까지 바꾸려면 StatefulSet을 다시 만드는 별도 절차가 필요하다. 2026-10-24 확인 기준 템플릿 수정 기능은 제안(KEP-4650) 단계다.
 
 ### 파일 복사와 데이터 이동
 

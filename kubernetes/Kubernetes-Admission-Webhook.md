@@ -233,7 +233,7 @@ API 서버는 웹훅에 `Content-Type: application/json`으로 POST를 보낸다
 
 ### 3-3. 사이드카 주입이 바로 이것이다
 
-이제 도입부의 `READY 2/2`를 설명할 수 있다. 서비스 메시를 도입할 때 하는 일은 대개 이 한 줄이다.
+이제 도입부의 장면, 컨테이너를 하나만 적었는데 실제 Pod에는 프록시가 함께 보이는 이유를 설명할 수 있다. 이런 Pod는 `kubectl get pods`에서 `READY 2/2`로 나타난다. 서비스 메시를 도입할 때 하는 일은 대개 이 한 줄이다.
 
 ```bash
 $ kubectl label namespace bookstore istio-injection=enabled
@@ -329,7 +329,7 @@ flowchart TD
 
 먼저 실패한 요청에서 웹훅 이름과 호출 실패 원인을 특정한다. endpoint 복구, 인증서·CA 갱신, selector 범위 조정, 일시적인 failure policy 변경, 설정 제거 중 무엇이 필요한지 결정한다. 정책을 우회하면 그동안 검사가 빠지므로 대상과 기간, 복원 조건을 함께 정해야 한다.
 
-일반적인 API 기반 등록에서는 WebhookConfiguration 변경·삭제가 비상 복구 수단이 될 수 있다. 이 설정 객체들을 일반 동적 웹훅으로 다시 검사하지 않는 예외가 있기 때문이다. 그러나 API 접근과 해당 RBAC 권한이 먼저 필요하고, 모든 구성에서 삭제가 항상 된다고 보장하지 않는다. Kubernetes v1.36의 **alpha manifest-based admission** 은 별도 정적 구성을 통해 admission 설정 자체를 보호할 수도 있다. 이 기능이 기본 활성이라는 뜻은 아니다. [Manifest-based admission 소개](https://kubernetes.io/blog/2026/05/04/kubernetes-v1-36-manifest-based-admission-control/)
+일반적인 API 기반 등록에서는 WebhookConfiguration 변경·삭제가 비상 복구 수단이 될 수 있다. 이 설정 객체들을 일반 동적 웹훅으로 다시 검사하지 않는 예외가 있기 때문이다. 그러나 API 접근과 해당 RBAC 권한이 먼저 필요하고, 모든 구성에서 삭제가 항상 된다고 보장하지 않는다. **Manifest-based admission** 은 웹훅과 CEL 정책을 API 오브젝트가 아니라 API server가 읽는 정적 파일(`AdmissionConfiguration`의 `staticManifestsDir`)에서 불러온다. 이 설정은 API로 조회·변경되지 않고, API 기반 admission 설정 객체에 대한 요청도 검사할 수 있어 설정 자체를 보호하는 데 쓰인다. 2026-10-24 확인한 공식 문서 기준 v1.37에서 Beta가 되었고 feature gate `ManifestBasedAdmissionControlConfig`는 기본 활성이다. gate가 켜져 있어도 정적 manifest 디렉터리를 구성하지 않으면 추가되는 설정은 없다. [Manifest-Based Admission Control](https://kubernetes.io/docs/reference/access-authn-authz/manifest-admission-control/)
 
 따라서 장애 전에 웹훅 서버와 의존 애드온이 서로의 재생성을 막지 않게 설계하고, 실제 서버 구성에서 사용할 수 있는 복구 경로를 확인해야 한다. 설정을 지울 수 있다는 설명만으로 가용성 설계를 대신할 수는 없다.
 
@@ -545,7 +545,7 @@ Deployment 저장은 성공했는데 Pod가 하나도 없다면 ReplicaSet의 Ev
 
 ## 출처
 
-- [Admission Controllers Reference | Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/) — 기본 활성화 plugin 목록(v1.36), 각 plugin의 mutating/validating 성격, mutating 웹훅의 순차 호출, PodSecurity(v1.25 stable)
+- [Admission Controllers Reference | Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/admission-controllers/) — 기본 활성화 plugin 목록(2026-10-24 확인 시 v1.37 기준), 각 plugin의 mutating/validating 성격, mutating 웹훅의 순차 호출, PodSecurity(v1.25 stable)
 - [Dynamic Admission Control | Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) — `admissionregistration.k8s.io/v1`, AdmissionReview(`admission.k8s.io/v1`) 요청·응답, JSONPatch, `failurePolicy` 기본값 `Fail`, `timeoutSeconds` 기본값 10(1~30), `matchPolicy` 기본값 `Equivalent`, `reinvocationPolicy` 기본값 `Never`, `sideEffects`, `namespaceSelector`
 - [Admission Webhooks Good Practices | Kubernetes](https://kubernetes.io/docs/concepts/cluster-administration/admission-webhooks-good-practices/) — 웹훅 목록 확인 명령, `kube-system`·`kube-node-lease` 제외 권고, dependency loop, fail open 권고, 순서 비의존·멱등성, 배포 순서, RBAC 제한, CRD 내장 검증 우선
 - [Controlling Access to the Kubernetes API | Kubernetes](https://kubernetes.io/docs/concepts/security/controlling-access/) — 인증 → 인가 → admission 단계, admission이 오브젝트 내용에 접근한다는 점, 읽기 요청 미적용
@@ -559,4 +559,4 @@ Deployment 저장은 성공했는데 Pod가 하나도 없다면 ReplicaSet의 Ev
 - [Kyverno — Kubernetes Admission Controllers](https://kyverno.io/docs/guides/admission-controllers/) — mutating은 순차·validating은 병렬 호출
 - [Kyverno — Installation / Troubleshooting](https://kyverno.io/docs/installation/) — 정책 엔진이 만드는 웹훅 설정, 웹훅 설정 오브젝트는 admission controller에 전달되지 않는다는 점, 교착 복구 절차
 
-- [Manifest-based admission control](https://kubernetes.io/blog/2026/05/04/kubernetes-v1-36-manifest-based-admission-control/) — v1.36 alpha의 별도 등록 방식과 설정 보호, 2026-10-23 확인
+- [Manifest-Based Admission Control | Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/manifest-admission-control/) — v1.37 Beta·기본 활성 gate, `staticManifestsDir`, API로 보이지 않는 정적 설정과 설정 보호, 2026-10-24 확인

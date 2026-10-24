@@ -133,7 +133,7 @@ Ingress와 VirtualService의 가장 큰 차이는 적용 범위다. Ingress는 �
 
 Istio만 자체 API를 만든 게 아니다. Ingress 명세가 host, path, TLS 정도만 담다 보니, 구현체마다 부족한 기능을 제각각 채웠다. ingress-nginx는 annotation으로, Traefik은 `IngressRoute`라는 자체 CRD로, Istio는 Gateway와 VirtualService로. 결과적으로 구현체를 바꾸면 설정을 전부 다시 써야 했다. DB 벤더마다 SQL 방언이 달라서 DB를 바꾸면 쿼리를 고쳐야 하는 상황과 같다.
 
-쿠버네티스 커뮤니티의 답은 새 표준 **Gateway API** 였다. 구현체들이 각자 하던 기능을 표준 필드로 흡수했다는 점에서, Hibernate 같은 구현체들의 경험을 JPA라는 표준으로 정리한 역사와 닮았다. 지금 쿠버네티스 문서는 "The Kubernetes project recommends using Gateway instead of Ingress. The Ingress API has been frozen."이라고 적는다. Ingress가 제거될 계획은 없지만 더 이상 기능이 추가되지 않는다. 가장 널리 쓰이던 구현체인 커뮤니티 ingress-nginx는 2026년 3월에 은퇴했다(배경은 [Kubernetes Ingress 12절](Kubernetes-Ingress.md#12-2026년-현재--ingress-nginx-은퇴와-gateway-api)).
+쿠버네티스 커뮤니티의 답은 새 표준 **Gateway API** 였다. 구현체들이 각자 하던 기능을 표준 필드로 흡수했다는 점에서, Hibernate 같은 구현체들의 경험을 JPA라는 표준으로 정리한 역사와 닮았다. 지금 쿠버네티스 문서는 "The Kubernetes project recommends using Gateway instead of Ingress. The Ingress API has been frozen."이라고 적는다. Ingress가 제거될 계획은 없지만 더 이상 기능이 추가되지 않는다. 가장 널리 쓰이던 구현체인 커뮤니티 ingress-nginx는 2026년 3월에 은퇴했다(배경은 [Kubernetes Ingress 8절](Kubernetes-Ingress.md#8-2026년-현재--ingress-nginx-은퇴와-gateway-api)).
 
 Gateway API도 "문"과 "라우팅"을 나눈다. 문은 `Gateway`, 라우팅은 `HTTPRoute`·`GRPCRoute` 같은 프로토콜별 Route다. L4~L6과 L7을 분리한다는 같은 결론에 도달한 셈이다. 그리고 바로 여기서 이름이 겹친다. Istio 문서도 이 점을 인정한다. "The main resource shares the same name, Gateway, and the resources serve similar goals."
 
@@ -311,7 +311,7 @@ kubectl get gtw,httproute -A
    - Ingress는 동결됐고, ingress-nginx는 은퇴했으며, Istio도 Gateway API를 기본 트래픽 API로 삼을 계획이다. 새로 구성한다면 Gateway API부터 검토한다.
 
 > **함께 보면 좋은 노트**
-> - [Kubernetes Ingress](Kubernetes-Ingress.md) — Ingress와 IngressClass, 12절 ingress-nginx 은퇴
+> - [Kubernetes Ingress](Kubernetes-Ingress.md) — Ingress와 IngressClass, 8절 ingress-nginx 은퇴
 > - [Kubernetes Gateway API](Kubernetes-Gateway-API.md) — GatewayClass·Gateway·Route 리소스 모델과 붙는 규칙
 > - [Kubernetes Service Mesh](Kubernetes-Service-Mesh.md) — north-south와 east-west, VirtualService 예시, GAMMA
 > - [쿠버네티스 Ingress와 Egress는 왜 대칭이 아닐까](Kubernetes-Ingress-vs-Egress.md) — Ingress라는 단어의 두 가지 쓰임

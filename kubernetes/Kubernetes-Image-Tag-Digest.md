@@ -292,7 +292,7 @@ pull이 실패했을 때 보이는 상태 두 개는 같은 사건의 다른 단
 
 그래서 관용적으로 쓰는 패턴이 있다. **설정 내용의 해시를 Pod 템플릿의 annotation에 넣어, 설정이 바뀌면 템플릿도 의도적으로 바뀌게 만드는 것** 이다. 새 revision으로 교체할 조건이 템플릿 변경이므로, 그 신호를 인공적으로 만들어 주는 셈이다. 2절의 `restartedAt`이 시각으로 diff를 만들었다면, 이쪽은 설정 해시로 diff를 만든다.
 
-ConfigMap/Secret의 갱신 반영 동작, 이 해시 annotation의 구체적 작성법, Reloader로 자동화하는 방법, `immutable` 필드와 `subPath` 마운트의 자동 갱신 불가 문제는 모두 [Kubernetes ConfigMap & Secret](Kubernetes-ConfigMap-Secret.md)이 다룬다. 이 글에서 가져갈 것은 하나다 — **새 revision의 rollout을 시작하는 신호는 Pod 템플릿의 변화** 이며, 이미지 문제와 설정 문제는 그 한 문장의 두 얼굴이다.
+ConfigMap/Secret의 갱신 반영 동작, 설정 변경을 rollout으로 잇는 방법(해시 annotation·Kustomize 이름 해시·Reloader 같은 추가 controller)의 차이, `immutable` 필드와 `subPath` 마운트의 자동 갱신 불가 문제는 모두 [Kubernetes ConfigMap & Secret](Kubernetes-ConfigMap-Secret.md)이 다룬다. 이 글에서 가져갈 것은 하나다 — **새 revision의 rollout을 시작하는 신호는 Pod 템플릿의 변화** 이며, 이미지 문제와 설정 문제는 그 한 문장의 두 얼굴이다.
 
 ---
 
@@ -375,7 +375,7 @@ kubectl get node node-a -o json | jq -r '.status.images[].names[]' | grep order-
 
 마지막으로 한 문장. 배포의 재현성이란 **"무엇을 배포했는지 사후에 증명할 수 있는가"** 이고, 가변 태그 문자열만 남긴 기록으로는 그 증명을 하기 어렵다. digest·빌드 이력·서명·실행 상태를 함께 남겨야 한다. `registry.example.com/book/order-api:1.0.0`이 떴다는 기록은 어떤 콘텐츠였는지 확정하는 증거가 되지는 못한다. 태그를 불변으로 만들거나 digest를 남기는 일은 편의가 아니라, **장애 대응에서 첫 질문에 답할 수 있게 하는 최소 조건** 이다.
 
-> 관련 문서: [Kubernetes ReplicaSet & Deployment](Kubernetes-ReplicaSet-Deployment.md) — 롤링 업데이트·롤백·`rollout` 명령군 · [Kubernetes ConfigMap & Secret](Kubernetes-ConfigMap-Secret.md) — 설정 갱신 반영과 Reloader · [Helm과 Harbor를 왜 같이 써야 하는가](Helm과-Harbor를-왜-같이-써야-하는가.md) — digest 기반 서명과 공급망 보안 · [Harbor — 왜 회사들은 사내 컨테이너 레지스트리를 두는가](Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가.md) — 사내 레지스트리와 rate limit
+> 관련 문서: [Kubernetes ReplicaSet & Deployment](Kubernetes-ReplicaSet-Deployment.md) — 롤링 업데이트·롤백·`rollout` 명령군 · [Kubernetes ConfigMap & Secret](Kubernetes-ConfigMap-Secret.md) — 설정 갱신 반영과 rollout 연결 방식 · [Helm과 Harbor를 왜 같이 써야 하는가](Helm과-Harbor를-왜-같이-써야-하는가.md) — digest 기반 서명과 공급망 보안 · [Harbor — 왜 회사들은 사내 컨테이너 레지스트리를 두는가](Harbor-왜-회사들은-사내-컨테이너-레지스트리를-두는가.md) — 사내 레지스트리와 rate limit
 
 ---
 

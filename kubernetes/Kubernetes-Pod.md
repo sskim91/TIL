@@ -557,7 +557,7 @@ spec:
 
 60초는 hook 이후 추가로 주는 시간이 아니다. hook과 앱 종료가 같은 예산을 나누어 쓴다. 공식 동작에는 hook이 유예 시간 뒤에도 실행 중일 때 요청하는 작은 일회성 2초 연장이 있지만, 정상 종료 시간을 설계할 때 그 연장을 여유 예산으로 삼지 않는다.
 
-Pod가 요청 경로에서 빠지는 작업과 kubelet의 종료 작업은 비동기적으로 진행된다. 종료 중 endpoint는 EndpointSlice에 즉시 완전히 사라지기보다 terminating·ready 조건으로 표현될 수 있다. 프록시와 외부 load balancer까지 이를 반영하는 시간도 다르다. `sleep 10`은 그 사이 유입되는 요청을 잠시 처리할 기회를 줄 수 있지만 “10초면 전파 완료”를 보장하지 않는다. 앱의 신규 요청 차단과 기존 요청 drain, 클라이언트 재시도, 충분한 잔여 replica를 함께 다뤄야 한다. 이 전체 관계는 [배포 전략 장](Kubernetes-Deployment-Strategy.md)에서 이어진다.
+Pod가 요청 경로에서 빠지는 작업과 kubelet의 종료 작업은 비동기적으로 진행된다. 종료 중 endpoint는 EndpointSlice에 즉시 완전히 사라지기보다 serving·terminating 조건으로 표현될 수 있다. Service가 publishNotReadyAddresses를 쓰지 않는 한 종료 중인 endpoint의 ready는 false다. 프록시와 외부 load balancer까지 이를 반영하는 시간도 다르다. `sleep 10`은 그 사이 유입되는 요청을 잠시 처리할 기회를 줄 수 있지만 “10초면 전파 완료”를 보장하지 않는다. 앱의 신규 요청 차단과 기존 요청 drain, 클라이언트 재시도, 충분한 잔여 replica를 함께 다뤄야 한다. 이 전체 관계는 [배포 전략 장](Kubernetes-Deployment-Strategy.md)에서 이어진다.
 
 ## 8. 실무 트러블슈팅
 

@@ -189,7 +189,7 @@ kubelet의 Readiness와 외부 LB의 health check는 주체와 시점이 다르�
 
 Ingress Controller마다 **annotations**로 세부 설정을 한다.
 
-> **이 절을 읽는 법 (2026-10-23 기준).** 아래 `nginx.ingress.kubernetes.io/*` annotation들은 **은퇴한 커뮤니티 ingress-nginx의 문법** 이다([12절](#12-2026년-현재--ingress-nginx-은퇴와-gateway-api)). 지금도 이 절이 유효한 이유는 두 가지다 — 이미 돌아가는 클러스터를 **읽고 이해하려면** 필요하고, Gateway API로 **이전할 때 무엇을 다시 설계해야 하는지** 목록이 바로 이 annotation들이기 때문이다. 반대로 **신규 클러스터를 구성한다면 이 문법을 그대로 쓰면 안 된다.** 고른 컨트롤러의 자체 문법이나 Gateway API 표준 필드로 옮겨야 한다.
+> **이 절을 읽는 법 (2026-10-23 기준).** 아래 `nginx.ingress.kubernetes.io/*` annotation들은 **은퇴한 커뮤니티 ingress-nginx의 문법** 이다([8절](#8-2026년-현재--ingress-nginx-은퇴와-gateway-api)). 지금도 이 절이 유효한 이유는 두 가지다 — 이미 돌아가는 클러스터를 **읽고 이해하려면** 필요하고, Gateway API로 **이전할 때 무엇을 다시 설계해야 하는지** 목록이 바로 이 annotation들이기 때문이다. 반대로 **신규 클러스터를 구성한다면 이 문법을 그대로 쓰면 안 된다.** 고른 컨트롤러의 자체 문법이나 Gateway API 표준 필드로 옮겨야 한다.
 >
 > 그리고 annotation이 이렇게 컨트롤러마다 제각각이라는 사실 자체가, Gateway API가 헤더 매칭·트래픽 가중치를 **표준 스키마 필드로 끌어올린** 이유다.
 
@@ -281,7 +281,9 @@ spec:
 
 ---
 
-## 9. 클라우드별 Ingress Controller
+<a id="9-클라우드별-ingress-controller"></a>
+
+## 7. 클라우드별 Ingress Controller
 
 이 절의 annotation은 서로 다른 구현체의 선택지다. 기본 예제에 한꺼번에 합치지 않는다. 2026-10-23 확인한 공식 문서 기준이며 서브넷·IAM·LB 제품·설치 버전별 전제는 별도다.
 
@@ -294,7 +296,7 @@ spec:
 >
 > 즉 "일반 k8s Ingress는 `ingressClassName` 권장, GKE는 예외"로 기억하라.
 
-### 9.1 AWS: ALB Ingress Controller (AWS Load Balancer Controller)
+### 7.1 AWS: ALB Ingress Controller (AWS Load Balancer Controller)
 
 AWS에서는 **AWS Load Balancer Controller** 가 Ingress 리소스를 **Application Load Balancer(ALB)** 로 프로비저닝한다.
 
@@ -360,7 +362,7 @@ metadata:
 
 `group.order`는 낮은 숫자의 규칙을 먼저 평가하게 하지만 접근 통제 수단은 아니다. 같은 IngressGroup에 참여할 권한이 있는 사용자는 더 높은 우선순위의 규칙으로 기존 트래픽을 가져갈 수 있다. 따라서 그룹을 공유하는 팀을 같은 신뢰 경계로 보고, Ingress 생성·수정 권한과 그룹 참여를 RBAC·admission 정책으로 제한해야 한다. 비용 절감과 권한 분리는 함께 설계한다.
 
-### 9.2 GKE: GCE Ingress Controller (Container-Native Load Balancing)
+### 7.2 GKE: GCE Ingress Controller (Container-Native Load Balancing)
 
 GKE에서는 **GCE Ingress Controller** 가 제공된다. container-native load balancing 조건을 만족하고 NEG를 사용하는 구성에서는 **Network Endpoint Group(NEG)** 의 Pod IP:port를 백엔드로 등록한다. 모든 GKE Ingress가 같은 백엔드 방식을 사용하는 것은 아니다.
 
@@ -507,7 +509,7 @@ spec:
     targetPort: 8080
 ```
 
-### 9.3 Azure: Application Gateway Ingress Controller (AGIC)
+### 7.3 Azure: Application Gateway Ingress Controller (AGIC)
 
 Azure에서는 **AGIC** 가 Ingress를 **Azure Application Gateway** 로 변환한다.
 
@@ -559,7 +561,7 @@ spec:
 
 > **참고:** Azure는 차세대 솔루션으로 **Application Gateway for Containers** 를 출시했다. Gateway API를 지원하는 별도 제품이며 AGIC와 설치·기능 조건이 다르다. 제품 선택 시 지원 API와 운영 모델을 확인한다.
 
-### 9.4 클라우드별 Ingress Controller 비교
+### 7.4 클라우드별 Ingress Controller 비교
 
 | 기능 | AWS ALB | GKE GCE | Azure AGIC |
 |------|---------|---------|------------|
@@ -574,7 +576,7 @@ spec:
 
 <a id="12-2026년-현재--ingress-nginx-은퇴와-gateway-api"></a>
 
-## 12. 2026년 현재 — ingress-nginx 은퇴와 Gateway API
+## 8. 2026년 현재 — ingress-nginx 은퇴와 Gateway API
 
 2026-10-23 기준, Kubernetes 커뮤니티의 `ingress-nginx`는 은퇴했고 upstream 저장소는 2026-03-24에 archive되었다. 2025-11-11 공식 발표와 2026-01-29 Steering·Security Response Committee 성명은 이후 upstream 버그 수정·보안 패치가 없음을 안내한다. 기존 배포와 아티팩트가 남아 있어도 지속적인 유지보수를 받는다는 뜻은 아니다.
 
@@ -616,7 +618,7 @@ API는 그 수를 정하지 않는다. 기존 프록시를 공유할 수도, 클
 - [Kubernetes Documentation - Ingress](https://kubernetes.io/docs/concepts/services-networking/ingress/) - 공식 문서
 - [Kubernetes Documentation - Ingress Controllers](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/) - 공식 문서. 유지보수되는 컨트롤러 목록
 
-**ingress-nginx 은퇴 (12절 근거)**
+**ingress-nginx 은퇴 (8절 근거)**
 
 - [Ingress NGINX: Statement from the Kubernetes Steering and Security Response Committees (2026-01-29)](https://kubernetes.io/blog/2026/01/29/ingress-nginx-statement) — **1차 출처.** 2026년 3월 은퇴, 이후 릴리스·버그 수정·보안 패치 없음, 클라우드 네이티브 환경의 약 50%가 사용, 드롭인 대체제 없음, 확인용 `kubectl` 명령
 - [Gateway API](https://gateway-api.sigs.k8s.io/) — 위원회가 지목한 후계 표준. `GatewayClass`/`Gateway`/`HTTPRoute` 역할 분리

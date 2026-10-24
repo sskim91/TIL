@@ -170,7 +170,7 @@ persistentVolumeClaimRetentionPolicy:
 
 이 차이는 앞의 scale-to-zero 종료 절차에서도 중요하다. `whenScaled: Delete`인 환경에서 순차 종료를 위해 replicas를 0으로 줄이면 PVC 삭제까지 유발할 수 있다. 종료 순서를 원했을 뿐인데 저장소를 잃는 결과가 되지 않도록 먼저 정책과 복구 수단을 확인해야 한다.
 
-기존 StatefulSet의 `volumeClaimTemplates`는 자유롭게 수정할 수 있는 필드가 아니다. 이미 생성된 PVC의 용량 변경과 앞으로 생성할 claim template 관리도 별개다. 스토리지 변경은 이전 장의 확장·이동 절차와 연결해서 계획한다.
+기존 StatefulSet의 `volumeClaimTemplates`는 생성 뒤 API가 수정을 거부하는 필드다. 이미 생성된 PVC의 용량 변경과 앞으로 생성할 claim template 관리도 별개다. 스토리지 변경은 이전 장의 확장·이동 절차와 연결해서 계획한다.
 
 ## 6. 심화: 네트워크 단절은 프로세스 종료 증거가 아니다
 

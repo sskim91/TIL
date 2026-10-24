@@ -194,7 +194,7 @@ flowchart LR
 
 ### 3-2. 이것이 선언적 모델의 실체다
 
-[Kubernetes Introduction](Kubernetes-Introduction.md)에서 "쿠버네티스는 선언적(declarative)"이라고 했던 그 말의 정체가 이것이다. 선언적이라는 건 YAML을 쓴다는 문법 이야기가 아니다.
+4장 [오케스트레이션이 필요한 이유](Kubernetes-Why-Orchestration.md#6-세-개를-실행했다보다-세-개가-필요하다를-남긴다)에서 처음 소개한 "선언적(declarative)"이라는 말의 정체가 이것이다. 선언적이라는 건 YAML을 쓴다는 문법 이야기가 아니다.
 
 사용자는 원하는 상태를 선언하고, 컨트롤러는 관찰한 상태를 그 선언에 가깝게 유지한다는 책임 분리가 선언적 API의 핵심이다.
 
@@ -360,7 +360,7 @@ Operator라고 다 같은 수준이 아니다. Operator Framework는 성숙도�
 
 이 표를 읽는 법은 "몇 레벨이 좋다"가 아니다. **오퍼레이터를 도입할 때 "우리가 런북에서 지우고 싶은 항목이 몇 레벨에 있는가"를 확인하는 체크리스트** 로 쓰는 것이다. 설치만 자동화된 Level I 오퍼레이터를 도입하고 "이제 백업도 알아서 되겠지"라고 기대하면 사고가 난다.
 
-> 어떤 Database Operator들이 있는지, 그리고 "StatefulSet을 직접 관리할까 vs Operator를 쓸까"의 판단 기준은 [Kubernetes StatefulSet](Kubernetes-StatefulSet.md)의 12절에서 상세히 다룬다.
+> 어떤 Database Operator들이 있는지, 그리고 "StatefulSet을 직접 관리할까 vs Operator를 쓸까"의 판단 기준은 [Kubernetes StatefulSet의 8절](Kubernetes-StatefulSet.md#8-database-operator가-맡는-별도의-문제)에서 상세히 다룬다.
 
 ---
 

@@ -709,20 +709,28 @@ spec:
 
 ```mermaid
 sequenceDiagram
-    participant Ops as 운영자
-    participant Node as 노드
-    participant PDB as PodDisruptionBudget
-    participant Pod as Pods
+    participant Ops as 운영자<br>kubectl drain node-1
+    participant API as API server<br>Eviction API
+    participant RS as ReplicaSet controller
+    participant K as scheduler·kubelet
 
-    Ops->>Node: kubectl -n bookstore drain node-1
-    Node->>PDB: Pod 3개 중단해도 될까?
-    PDB->>Node: ❌ minAvailable: 2 위반!
-    Note over Node: 1개씩만 중단 허용
-    Node->>Pod: Pod 1개 Evict
-    Pod-->>Pod: 다른 노드에서 재생성
-    Node->>PDB: 이제 1개 더 중단해도 될까?
-    PDB->>Node: ✅ OK (2개 남아있음)
+    Ops->>API: node-1 cordon (새 배치 제외)
+    Ops->>API: Pod A eviction 요청
+    Note over API: PDB minAvailable 2<br>healthy 3 → 1개 중단 허용
+    API-->>Ops: 허용, Pod A 종료 시작
+    Ops->>API: Pod B eviction 요청
+    Note over API: healthy 2 → 추가 중단 불가
+    API-->>Ops: 429 거절, drain이 잠시 뒤 재시도
+    rect rgba(21, 101, 192, 0.15)
+        RS->>API: 부족분을 관찰하고 대체 Pod 생성
+        K->>API: 다른 Node에 배치·실행, Ready 보고
+    end
+    Ops->>API: Pod B eviction 재요청
+    Note over API: healthy 3 → 허용
+    API-->>Ops: 허용, Pod B 종료 시작
 ```
+
+drain은 Node 단위 작업이라 namespace를 지정하지 않는다. PDB 판단은 Eviction API가 하고 대체 Pod는 controller가 만든다.
 
 **EKS/AKS/GKE 공통:** 관리형 Kubernetes에서 노드 업그레이드 시 PDB가 없으면 서비스 중단이 발생할 수 있다. **운영자가 eviction API로 수행하는 유지보수의 가용 수를 제한하려면 PDB를 설계한다. 허용 중단 수가 0이고 대체 용량이 없으면 drain이 막힐 수 있다.**
 
