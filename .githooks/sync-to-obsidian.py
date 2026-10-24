@@ -118,11 +118,17 @@ def scan_wiki() -> dict[str, Path]:
 def get_changed_md_files() -> list[Path]:
     """HEAD 커밋에서 추가·변경된 .md 파일 (삭제된 파일은 제외)."""
     result = subprocess.run(
-        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "HEAD"],
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", "--root", "-z", "HEAD"],
         capture_output=True,
         text=True,
         cwd=TIL_PATH,
     )
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or "git diff-tree 실패")
+    # 그림만 바뀐 커밋도 참조하는 노트에 반영한다. 전체 노트의 병합 가드는 유지.
+    image_suffixes = {".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp"}
+    if any(Path(name).suffix.lower() in image_suffixes for name in result.stdout.split("\0")):
+        return [p for paths in scan_til().values() for p in paths]
     changed = []
     for line in result.stdout.split("\0"):
         if line.endswith(".md"):
@@ -211,10 +217,10 @@ class Backup:
 # 동기화
 # ============================================================
 
-def sync(mode: str, dry_run: bool, verbose: bool) -> None:
+def sync(mode: str, dry_run: bool, verbose: bool, only: list[str] | None = None) -> None:
     try:
         sys.path.insert(0, str(VAULTKIT_PATH))
-        from vaultkit import tilsync
+        from vaultkit import tilsync, tilimages
         from vaultkit.apply import backup_root, new_backup_dir
         from vaultkit.policy import load_policy
         from vaultkit.register import register_note, update_counts
@@ -247,7 +253,12 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
     # APFS는 대소문자를 구분하지 않아, 대소문자만 다른 새 이름으로 만들면 기존 파일을 덮는다
     wiki_folded = {stem.casefold(): path for stem, path in wiki_index.items()}
     backup = Backup(new_backup_dir, backup_root())
-    if mode == "diff":
+    if only:
+        targets = {_nfc(name.removesuffix(".md")) for name in only}
+        unknown = targets - set(til_index)
+        if unknown:
+            raise ValueError(f"TIL에 없는 노트: {', '.join(sorted(unknown))}")
+    elif mode == "diff":
         targets = {_nfc(p.stem) for p in get_changed_md_files()}
     else:
         targets = set(til_index)
@@ -260,6 +271,8 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
     failures: list[tuple[str, str]] = []
     register_skipped: list[str] = []
     registered_any = False
+    image_count = 0
+    image_state_backed_up = False
 
     for stem in sorted(targets):
         paths = til_index.get(stem, [])
@@ -274,6 +287,7 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
         wiki_path = wiki_index.get(stem)
         try:
             gen = tilsync.build_note(src, src.parent.name, policy, mapping)
+            gen.body, images = tilimages.plan(gen.body, src, TIL_PATH, OBSIDIAN_PATH)
             existing = wiki_path.read_text(encoding="utf-8") if wiki_path else None
             decision = tilsync.merge(gen, existing, notes_state.get(stem), today, policy=policy)
         except Exception as exc:
@@ -287,6 +301,15 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
             continue
 
         dest = wiki_path or OBSIDIAN_PATH / src.name
+        if images and decision.action in {"create", "update", "unchanged"} and not dry_run:
+            try:
+                if not image_state_backed_up:
+                    backup.save(SYNC_STATE_PATH)
+                    image_state_backed_up = True
+                image_count += tilimages.copy(images)
+            except (OSError, ValueError) as exc:
+                failures.append((stem, f"이미지 복사 실패: {exc}"))
+                continue
         if decision.text is not None and decision.action in WRITE_ACTIONS and not dry_run:
             try:
                 backup.save(dest)
@@ -326,7 +349,7 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
             failures.append(("MOC 개수", f"갱신 실패: {exc}"))
 
     til_deleted: list[str] = []
-    if mode == "full":
+    if mode == "full" and not only:
         til_deleted = sorted(
             s for s, e in notes_state.items()
             if isinstance(e, dict) and e.get("status") == "synced" and s not in til_index
@@ -339,6 +362,8 @@ def sync(mode: str, dry_run: bool, verbose: bool) -> None:
             failures.append((SYNC_STATE_PATH.name, f"state 저장 실패: {exc}"))
 
     # ---------------- 보고 ----------------
+    if image_count:
+        print(f"  이미지 복사: {image_count}")
     for action in ACTIONS:
         print(f"  {action}: {len(results[action])}")
     if verbose:
@@ -381,9 +406,10 @@ def main():
     parser.add_argument("--diff", action="store_true", help="HEAD 커밋에서 변경된 파일만 동기화 (post-commit용)")
     parser.add_argument("--dry-run", action="store_true", help="판정만 하고 파일·상태를 쓰지 않음")
     parser.add_argument("--verbose", action="store_true", help="생성·갱신한 노트 이름 출력")
+    parser.add_argument("--note", action="append", help="지정한 노트만 동기화 (확장자 생략, 반복 가능)")
     args = parser.parse_args()
 
-    sync("diff" if args.diff else "full", args.dry_run, args.verbose)
+    sync("diff" if args.diff else "full", args.dry_run, args.verbose, args.note)
 
 
 if __name__ == "__main__":
