@@ -183,7 +183,7 @@ webhooks:
 |------|-------------|--------|
 | `rules` | 어떤 apiGroup·apiVersion·resource·operation·scope에 반응할지 | 없음(필수) |
 | `clientConfig` | 호출 대상 — 클러스터 안 `service` 또는 외부 `url` | 없음(필수) |
-| `caBundle` | API 서버가 웹훅 서버의 TLS 인증서를 검증할 CA | 없음 |
+| `caBundle` | API 서버가 웹훅 서버의 TLS 인증서를 검증할 CA | 생략하면 API 서버의 system trust roots |
 | `namespaceSelector` | **네임스페이스 라벨** 로 대상 좁히기 | 전체 |
 | `objectSelector` | **오브젝트 라벨** 로 대상 좁히기 | 전체 |
 | `failurePolicy` | 웹훅을 **호출할 수 없을 때** 요청을 통과시킬지 거부할지 | **`Fail`** |
@@ -278,7 +278,7 @@ Deployment 생성 요청이 먼저 admission을 통과해 저장된다. Deployme
 
 ### 3-4. 웹훅은 반드시 HTTPS다 — caBundle과 인증서 만료 장애
 
-`clientConfig`에 `caBundle`이 있는 이유를 짚어야 한다. API 서버가 웹훅을 호출한다는 것은 **rules·selector 등에 매칭된 쓰기 요청 내용을 그 서버에 넘긴다** 는 뜻이다. 중간에 누가 가로채거나 웹훅 서버를 사칭하면 클러스터 전체가 조작된다. 그래서 웹훅 호출은 HTTPS만 허용되고, API 서버가 그 인증서를 검증할 CA를 `caBundle`(PEM을 base64로 담은 필드)로 미리 알려줘야 한다. `clientConfig.service`를 쓸 때는 서버 인증서가 `<svc_name>.<svc_namespace>.svc`에 대해 유효해야 한다.
+`clientConfig`에 `caBundle`이 있는 이유를 짚어야 한다. API 서버가 웹훅을 호출한다는 것은 **rules·selector 등에 매칭된 쓰기 요청 내용을 그 서버에 넘긴다** 는 뜻이다. 중간에 누가 가로채거나 웹훅 서버를 사칭하면 클러스터 전체가 조작된다. 그래서 웹훅 호출은 HTTPS만 허용되고, API 서버는 웹훅 서버의 인증서를 검증한다. `caBundle`(PEM을 base64로 담은 필드)은 그 검증에 쓸 CA를 지정하는 선택 필드다. 생략하면 API 서버의 system trust roots로 검증하므로, 사설 CA나 자체 서명 CA로 발급한 인증서라면 `caBundle`로 그 CA를 알려줘야 한다. 공인 CA는 `.svc` 같은 클러스터 내부 이름으로 인증서를 발급하지 않으므로, 클러스터 안 Service로 호출하는 웹훅은 보통 이 경우다. `clientConfig.service`를 쓸 때는 서버 인증서가 `<svc_name>.<svc_namespace>.svc`에 대해 유효해야 한다.
 
 문제는 이 인증서를 누가 관리하느냐다. 손으로 발급하면 만료일에 장애가 예약된다. 그래서 실무 표준은 **cert-manager** 같은 도구에 맡기는 것이다. cert-manager의 `cainjector`는 `ValidatingWebhookConfiguration` · `MutatingWebhookConfiguration` · `CustomResourceDefinition` · `APIService`의 `caBundle` 필드를 채워주며, 웹훅 설정에 `cert-manager.io/inject-ca-from: <namespace>/<certificate>` 애노테이션만 붙이면 CA 데이터가 자동으로 주입된다.
 
@@ -443,7 +443,7 @@ spec:
 
 그래서 정책 엔진에도 4절의 함정이 **그대로** 적용된다. Kyverno 문서가 직접 경고하는 시나리오가 정확히 그것이다 — 정책을 fail-closed로 설정한 상태에서 클러스터 장애가 나면 Kyverno Pod가 뜨지 못하고, 웹훅 설정 조정·제거 같은 비상 조치가 필요할 수 있다. 서버 복구와 정책 복원 경로를 함께 마련해야 한다. 정책 엔진을 쓴다고 웹훅의 운영 부담이 사라지는 게 아니라, 남이 만든 웹훅을 운영하게 되는 것이다.
 
-이 구조를 알면 공급망 보안이 왜 admission에 걸리는지도 보인다. [Helm과 Harbor를 왜 같이 써야 하는가](Helm과-Harbor를-왜-같이-써야-하는가.md)에서 다룬 이미지 서명 검증이 그 예다. "서명되지 않은 이미지를 쓰는 Pod를 거부한다"는 규칙은 레지스트리에 서명을 조회해야 하니 CEL로는 표현할 수 없다 — 즉 5-2절 표의 "외부 API 호출이 필요한 판단"에 해당하고, 그래서 정책 엔진의 **admission webhook에서 정책에 따라 검증한다.** 이 책의 Kyverno ClusterPolicy 이미지 검증은 [공식 실행 단계 설명](https://kyverno.io/docs/policy-types/cluster-policy/verify-images/overview/)처럼 mutation webhook 단계에서도 수행된다. 해당 요청이 정책에 매칭되어 거부되면 서명 없는 이미지의 Pod는 **애초에 etcd에 들어오지 못한다.**
+이 구조를 알면 공급망 보안이 왜 admission에 걸리는지도 보인다. [Helm과 Harbor를 왜 같이 써야 하는가](Helm과-Harbor를-왜-같이-써야-하는가.md)에서 다룬 이미지 서명 검증이 그 예다. "서명되지 않은 이미지를 쓰는 Pod를 거부한다"는 규칙은 레지스트리에 서명을 조회해야 하니 CEL로는 표현할 수 없다 — 즉 5-2절 표의 "외부 API 호출이 필요한 판단"에 해당하고, 그래서 정책 엔진의 **admission webhook에서 정책에 따라 검증한다.** Kyverno의 기존 `ClusterPolicy` `verifyImages` 규칙은 [공식 실행 단계 설명](https://kyverno.io/docs/policy-types/cluster-policy/verify-images/overview/)처럼 mutation webhook 단계에서도 수행된다. 다만 2026-10-24 확인 기준 `ClusterPolicy`와 `Policy`는 Kyverno v1.19(2026-08-20)에서 deprecated되었고 v1.20에서 제거될 예정이다. 이미지 검증의 대체 정책 타입은 `ImageValidatingPolicy`이며, 새 정책 타입이 어느 webhook 단계에서 동작하는지는 이 설명을 그대로 적용하지 말고 해당 문서에서 확인한다. 해당 요청이 정책에 매칭되어 거부되면 서명 없는 이미지의 Pod는 **애초에 etcd에 들어오지 못한다.**
 
 CRD로 만든 커스텀 리소스를 검증할 때도 같은 웹훅 메커니즘이 쓰인다. 다만 공식 문서는 CRD의 경우 웹훅보다 **내장 검증·기본값 기능(OpenAPI 스키마, CEL validation rules)을 먼저 쓰라** 고 권한다. CRD와 컨트롤러 쪽 상세는 [쿠버네티스는 어떻게 자기 자신을 확장할까 — CRD와 컨트롤러 그리고 Operator](Kubernetes-CRD-Controller-Operator.md)에 있다.
 
@@ -558,5 +558,6 @@ Deployment 저장은 성공했는데 Pod가 하나도 없다면 ReplicaSet의 Ev
 - [cert-manager — CA Injector](https://cert-manager.io/docs/concepts/ca-injector/) — `cert-manager.io/inject-ca-from` 애노테이션으로 `caBundle` 자동 주입
 - [Kyverno — Kubernetes Admission Controllers](https://kyverno.io/docs/guides/admission-controllers/) — mutating은 순차·validating은 병렬 호출
 - [Kyverno — Installation / Troubleshooting](https://kyverno.io/docs/installation/) — 정책 엔진이 만드는 웹훅 설정, 웹훅 설정 오브젝트는 admission controller에 전달되지 않는다는 점, 교착 복구 절차
+- [Kyverno 1.19 발표](https://kyverno.io/blog/2026/08/20/announcing-kyverno-release-1.19/) — `ClusterPolicy`·`Policy` deprecated(v1.20 제거 예정), `verifyImages` → `ImageValidatingPolicy`, 2026-10-24 확인
 
 - [Manifest-Based Admission Control | Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/manifest-admission-control/) — v1.37 Beta·기본 활성 gate, `staticManifestsDir`, API로 보이지 않는 정적 설정과 설정 보호, 2026-10-24 확인

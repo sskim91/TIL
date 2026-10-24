@@ -624,7 +624,7 @@ The Deployment "order-api" is invalid: spec.selector: Invalid value: ... field i
 
 **왜 immutable인가?**
 
-selector가 변경되면 기존의 모든 ReplicaSet과 Pod가 **고아(orphan)** 가 된다. 실행 중인 관리 집합의 경계가 바뀌어 소유 관계와 교체가 복잡해진다. 안정적인 workload identity를 위해 생성 시 selector를 정하며, 단순한 버전 표시는 selector 대신 템플릿의 다른 label로 표현한다.
+selector를 바꿀 수 있다면 결과가 변경 방향에 따라 갈린다. 조건을 더하거나 값을 바꾸면 새 selector가 기존 Pod를 고르지 못해, 옛 ReplicaSet은 Deployment와의 소유 관계를 잃은 **고아(orphan)** 가 되고 새 ReplicaSet이 따로 만들어진다. 조건을 빼면 기존 Pod도 계속 선택되므로 고아는 생기지 않지만, 지운 label은 기존 Pod와 ReplicaSet에 남는다. selector를 바꾸려고 Deployment를 `--cascade=orphan`으로 지우고 다시 만들 때도 같은 갈림이 생긴다. 안정적인 workload identity를 위해 생성 시 selector를 정하며, 단순한 버전 표시는 selector 대신 템플릿의 다른 label로 표현한다.
 
 **selector를 바꿔야 한다면?**
 

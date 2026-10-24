@@ -309,11 +309,11 @@ RoleBinding 생성은 이미 실행 중인 Pod의 신원을 바꾸지 않는다.
 | Role 쪽 | Binding 쪽 | 실제 적용 범위 | 언제 쓰나 |
 |---------|-----------|----------------|-----------|
 | `Role` | `RoleBinding` | 그 네임스페이스 안 | 한 네임스페이스에서만 쓰는 일회성 권한 |
-| **`ClusterRole`** | **`RoleBinding`** | **namespaced resource 규칙만 Binding의 네임스페이스 안** | **권한 정의를 클러스터에 한 번 만들고 네임스페이스별로 재사용** |
+| **`ClusterRole`** | **`RoleBinding`** | **namespaced resource 규칙만 Binding의 네임스페이스 안** (Namespace 오브젝트 예외는 아래) | **권한 정의를 클러스터에 한 번 만들고 네임스페이스별로 재사용** |
 | `ClusterRole` | `ClusterRoleBinding` | 클러스터 전체 (모든 네임스페이스 + 클러스터 범위 리소스) | 노드·PV 같은 클러스터 리소스, 전 네임스페이스 감시 |
 | `Role` | `ClusterRoleBinding` | **불가능** | — (Role은 네임스페이스 리소스라 클러스터 범위로 승격되지 않는다) |
 
-두 번째 줄이 처음 배울 때 가장 안 보이는 조합이다. **ClusterRole은 "클러스터 전체에 권한을 준다"는 뜻이 아니다.** 그냥 "네임스페이스에 속하지 않는 권한 **정의**"일 뿐이다. 이 정의를 `RoleBinding`으로 연결하면, **namespaced resource 규칙만 그 RoleBinding의 네임스페이스에** 적용된다. Node·PV 같은 cluster-scoped resource 규칙은 이 Binding으로 부여되지 않으며, namespace 권한으로 변환되는 것도 아니다.
+두 번째 줄이 처음 배울 때 가장 안 보이는 조합이다. **ClusterRole은 "클러스터 전체에 권한을 준다"는 뜻이 아니다.** 그냥 "네임스페이스에 속하지 않는 권한 **정의**"일 뿐이다. 이 정의를 `RoleBinding`으로 연결하면, **namespaced resource 규칙만 그 RoleBinding의 네임스페이스에** 적용된다. Node·PV 같은 cluster-scoped resource 규칙은 이 Binding으로 부여되지 않으며, namespace 권한으로 변환되는 것도 아니다. 예외는 그 Namespace 오브젝트 자체다. 공식 문서는 `cluster-admin`을 RoleBinding으로 주면 그 네임스페이스의 모든 리소스를 "네임스페이스 자체를 포함해" 완전히 제어한다고 설명한다. Namespace는 cluster-scoped 리소스지만, 이 경우 해당 Namespace를 수정하거나 삭제할 권한까지 생긴다. 반면 기본 `admin` 역할은 Namespace 자체에 대한 쓰기를 허용하지 않는다.
 
 ```yaml
 # 권한 정의는 클러스터에 딱 한 번 (네임스페이스 없음)
@@ -552,7 +552,7 @@ Groups      [system:serviceaccounts system:serviceaccounts:bookstore system:auth
 
 | ClusterRole | 기본 바인딩 | 무엇을 허용하나 |
 |-------------|-------------|-----------------|
-| `cluster-admin` | `system:masters` 그룹 | 모든 리소스에 모든 동작. `RoleBinding`으로 주면 해당 namespace 안의 namespaced 리소스 |
+| `cluster-admin` | `system:masters` 그룹 | 모든 리소스에 모든 동작. `RoleBinding`으로 주면 해당 namespace 안의 리소스와 그 Namespace 자체 |
 | `admin` | 없음 | `RoleBinding`으로 네임스페이스에 부여하는 용도. 그 네임스페이스 대부분 리소스 읽기·쓰기 + **Role·RoleBinding 생성 가능**. ResourceQuota와 네임스페이스 자체에는 쓰기 불가 |
 | `edit` | 없음 | 대부분 리소스 읽기·쓰기. Role·RoleBinding은 보거나 수정 못 함. **단 Secret 접근과 "그 네임스페이스의 아무 SA로 Pod 실행"이 가능** → 사실상 그 네임스페이스 모든 SA의 권한을 얻을 수 있다 |
 | `view` | 없음 | 대부분 리소스 읽기 전용. Role·RoleBinding은 못 봄. **Secret도 못 봄** — Secret을 읽으면 SA 자격증명을 얻어 권한 상승이 되기 때문 |
@@ -595,7 +595,7 @@ Secret 읽기는 단순한 메타데이터 조회가 아니다. 앱 비밀번호
    - v1.22부터 TokenRequest API + projected volume 방식이 기본이다. 기본 요청 수명 1시간, kubelet이 수명의 80% 또는 24시간 중 먼저 오는 시점부터 갱신하며, audience와 특정 Pod에 바인딩된다. 만료 없는 Secret 자동 생성은 v1.24부터 기본 중단되고, v1.26 GA 이후 v1.29에 게이트가 제거됐다. **손으로 만든 장수명 토큰은 여전히 만료가 없고 회수 수단이 삭제뿐이다.**
 
 3. **RBAC은 권한 정의와 Binding의 조합으로 범위를 정한다**
-   - `ClusterRole` + `RoleBinding`은 namespaced resource 규칙을 네임스페이스별로 재사용한다. cluster-scoped 규칙까지 부여하는 조합은 아니다. `ClusterRoleBinding`은 반대로 네임스페이스를 무시한다.
+   - `ClusterRole` + `RoleBinding`은 namespaced resource 규칙을 네임스페이스별로 재사용한다. cluster-scoped 규칙까지 부여하는 조합은 아니다. 단, `cluster-admin`을 RoleBinding으로 주면 그 Namespace 자체도 제어할 수 있다. `ClusterRoleBinding`은 반대로 네임스페이스를 무시한다.
 
 4. **deny가 없다는 것은 "좁히려면 지워야 한다"는 뜻이다**
    - RBAC은 순수 가산적이라 넓게 준 권한에서 일부만 뺄 수 없다. 실제 사용은 감사 로그로, 현재 허용 범위는 `kubectl auth can-i --list`로 확인한다. 두 증거를 혼동하지 않는다.
